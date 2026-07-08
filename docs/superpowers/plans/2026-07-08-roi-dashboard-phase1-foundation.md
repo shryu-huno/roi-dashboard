@@ -276,37 +276,36 @@ git commit -m "feat: add design tokens and base theme"
   - enums: `Role{ADMIN,SETTLEMENT,PM}`, `UserStatus{PENDING,ACTIVE,INACTIVE}`, `TaskSource{MANUAL,PDF}`, `ExpenseCategory{CORPORATE_CARD,PERSONAL_CARD,COUNSELING_FEE,INSTRUCTOR_FEE,PROMOTION,ETC}`.
   - 후속 태스크는 이 모델·필드명(`pmId`, `clientId`, `taskId`, `unitPrice`, `contractAmount`, `year`, `month`, `count`, `amount` 등)을 그대로 사용한다.
 
-- [ ] **Step 1: PostgreSQL 앱 역할·DB 생성**
+- [ ] **Step 1: PostgreSQL 앱 역할·DB (이미 생성됨 — 검증만)**
 
-로컬에 PostgreSQL 16이 네이티브 설치되어 있고 서비스가 기동 중이라고 가정한다(설치·기동은 이 계획 실행 전 완료됨). 슈퍼유저 `postgres`로 접속해 앱용 역할·DB를 생성한다(슈퍼유저는 RLS를 우회하므로 앱은 절대 이 계정으로 접속하지 않는다).
+환경 준비 단계에서 **이미 완료**되었다. 이 머신에서는 포터블 PostgreSQL 16.8 클러스터가 **포트 5433**에서 실행 중이며(기본 5432는 다른 설치가 점유), 다음이 생성되어 있다:
+- 역할 `roi_app`: `LOGIN`, 비밀번호 `roi_app_pw`, **NOSUPERUSER, CREATEDB, NOBYPASSRLS**. (CREATEDB는 `prisma migrate dev`의 shadow DB 생성에 필요. RLS 우회와 무관 — 우회 차단은 NOSUPERUSER+NOBYPASSRLS가 담당.)
+- DB `roi`, `roi_test`: 소유자 `roi_app`.
+- 인증: 로컬 `trust` (dev 전용).
 
-Windows PowerShell 기준(psql 경로·`postgres` 비밀번호는 설치 시 설정값):
-```powershell
-$env:PGPASSWORD = "<postgres 슈퍼유저 비밀번호>"
-$psql = "C:\Program Files\PostgreSQL\16\bin\psql.exe"
-& $psql -U postgres -h localhost -v ON_ERROR_STOP=1 -c "CREATE ROLE roi_app WITH LOGIN PASSWORD 'roi_app_pw' NOSUPERUSER NOCREATEDB NOBYPASSRLS;"
-& $psql -U postgres -h localhost -v ON_ERROR_STOP=1 -c "CREATE DATABASE roi OWNER roi_app;"
-& $psql -U postgres -h localhost -v ON_ERROR_STOP=1 -c "CREATE DATABASE roi_test OWNER roi_app;"
-```
-> 검증: `& $psql -U roi_app -h localhost -d roi -c "select current_user;"` 가 `roi_app`을 반환해야 한다(비밀번호 `roi_app_pw`).
+psql 경로: `C:\dev\pgsql\bin\psql.exe`. 서버 재시작이 필요하면: `C:\dev\pgsql\bin\pg_ctl.exe -D C:\dev\pgdata -o "-p 5433" start`.
+
+> 검증(그대로 실행): `& "C:\dev\pgsql\bin\psql.exe" -U roi_app -h localhost -p 5433 -d roi -c "select current_user, current_database();"` → `roi_app | roi` 반환.
 
 - [ ] **Step 2: Prisma 설치 및 초기화**
 
 ```bash
-npm install -D prisma
-npm install @prisma/client
+npm install -D prisma@^6
+npm install @prisma/client@^6
 npx prisma init --datasource-provider postgresql
 ```
-이후 `.env`(로컬 실개발)와 `.env.test`(테스트)에 `DATABASE_URL`을 `roi_app` 역할로 설정:
+> Prisma는 **6.x로 고정**한다. Prisma 7은 새 `prisma-client` 제너레이터(ESM, `src/generated/prisma`로 출력)와 드라이버 어댑터 등 파괴적 변경이 있어 본 계획(및 Task 4의 `$transaction`+`$executeRaw` RLS 패턴, `import { PrismaClient } from "@prisma/client"`)과 어긋난다. Prisma 7이 생성한 `prisma.config.ts`와 `.gitignore`의 `/src/generated/prisma` 항목이 있으면 제거하고, 스키마의 `generator client { provider = "prisma-client-js" }`(클래식 `@prisma/client` 출력)를 사용한다. v6는 config 파일 없이 `.env`를 자동 로드한다.
+이후 `.env`(로컬 실개발)와 `.env.test`(테스트)에 `DATABASE_URL`을 `roi_app` 역할·**포트 5433**으로 설정:
 ```bash
 # .env
-DATABASE_URL="postgresql://roi_app:roi_app_pw@localhost:5432/roi?schema=public"
+DATABASE_URL="postgresql://roi_app:roi_app_pw@localhost:5433/roi?schema=public"
 ```
 Create `.env.test`:
 ```bash
-DATABASE_URL="postgresql://roi_app:roi_app_pw@localhost:5432/roi_test?schema=public"
+DATABASE_URL="postgresql://roi_app:roi_app_pw@localhost:5433/roi_test?schema=public"
 ALLOWED_EMAIL_DOMAIN="huno.kr"
 ```
+> 주의: `prisma init`이 덮어쓴 `.env`의 기본 `DATABASE_URL`을 위 값(포트 5433)으로 교체할 것. 포트는 5432가 아니라 **5433**이다.
 
 - [ ] **Step 2b: schema.prisma의 관계 무결성 강제 옵션 설정**
 
