@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SETTLEMENT
+  PM
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+enum TaskSource {
+  MANUAL
+  PDF
+}
+
+enum ExpenseCategory {
+  CORPORATE_CARD
+  PERSONAL_CARD
+  COUNSELING_FEE
+  INSTRUCTOR_FEE
+  PROMOTION
+  ETC
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  image     String?
+  role      Role?
+  status    UserStatus @default(PENDING)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  managedClients Client[] @relation("ClientPM")
+  accounts  Account[]
+  sessions  Session[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model Client {
+  id           String   @id @default(cuid())
+  name         String
+  status       String   @default("진행중")
+  contractStart DateTime?
+  contractEnd   DateTime?
+  pmId         String?
+  pm           User?    @relation("ClientPM", fields: [pmId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tasks        Task[]
+  billings     MonthlyBilling[]
+  deposits     MonthlyDeposit[]
+  expenses     Expense[]
+
+  @@index([pmId])
+}
+
+model Task {
+  id             String     @id @default(cuid())
+  clientId       String
+  client         Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name           String
+  unitPrice      Int
+  contractAmount Int?
+  source         TaskSource @default(MANUAL)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  performances   MonthlyPerformance[]
+
+  @@index([clientId])
+}
+
+model MonthlyPerformance {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int
+  count     Int
+  amount    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([taskId, year, month])
+  @@index([year, month])
+}
+
+model MonthlyBilling {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int
+  amount    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, year, month])
+  @@index([year, month])
+}
+
+model MonthlyDeposit {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int
+  amount    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, year, month])
+  @@index([year, month])
+}
+
+model Expense {
+  id        String          @id @default(cuid())
+  clientId  String
+  client    Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int
+  category  ExpenseCategory
+  amount    Int
+  memo      String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([clientId, year, month])
+}
+
+// --- Auth.js (NextAuth) 어댑터 모델 ---
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
