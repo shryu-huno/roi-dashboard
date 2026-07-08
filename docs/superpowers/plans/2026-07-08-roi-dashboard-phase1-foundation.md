@@ -754,19 +754,27 @@ export function withRLS<T>(
 - [ ] **Step 5: RLS 테스트 작성 (실패 확인용)**
 
 Create `test/rls.test.ts`:
+
+> 중요: `FORCE ROW LEVEL SECURITY`는 테이블 소유자(`roi_app`)에게도 적용된다. 따라서 세션 컨텍스트 없이 bare `prisma.client.create/deleteMany`를 호출하면 정책(USING/WITH CHECK)이 거짓으로 평가되어 **쓰기·삭제가 차단**된다. 시드·정리는 정책을 무조건 통과하는 **ADMIN 컨텍스트(`withRLS`)** 안에서 수행한다. `User`는 RLS 미적용이라 bare로 시드해도 된다.
+
 ```ts
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 
+// ADMIN 컨텍스트: 정책상 모든 행 접근 허용 → 시드/정리에 사용.
+const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
+
 async function reset() {
-  await prisma.expense.deleteMany();
-  await prisma.monthlyDeposit.deleteMany();
-  await prisma.monthlyBilling.deleteMany();
-  await prisma.monthlyPerformance.deleteMany();
-  await prisma.task.deleteMany();
-  await prisma.client.deleteMany();
-  await prisma.user.deleteMany();
+  await withRLS(ADMIN, async (tx) => {
+    await tx.expense.deleteMany();
+    await tx.monthlyDeposit.deleteMany();
+    await tx.monthlyBilling.deleteMany();
+    await tx.monthlyPerformance.deleteMany();
+    await tx.task.deleteMany();
+    await tx.client.deleteMany();
+  });
+  await prisma.user.deleteMany(); // User는 RLS 미적용
 }
 
 describe("RLS: PM sees only own clients", () => {
@@ -774,6 +782,7 @@ describe("RLS: PM sees only own clients", () => {
   let pmB: string;
   let clientA: string;
   let clientB: string;
+  let taskA: string;
 
   beforeEach(async () => {
     await reset();
@@ -781,13 +790,22 @@ describe("RLS: PM sees only own clients", () => {
     const b = await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } });
     pmA = a.id;
     pmB = b.id;
-    clientA = (await prisma.client.create({ data: { name: "A사", pmId: pmA } })).id;
-    clientB = (await prisma.client.create({ data: { name: "B사", pmId: pmB } })).id;
+    await withRLS(ADMIN, async (tx) => {
+      clientA = (await tx.client.create({ data: { name: "A사", pmId: pmA } })).id;
+      clientB = (await tx.client.create({ data: { name: "B사", pmId: pmB } })).id;
+      taskA = (await tx.task.create({ data: { clientId: clientA, name: "심리진단", unitPrice: 10000 } })).id;
+      await tx.task.create({ data: { clientId: clientB, name: "전문가상담", unitPrice: 20000 } });
+    });
   });
 
   it("PM A reads only client A", async () => {
     const rows = await withRLS({ userId: pmA, role: "PM" }, (tx) => tx.client.findMany());
     expect(rows.map((r) => r.id)).toEqual([clientA]);
+  });
+
+  it("PM A reads only tasks under client A (child-table policy)", async () => {
+    const rows = await withRLS({ userId: pmA, role: "PM" }, (tx) => tx.task.findMany());
+    expect(rows.map((r) => r.id)).toEqual([taskA]);
   });
 
   it("ADMIN reads all clients", async () => {
@@ -807,7 +825,7 @@ describe("RLS: PM sees only own clients", () => {
 - [ ] **Step 6: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- rls`
-Expected: PASS (3 passed). 만약 ADMIN 케이스가 실패하고 PM 케이스도 전부 통과하면, 앱이 슈퍼유저로 접속 중일 가능성 → `.env.test`의 `DATABASE_URL`이 `roi_app` 인지 확인.
+Expected: PASS (4 passed). 만약 ADMIN 케이스가 실패하고 PM 케이스도 전부 통과하면, 앱이 슈퍼유저로 접속 중일 가능성 → `.env.test`의 `DATABASE_URL`이 `roi_app` 인지 확인. 만약 시드(`beforeEach`)에서 `new row violates row-level security policy` 오류가 나면 `FORCE` RLS가 적용된 것이므로 시드가 ADMIN 컨텍스트 안에 있는지 확인.
 
 - [ ] **Step 7: 커밋**
 
