@@ -11,6 +11,7 @@ describe("design tokens", () => {
     expect(tokens.color.border).toBe("#E8EDF4");
     expect(tokens.color.success).toBe("#10B981");
     expect(tokens.color.danger).toBe("#F43F5E");
+    expect(tokens.color.sidebar).toBe("#0F172A");
     expect(tokens.radius.card).toBe("14px");
   });
 });
