@@ -59,4 +59,32 @@ describe("RLS: PM sees only own clients", () => {
     );
     expect(result.count).toBe(0);
   });
+
+  it("PM A cannot create a client attributed to PM B (WITH CHECK)", async () => {
+    await expect(
+      withRLS({ userId: pmA, role: "PM" }, (tx) =>
+        tx.client.create({ data: { name: "탈취시도", pmId: pmB } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
+  });
+
+  it("PM A cannot create a task under PM B's client (child-table WITH CHECK)", async () => {
+    await expect(
+      withRLS({ userId: pmA, role: "PM" }, (tx) =>
+        tx.task.create({ data: { clientId: clientB, name: "탈취과업", unitPrice: 1000 } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
+  });
+
+  it("PM A CAN create a client for themselves (WITH CHECK positive control)", async () => {
+    const created = await withRLS({ userId: pmA, role: "PM" }, (tx) =>
+      tx.client.create({ data: { name: "본인고객사", pmId: pmA } }),
+    );
+    expect(created.pmId).toBe(pmA);
+  });
+
+  it("SETTLEMENT reads all clients", async () => {
+    const rows = await withRLS({ userId: "settle", role: "SETTLEMENT" }, (tx) => tx.client.findMany());
+    expect(rows.length).toBe(2);
+  });
 });
