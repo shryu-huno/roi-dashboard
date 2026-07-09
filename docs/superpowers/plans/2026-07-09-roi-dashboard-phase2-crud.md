@@ -1838,7 +1838,7 @@ git commit -m "feat: add performance input screen with per-task count grid"
   - `saveExpense(prev: ActionState, formData: FormData): Promise<ActionState>` — 단일 분류 upsert.
   - 고객사+연월 선택 → 13종 분류별 금액·메모 입력.
 
-- [ ] **Step 1: 지출 액션 작성**
+- [x] **Step 1: 지출 액션 작성**
 
 Create `src/app/(app)/expenses/actions.ts`:
 ```ts
@@ -1869,7 +1869,7 @@ export async function saveExpense(_prev: ActionState, formData: FormData): Promi
 }
 ```
 
-- [ ] **Step 2: 지출 폼(클라이언트 컴포넌트) 작성**
+- [x] **Step 2: 지출 폼(클라이언트 컴포넌트) 작성**
 
 Create `src/app/(app)/expenses/ExpenseForm.tsx`:
 ```tsx
@@ -1927,7 +1927,7 @@ export function ExpenseForm({
 }
 ```
 
-- [ ] **Step 3: 지출 페이지 작성**
+- [x] **Step 3: 지출 페이지 작성**
 
 Create `src/app/(app)/expenses/page.tsx`:
 ```tsx
@@ -1992,7 +1992,7 @@ export default async function ExpensesPage({
 }
 ```
 
-- [ ] **Step 4: 빌드 확인 및 커밋**
+- [x] **Step 4: 빌드 확인 및 커밋**
 
 ```bash
 npm run build
