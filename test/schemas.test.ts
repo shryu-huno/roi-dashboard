@@ -40,6 +40,11 @@ describe("expenseSchema", () => {
   it("rejects negative amount", () => {
     expect(expenseSchema.safeParse({ clientId: "c1", year: 2026, month: 3, category: "OPS_FOOD", amount: -1 }).success).toBe(false);
   });
+  it("strips thousands separators from amount", () => {
+    const r = expenseSchema.safeParse({ clientId: "c1", year: 2026, month: 3, category: "OPS_FOOD", amount: "50,000" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.amount).toBe(50000);
+  });
 });
 
 describe("billingSchema (null vs 0)", () => {
@@ -52,6 +57,11 @@ describe("billingSchema (null vs 0)", () => {
     const r = billingSchema.safeParse({ clientId: "c1", year: 2026, month: 3, amount: "0" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.amount).toBe(0);
+  });
+  it("strips thousands separators from amount", () => {
+    const r = billingSchema.safeParse({ clientId: "c1", year: 2026, month: 3, amount: "1,000,000" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.amount).toBe(1000000);
   });
   it("rejects negative amount", () => {
     expect(billingSchema.safeParse({ clientId: "c1", year: 2026, month: 3, amount: -5 }).success).toBe(false);
