@@ -131,6 +131,7 @@ Plan 1 위에 3층을 얹는다.
 
 ### 불변식·검증 규칙 (데이터 계층에서 강제)
 - `amount`는 **항상 서버가 `단가×횟수`로 계산**해 저장. 클라이언트가 보낸 금액은 무시.
+- **계약금도 `단가 × 계약횟수`로 서버 파생**: 과업 설정에서 계약금은 직접 금액이 아니라 `contractCount`(계약 횟수)로 입력하고, 서버가 `contractAmount = unitPrice × contractCount`로 계산해 저장한다(`contractCount`가 null이면 계약금도 null). 실적 `amount` 파생과 동일한 규칙. *(구현 중 반영된 결정 — 최초 설계의 "계약금 직접 입력"을 대체. `createTask`/`updateTask`의 입력은 `contractAmount`가 아니라 `contractCount`.)*
 - `count ≥ 0`, `amount ≥ 0`, 청구·입금·지출 금액 `≥ 0` (정수, 원 단위, 부가세 포함).
 - `month ∈ 1..12`, `year ∈ 2000..2100`.
 - **없음(null) vs 0**: 계약금·청구액·입금액은 입력칸을 비우면 `null`(미입력), `0`을 넣으면 `0`. 실적 횟수 미입력 행은 저장하지 않음(레코드 없음 = 미입력).
