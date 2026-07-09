@@ -35,12 +35,14 @@ export async function updateClient(ctx: RlsContext, id: string, input: ClientInp
   const result = await withRLS(ctx, (tx) =>
     tx.client.updateMany({
       where: { id },
+      // patch 의미: undefined 필드는 건드리지 않고(스킵), null은 명시적 클리어.
+      // zod clientSchema가 빈칸→null(클리어), 미포함→undefined(스킵)로 매핑하는 것과 정합.
       data: {
         name: input.name,
         status: input.status,
-        contractStart: input.contractStart ?? null,
-        contractEnd: input.contractEnd ?? null,
-        pmId: input.pmId ?? null,
+        contractStart: input.contractStart,
+        contractEnd: input.contractEnd,
+        pmId: input.pmId,
       },
     }),
   );

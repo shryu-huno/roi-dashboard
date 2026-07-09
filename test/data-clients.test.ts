@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { listClients, createClient, updateClient } from "@/lib/data/clients";
+import { listClients, getClient, createClient, updateClient } from "@/lib/data/clients";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -41,5 +41,27 @@ describe("clients data layer", () => {
     expect(res.ok).toBe(false);
     const still = await withRLS(ADMIN, (tx) => tx.client.findUnique({ where: { id: b.id } }));
     expect(still?.name).toBe("B사");
+  });
+
+  it("getClient returns the client by id for ADMIN", async () => {
+    const c = await createClient(ADMIN, { name: "A사", pmId: pmA });
+    const found = await getClient(ADMIN, c.id);
+    expect(found?.name).toBe("A사");
+  });
+
+  it("PM cannot getClient another PM's client (RLS → null)", async () => {
+    const b = await createClient(ADMIN, { name: "B사", pmId: pmB });
+    const found = await getClient({ userId: pmA, role: "PM" }, b.id);
+    expect(found).toBeNull();
+  });
+
+  it("updateClient patches only provided fields, preserving unset ones", async () => {
+    const start = new Date("2026-01-01T00:00:00.000Z");
+    const c = await createClient(ADMIN, { name: "A사", pmId: pmA, contractStart: start });
+    const res = await updateClient(ADMIN, c.id, { name: "새이름" });
+    expect(res.ok).toBe(true);
+    const found = await getClient(ADMIN, c.id);
+    expect(found?.name).toBe("새이름");
+    expect(found?.contractStart?.toISOString()).toBe(start.toISOString());
   });
 });
