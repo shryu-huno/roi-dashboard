@@ -568,7 +568,7 @@ git commit -m "feat: add clients data layer with RLS-enforced CRUD"
   - `deleteTask(ctx, id): Promise<ActionState>`
   - `type TaskInput = { clientId: string; name: string; unitPrice: number; contractAmount?: number | null }`
 
-- [ ] **Step 1: 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 테스트 작성 (실패 확인용)**
 
 Create `test/data-tasks.test.ts`:
 ```ts
@@ -632,14 +632,14 @@ describe("tasks data layer", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 npm run test -- data-tasks
 ```
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/data/tasks.ts`:
 ```ts
@@ -688,14 +688,14 @@ export async function deleteTask(ctx: RlsContext, id: string): Promise<ActionSta
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 npm run test -- data-tasks
 ```
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/tasks.ts test/data-tasks.test.ts
