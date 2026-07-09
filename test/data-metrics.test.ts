@@ -6,7 +6,7 @@ import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
-import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown } from "@/lib/data/metrics";
+import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries } from "@/lib/data/metrics";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -91,5 +91,41 @@ describe("metrics: trend & expense breakdown", () => {
     const byCat = Object.fromEntries(slices.map((s) => [s.category, s.amount]));
     expect(byCat["OPS_FOOD"]).toBe(5000);
     expect(byCat["OPS_TRANSPORT"]).toBe(3000);
+  });
+});
+
+describe("metrics: client & PM summaries", () => {
+  let pmA: string, pmB: string, clientA: string, taskA: string, clientB: string, taskB: string;
+  beforeEach(async () => {
+    await reset();
+    pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", name: "PM A", role: "PM", status: "ACTIVE" } })).id;
+    pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", name: "PM B", role: "PM", status: "ACTIVE" } })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
+    clientB = (await createClient(ADMIN, { name: "B사", pmId: pmB })).id;
+    taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1 }] });
+  });
+
+  it("client summaries per client (ADMIN)", async () => {
+    const rows = await getClientSummaries(ADMIN, 2026, "all");
+    expect(rows.map((r) => r.name)).toEqual(["A사", "B사"]);
+    const a = rows.find((r) => r.name === "A사")!;
+    expect(a).toMatchObject({ performance: 40000, expense: 5000, contract: 500000, pmId: pmA });
+  });
+
+  it("PM A sees only own client summary (RLS)", async () => {
+    const rows = await getClientSummaries({ userId: pmA, role: "PM" }, 2026, "all");
+    expect(rows.map((r) => r.name)).toEqual(["A사"]);
+  });
+
+  it("PM summaries roll up by pmId (ADMIN)", async () => {
+    const rows = await getPmSummaries(ADMIN, 2026, "all");
+    const a = rows.find((r) => r.pmId === pmA)!;
+    expect(a).toMatchObject({ label: "PM A", clientCount: 1, performance: 40000, expense: 5000 });
+    const b = rows.find((r) => r.pmId === pmB)!;
+    expect(b).toMatchObject({ clientCount: 1, performance: 20000 });
   });
 });

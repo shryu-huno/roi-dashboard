@@ -1,6 +1,7 @@
 import type { ExpenseCategory } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { resolvePeriod } from "@/lib/period";
+import { prisma } from "@/lib/db";
 
 export type PeriodTotals = {
   performance: number;
@@ -93,4 +94,88 @@ export function getExpenseBreakdown(
     });
     return rows.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
   });
+}
+
+export type ClientSummary = {
+  id: string;
+  name: string;
+  pmId: string | null;
+  performance: number;
+  expense: number;
+  contract: number;
+};
+
+export function getClientSummaries(
+  ctx: RlsContext,
+  year: number,
+  period: string,
+): Promise<ClientSummary[]> {
+  const { startMonth, endMonth } = resolvePeriod(period);
+  const monthRange = { gte: startMonth, lte: endMonth };
+  return withRLS(ctx, async (tx) => {
+    const clients = await tx.client.findMany({ orderBy: { name: "asc" } });
+    const perfRows = await tx.monthlyPerformance.findMany({
+      where: { year, month: monthRange },
+      select: { amount: true, task: { select: { clientId: true } } },
+    });
+    const expRows = await tx.expense.groupBy({
+      by: ["clientId"],
+      where: { year, month: monthRange },
+      _sum: { amount: true },
+    });
+    const contractRows = await tx.task.groupBy({
+      by: ["clientId"],
+      _sum: { contractAmount: true },
+    });
+    const perfByClient = new Map<string, number>();
+    for (const r of perfRows) {
+      const cid = r.task.clientId;
+      perfByClient.set(cid, (perfByClient.get(cid) ?? 0) + r.amount);
+    }
+    const expByClient = new Map(expRows.map((r) => [r.clientId, r._sum.amount ?? 0]));
+    const contractByClient = new Map(
+      contractRows.map((r) => [r.clientId, r._sum.contractAmount ?? 0]),
+    );
+    return clients.map((c) => ({
+      id: c.id,
+      name: c.name,
+      pmId: c.pmId,
+      performance: perfByClient.get(c.id) ?? 0,
+      expense: expByClient.get(c.id) ?? 0,
+      contract: contractByClient.get(c.id) ?? 0,
+    }));
+  });
+}
+
+export type PmSummary = {
+  pmId: string | null;
+  label: string;
+  clientCount: number;
+  performance: number;
+  expense: number;
+};
+
+export async function getPmSummaries(
+  ctx: RlsContext,
+  year: number,
+  period: string,
+): Promise<PmSummary[]> {
+  const clients = await getClientSummaries(ctx, year, period);
+  const byPm = new Map<string | null, { clientCount: number; performance: number; expense: number }>();
+  for (const c of clients) {
+    const cur = byPm.get(c.pmId) ?? { clientCount: 0, performance: 0, expense: 0 };
+    byPm.set(c.pmId, {
+      clientCount: cur.clientCount + 1,
+      performance: cur.performance + c.performance,
+      expense: cur.expense + c.expense,
+    });
+  }
+  const pmIds = [...byPm.keys()].filter((k): k is string => k !== null);
+  const users = await prisma.user.findMany({ where: { id: { in: pmIds } } });
+  const labelById = new Map(users.map((u) => [u.id, u.name ?? u.email]));
+  return [...byPm.entries()].map(([pmId, agg]) => ({
+    pmId,
+    label: pmId === null ? "미배정" : labelById.get(pmId) ?? "(알 수 없음)",
+    ...agg,
+  }));
 }
