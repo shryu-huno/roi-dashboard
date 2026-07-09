@@ -16,9 +16,16 @@ describe("labels", () => {
   it("maps expense categories to Korean", () => {
     expect(expenseCategoryLabel("CORPORATE_CARD")).toBe("법인카드");
     expect(expenseCategoryLabel("PERSONAL_CARD")).toBe("개인카드");
-    expect(expenseCategoryLabel("COUNSELING_FEE")).toBe("상담료");
-    expect(expenseCategoryLabel("INSTRUCTOR_FEE")).toBe("강사료");
-    expect(expenseCategoryLabel("PROMOTION")).toBe("홍보비용");
-    expect(expenseCategoryLabel("ETC")).toBe("기타");
+    expect(expenseCategoryLabel("LABOR_COUNSELOR")).toBe("인건비(상담사)");
+    expect(expenseCategoryLabel("LABOR_INSTRUCTOR")).toBe("인건비(강사)");
+    expect(expenseCategoryLabel("EDUCATION_PROGRAM")).toBe("교육&프로그램 진행비");
+    expect(expenseCategoryLabel("PROMOTION_OFFLINE")).toBe("홍보비(오프라인)");
+    expect(expenseCategoryLabel("PROMOTION_EVENT")).toBe("홍보비(이벤트)");
+    expect(expenseCategoryLabel("OPS_TRANSPORT")).toBe("운영비(교통비)");
+    expect(expenseCategoryLabel("OPS_LODGING")).toBe("운영비(숙박비)");
+    expect(expenseCategoryLabel("OPS_FOOD")).toBe("운영비(식비)");
+    expect(expenseCategoryLabel("OPS_MEETING")).toBe("운영비(회의비)");
+    expect(expenseCategoryLabel("TEST_MATERIAL")).toBe("검사지 구매");
+    expect(expenseCategoryLabel("GENERAL_ETC")).toBe("일반관리(기타)");
   });
 });

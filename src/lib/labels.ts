@@ -18,14 +18,21 @@ export function statusLabel(status: "PENDING" | "ACTIVE" | "INACTIVE"): string {
 }
 
 export function expenseCategoryLabel(
-  cat: "CORPORATE_CARD" | "PERSONAL_CARD" | "COUNSELING_FEE" | "INSTRUCTOR_FEE" | "PROMOTION" | "ETC",
+  cat: "CORPORATE_CARD" | "PERSONAL_CARD" | "LABOR_COUNSELOR" | "LABOR_INSTRUCTOR" | "EDUCATION_PROGRAM" | "PROMOTION_OFFLINE" | "PROMOTION_EVENT" | "OPS_TRANSPORT" | "OPS_LODGING" | "OPS_FOOD" | "OPS_MEETING" | "TEST_MATERIAL" | "GENERAL_ETC",
 ): string {
   switch (cat) {
     case "CORPORATE_CARD": return "법인카드";
     case "PERSONAL_CARD": return "개인카드";
-    case "COUNSELING_FEE": return "상담료";
-    case "INSTRUCTOR_FEE": return "강사료";
-    case "PROMOTION": return "홍보비용";
-    case "ETC": return "기타";
+    case "LABOR_COUNSELOR": return "인건비(상담사)";
+    case "LABOR_INSTRUCTOR": return "인건비(강사)";
+    case "EDUCATION_PROGRAM": return "교육&프로그램 진행비";
+    case "PROMOTION_OFFLINE": return "홍보비(오프라인)";
+    case "PROMOTION_EVENT": return "홍보비(이벤트)";
+    case "OPS_TRANSPORT": return "운영비(교통비)";
+    case "OPS_LODGING": return "운영비(숙박비)";
+    case "OPS_FOOD": return "운영비(식비)";
+    case "OPS_MEETING": return "운영비(회의비)";
+    case "TEST_MATERIAL": return "검사지 구매";
+    case "GENERAL_ETC": return "일반관리(기타)";
   }
 }

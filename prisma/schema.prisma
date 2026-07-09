@@ -27,10 +27,17 @@ enum TaskSource {
 enum ExpenseCategory {
   CORPORATE_CARD
   PERSONAL_CARD
-  COUNSELING_FEE
-  INSTRUCTOR_FEE
-  PROMOTION
-  ETC
+  LABOR_COUNSELOR
+  LABOR_INSTRUCTOR
+  EDUCATION_PROGRAM
+  PROMOTION_OFFLINE
+  PROMOTION_EVENT
+  OPS_TRANSPORT
+  OPS_LODGING
+  OPS_FOOD
+  OPS_MEETING
+  TEST_MATERIAL
+  GENERAL_ETC
 }
 
 model User {
@@ -142,6 +149,7 @@ model Expense {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
+  @@unique([clientId, year, month, category])
   @@index([clientId, year, month])
 }
 
