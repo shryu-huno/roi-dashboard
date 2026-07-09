@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "seed": "node prisma/seed.js",
     "test:watch": "vitest"
   },
   "dependencies": {
