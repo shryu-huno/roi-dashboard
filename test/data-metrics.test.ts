@@ -6,7 +6,7 @@ import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
-import { getPeriodTotals, getContractTotal } from "@/lib/data/metrics";
+import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown } from "@/lib/data/metrics";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -64,5 +64,32 @@ describe("metrics: period totals & contract total", () => {
   it("contract total sums Task.contractAmount, RLS-scoped", async () => {
     expect(await getContractTotal(ADMIN)).toBe(1300000); // 500000 + 800000
     expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(500000); // A만
+  });
+});
+
+describe("metrics: trend & expense breakdown", () => {
+  let pmA: string, clientA: string, taskA: string;
+  beforeEach(async () => {
+    await reset();
+    pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000 })).id;
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
+    await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_TRANSPORT", amount: 3000 });
+  });
+
+  it("returns 12 months, zero-filled", async () => {
+    const trend = await getMonthlyTrend(ADMIN, 2026);
+    expect(trend).toHaveLength(12);
+    expect(trend[2]).toEqual({ month: 3, performance: 40000, expense: 8000 });
+    expect(trend[0]).toEqual({ month: 1, performance: 0, expense: 0 });
+  });
+
+  it("breaks expenses down by category for the period", async () => {
+    const slices = await getExpenseBreakdown(ADMIN, 2026, "h1");
+    const byCat = Object.fromEntries(slices.map((s) => [s.category, s.amount]));
+    expect(byCat["OPS_FOOD"]).toBe(5000);
+    expect(byCat["OPS_TRANSPORT"]).toBe(3000);
   });
 });
