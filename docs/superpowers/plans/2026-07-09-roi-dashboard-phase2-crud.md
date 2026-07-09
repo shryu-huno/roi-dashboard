@@ -2016,7 +2016,7 @@ git commit -m "feat: add expense input screen with 13 categories (SETTLEMENT+)"
   - `saveBilling(prev, formData)`, `saveDeposit(prev, formData)` — 각 값 upsert(빈 값 → null → 행 삭제).
   - 고객사+연월 선택 → 청구액·입금액 입력.
 
-- [ ] **Step 1: 청구·입금 액션 작성**
+- [x] **Step 1: 청구·입금 액션 작성**
 
 Create `src/app/(app)/billing/actions.ts`:
 ```ts
@@ -2060,7 +2060,7 @@ export async function saveDeposit(_prev: ActionState, formData: FormData): Promi
 }
 ```
 
-- [ ] **Step 2: 청구·입금 폼(클라이언트 컴포넌트) 작성**
+- [x] **Step 2: 청구·입금 폼(클라이언트 컴포넌트) 작성**
 
 Create `src/app/(app)/billing/BillingForm.tsx`:
 ```tsx
@@ -2107,7 +2107,7 @@ export function BillingForm({
 }
 ```
 
-- [ ] **Step 3: 청구·입금 페이지 작성**
+- [x] **Step 3: 청구·입금 페이지 작성**
 
 Create `src/app/(app)/billing/page.tsx`:
 ```tsx
@@ -2173,7 +2173,7 @@ export default async function BillingPage({
 }
 ```
 
-- [ ] **Step 4: 빌드 확인 및 커밋**
+- [x] **Step 4: 빌드 확인 및 커밋**
 
 ```bash
 npm run build
