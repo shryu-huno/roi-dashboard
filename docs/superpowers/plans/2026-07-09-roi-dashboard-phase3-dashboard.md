@@ -986,7 +986,7 @@ git commit -m "feat: add client detail aggregate (per-task + 12-month rows) with
 - Consumes: 없음(순수).
 - Produces: `csvFromRows(rows: string[][]): string` — RFC4180 스타일. 콤마·따옴표·개행 포함 셀은 `"`로 감싸고 내부 `"`는 `""`로 이스케이프. 행 구분 `\r\n`.
 
-- [ ] **Step 1: 실패 테스트 작성**
+- [x] **Step 1: 실패 테스트 작성**
 
 Create `test/csv.test.ts`:
 ```ts
@@ -1006,12 +1006,12 @@ describe("csvFromRows", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- csv`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/csv.ts`:
 ```ts
@@ -1028,12 +1028,12 @@ export function csvFromRows(rows: string[][]): string {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- csv`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/csv.ts test/csv.test.ts
@@ -1052,7 +1052,7 @@ git commit -m "feat: add CSV serialization helper"
 - Consumes: `AppRole`.
 - Produces: 역할 있는 사용자의 메뉴 첫 항목이 `{ href: "/dashboard", label: "대시보드" }`. null 역할은 기존 base 유지.
 
-- [ ] **Step 1: 테스트를 새 기대로 수정 (실패 확인용)**
+- [x] **Step 1: 테스트를 새 기대로 수정 (실패 확인용)**
 
 Replace `test/nav.test.ts` with:
 ```ts
@@ -1077,12 +1077,12 @@ describe("navItemsForRole", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- nav`
 Expected: FAIL — 대시보드 항목 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Replace `src/lib/shell/nav.ts` with:
 ```ts
@@ -1110,12 +1110,12 @@ export function navItemsForRole(role: AppRole | null): NavItem[] {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- nav`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/shell/nav.ts test/nav.test.ts
@@ -1139,7 +1139,7 @@ git commit -m "feat: add dashboard nav item for approved users"
   - `BarList({ items }: { items: { label: string; value: number; sub?: string }[] })`.
 - 검증: 단위 테스트 없음(순수 프레젠테이션). `npm run build`로 타입/렌더 검증.
 
-- [ ] **Step 1: KpiCard 작성**
+- [x] **Step 1: KpiCard 작성**
 
 Create `src/components/charts/KpiCard.tsx`:
 ```tsx
@@ -1154,7 +1154,7 @@ export function KpiCard({ title, value, sub }: { title: string; value: string; s
 }
 ```
 
-- [ ] **Step 2: FunnelChart 작성**
+- [x] **Step 2: FunnelChart 작성**
 
 Create `src/components/charts/FunnelChart.tsx`:
 ```tsx
@@ -1186,7 +1186,7 @@ export function FunnelChart({
 }
 ```
 
-- [ ] **Step 3: DonutChart 작성**
+- [x] **Step 3: DonutChart 작성**
 
 Create `src/components/charts/DonutChart.tsx`:
 ```tsx
@@ -1242,7 +1242,7 @@ export function DonutChart({ segments }: { segments: { label: string; value: num
 }
 ```
 
-- [ ] **Step 4: TrendChart 작성**
+- [x] **Step 4: TrendChart 작성**
 
 Create `src/components/charts/TrendChart.tsx`:
 ```tsx
@@ -1289,7 +1289,7 @@ export function TrendChart({
 }
 ```
 
-- [ ] **Step 5: BarList 작성**
+- [x] **Step 5: BarList 작성**
 
 Create `src/components/charts/BarList.tsx`:
 ```tsx
@@ -1317,7 +1317,7 @@ export function BarList({ items }: { items: { label: string; value: number; sub?
 }
 ```
 
-- [ ] **Step 6: 빌드 확인 및 커밋**
+- [x] **Step 6: 빌드 확인 및 커밋**
 
 Run: `npm run build`
 Expected: 성공(타입 에러 없음).
@@ -1337,7 +1337,7 @@ git commit -m "feat: add SVG/CSS chart components (KPI, funnel, donut, trend, ba
 - Consumes: `PERIOD_OPTIONS`, `PeriodKey` (`@/lib/period`).
 - Produces: `PeriodFilter({ year, period, action? }: { year: number; period: string; action?: string })` — `method="get"` 폼. 연도 입력 + 기간구분 select + 조회 버튼. `action`은 폼 제출 경로(기본 현재 경로 — 생략 시 빈 문자열로 현재 URL 유지).
 
-- [ ] **Step 1: 구현**
+- [x] **Step 1: 구현**
 
 Create `src/components/dashboard/PeriodFilter.tsx`:
 ```tsx
@@ -1375,7 +1375,7 @@ export function PeriodFilter({ year, period, action }: { year: number; period: s
 }
 ```
 
-- [ ] **Step 2: 빌드 확인 및 커밋**
+- [x] **Step 2: 빌드 확인 및 커밋**
 
 Run: `npm run build`
 Expected: 성공.
@@ -1396,7 +1396,7 @@ git commit -m "feat: add period filter form component"
 - Consumes: `requireUser`, `getRlsContext`, `hasAtLeast`, `parsePeriodParams`, `getPeriodTotals`/`getContractTotal`/`getMonthlyTrend`/`getExpenseBreakdown`/`getClientSummaries`/`getPmSummaries`, `margin`/`attainment`/`billingRate`/`collectionRate`, `formatWon`/`formatPercent`, `expenseCategoryLabel`, 차트 컴포넌트, `PeriodFilter`.
 - Produces: 전사 대시보드 화면. PM은 RLS로 본인 담당만 집계. PM별 집계 섹션은 `hasAtLeast(role,"SETTLEMENT")`일 때만.
 
-- [ ] **Step 1: 루트를 대시보드로 리다이렉트**
+- [x] **Step 1: 루트를 대시보드로 리다이렉트**
 
 Replace `src/app/page.tsx` with:
 ```tsx
@@ -1409,7 +1409,7 @@ export default async function HomePage() {
 }
 ```
 
-- [ ] **Step 2: 대시보드 페이지 작성**
+- [x] **Step 2: 대시보드 페이지 작성**
 
 Create `src/app/(app)/dashboard/page.tsx`:
 ```tsx
@@ -1546,12 +1546,12 @@ export default async function DashboardPage({
 }
 ```
 
-- [ ] **Step 3: 빌드 확인**
+- [x] **Step 3: 빌드 확인**
 
 Run: `npm run build`
 Expected: 성공.
 
-- [ ] **Step 4: 커밋**
+- [x] **Step 4: 커밋**
 
 ```bash
 git add "src/app/(app)/dashboard/page.tsx" src/app/page.tsx
@@ -1570,7 +1570,7 @@ git commit -m "feat: add company-wide dashboard and redirect root to it"
 - Consumes: `requireUser`, `getRlsContext`, `parsePeriodParams`, `getClientDetail`, `margin`/`attainment`/`billingRate`/`collectionRate`, `formatWon`/`formatPercent`, `notFound`, 차트·`PeriodFilter`.
 - Produces: 고객사 상세 화면(KPI + 수익 흐름 + 과업별 실적 + 월별 표(미입금 강조) + CSV 링크). 목록 카드는 `/clients/[id]`로 링크.
 
-- [ ] **Step 1: 목록 카드 링크 변경**
+- [x] **Step 1: 목록 카드 링크 변경**
 
 In `src/app/(app)/clients/page.tsx`, change the card `href`:
 ```tsx
@@ -1578,7 +1578,7 @@ In `src/app/(app)/clients/page.tsx`, change the card `href`:
 ```
 (기존 `href={`/performance?clientId=${c.id}`}` 를 위로 교체.)
 
-- [ ] **Step 2: 상세 페이지 작성**
+- [x] **Step 2: 상세 페이지 작성**
 
 Create `src/app/(app)/clients/[id]/page.tsx`:
 ```tsx
@@ -1706,12 +1706,12 @@ export default async function ClientDetailPage({
 }
 ```
 
-- [ ] **Step 3: 빌드 확인**
+- [x] **Step 3: 빌드 확인**
 
 Run: `npm run build`
 Expected: 성공.
 
-- [ ] **Step 4: 커밋**
+- [x] **Step 4: 커밋**
 
 ```bash
 git add "src/app/(app)/clients/[id]/page.tsx" "src/app/(app)/clients/page.tsx"
@@ -1729,7 +1729,7 @@ git commit -m "feat: add client detail screen with unpaid highlighting; link lis
 - Consumes: `requireUser`, `getRlsContext`, `parsePeriodParams`, `getClientDetail`, `csvFromRows`.
 - Produces: `GET` route handler. `?year=&period=` → 월별 실적·청구·입금·지출 CSV. UTF-8 BOM 포함 `text/csv` 응답. RLS로 접근 불가/없는 고객사면 404.
 
-- [ ] **Step 1: route handler 작성**
+- [x] **Step 1: route handler 작성**
 
 Create `src/app/(app)/clients/[id]/export/route.ts`:
 ```ts
@@ -1772,12 +1772,12 @@ export async function GET(
 }
 ```
 
-- [ ] **Step 2: 빌드 확인**
+- [x] **Step 2: 빌드 확인**
 
 Run: `npm run build`
 Expected: 성공.
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add "src/app/(app)/clients/[id]/export/route.ts"
@@ -1795,7 +1795,7 @@ git commit -m "feat: add client CSV export route handler with BOM"
 - Consumes: 전체.
 - Produces: 전 테스트 통과 + 빌드 성공 확인.
 
-- [ ] **Step 1: 전체 테스트 실행**
+- [x] **Step 1: 전체 테스트 실행**
 
 로컬 PG(5433)가 켜져 있어야 한다. 꺼져 있으면 Global Constraints의 기동 명령을 먼저 실행.
 ```bash
@@ -1804,7 +1804,7 @@ npm run test
 ```
 Expected: 모든 테스트 PASS (period, metrics-formulas, format, csv, data-metrics, nav + Plan 1·2 기존 테스트).
 
-- [ ] **Step 2: 빌드 확인**
+- [x] **Step 2: 빌드 확인**
 
 ```bash
 npm run build
@@ -1820,7 +1820,7 @@ Expected: 성공.
 - 상세에서 "CSV 내보내기" → 한글 정상 표시되는 CSV 다운로드.
 - ADMIN/SETTLEMENT는 "PM별 집계" 섹션 표시, PM 계정은 미표시 + 본인 담당만 집계.
 
-- [ ] **Step 4: 완료 커밋(문서 체크박스 갱신 시)**
+- [x] **Step 4: 완료 커밋(문서 체크박스 갱신 시)**
 
 계획 체크박스를 갱신했다면:
 ```bash
