@@ -862,7 +862,7 @@ git commit -m "feat: add performance data layer with server-side amount derivati
   - `upsertExpense(ctx, input): Promise<ActionState>` — `input: { clientId; year; month; category; amount; memo?: string|null }`, `@@unique([clientId,year,month,category])` 기준 upsert.
   - `type ExpenseInput = { clientId: string; year: number; month: number; category: ExpenseCategory; amount: number; memo?: string | null }`
 
-- [ ] **Step 1: 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 테스트 작성 (실패 확인용)**
 
 Create `test/data-expenses.test.ts`:
 ```ts
@@ -916,14 +916,14 @@ describe("expenses data layer", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 npm run test -- data-expenses
 ```
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/data/expenses.ts`:
 ```ts
@@ -970,14 +970,14 @@ export async function upsertExpense(ctx: RlsContext, input: ExpenseInput): Promi
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 npm run test -- data-expenses
 ```
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/expenses.ts test/data-expenses.test.ts
