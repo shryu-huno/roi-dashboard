@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { listExpenses } from "@/lib/data/expenses";
@@ -11,7 +11,7 @@ export default async function ExpensesPage({
   searchParams: Promise<{ clientId?: string; year?: string; month?: string }>;
 }) {
   const sp = await searchParams;
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireUser();
   const ctx = getRlsContext(user);
   const clients = await listClients(ctx);
 

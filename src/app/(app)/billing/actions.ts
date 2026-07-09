@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { billingSchema, depositSchema } from "@/lib/validation/schemas";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
 import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function saveBilling(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireUser();
   const ctx = getRlsContext(user);
   const parsed = billingSchema.safeParse({
     clientId: formData.get("clientId"),
@@ -24,7 +24,7 @@ export async function saveBilling(_prev: ActionState, formData: FormData): Promi
 }
 
 export async function saveDeposit(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireUser();
   const ctx = getRlsContext(user);
   const parsed = depositSchema.safeParse({
     clientId: formData.get("clientId"),

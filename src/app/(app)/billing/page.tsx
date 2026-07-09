@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { getBilling, getDeposit } from "@/lib/data/billing";
@@ -10,7 +10,7 @@ export default async function BillingPage({
   searchParams: Promise<{ clientId?: string; year?: string; month?: string }>;
 }) {
   const sp = await searchParams;
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireUser();
   const ctx = getRlsContext(user);
   const clients = await listClients(ctx);
 

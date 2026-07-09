@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { expenseSchema } from "@/lib/validation/schemas";
 import { upsertExpense } from "@/lib/data/expenses";
 import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function saveExpense(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireUser();
   const ctx = getRlsContext(user);
   const parsed = expenseSchema.safeParse({
     clientId: formData.get("clientId"),
