@@ -35,22 +35,22 @@ export default async function PerformancePage({
     <div>
       <h1 className="mb-4 text-xl font-semibold">실적 입력</h1>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-2">
+      <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           고객사
-          <select name="clientId" defaultValue={clientId ?? ""} className="rounded border border-[var(--color-border)] px-2 py-1 text-sm">
+          <select name="clientId" defaultValue={clientId ?? ""} className="mt-1 w-48 rounded border border-[var(--color-border)] px-3 py-2 text-sm">
             {clients.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
           </select>
         </label>
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           연도
-          <input type="number" name="year" defaultValue={year} className="w-24 rounded border border-[var(--color-border)] px-2 py-1 text-sm" />
+          <input type="number" name="year" defaultValue={year} className="mt-1 w-28 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
         </label>
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           월
-          <input type="number" name="month" min="1" max="12" defaultValue={month} className="w-20 rounded border border-[var(--color-border)] px-2 py-1 text-sm" />
+          <input type="number" name="month" min="1" max="12" defaultValue={month} className="mt-1 w-24 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
         </label>
-        <button type="submit" className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm">조회</button>
+        <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">조회</button>
       </form>
 
       {!clientId ? (
