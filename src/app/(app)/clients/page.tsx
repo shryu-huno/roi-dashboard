@@ -18,7 +18,7 @@ export default async function ClientsPage() {
           {clients.map((c) => (
             <Link
               key={c.id}
-              href={`/performance?clientId=${c.id}`}
+              href={`/clients/${c.id}`}
               className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm hover:border-[var(--color-primary)]"
             >
               <div className="text-base font-medium text-[var(--color-fg)]">{c.name}</div>
