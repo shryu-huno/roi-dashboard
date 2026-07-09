@@ -38,6 +38,7 @@ model User {
   email     String     @unique
   name      String?
   image     String?
+  emailVerified DateTime? // Auth.js Prisma 어댑터 필수 필드
   role      Role?
   status    UserStatus @default(PENDING)
   createdAt DateTime   @default(now())
