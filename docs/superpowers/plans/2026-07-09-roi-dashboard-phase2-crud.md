@@ -2195,7 +2195,7 @@ git commit -m "feat: add billing/deposit input screen (SETTLEMENT+)"
 - Consumes: `requireUser`.
 - Produces: 활성 사용자가 `/`로 오면 `/clients`로 리다이렉트(전사 대시보드는 Plan 3에서 대체).
 
-- [ ] **Step 1: 루트 페이지를 리다이렉트로 교체**
+- [x] **Step 1: 루트 페이지를 리다이렉트로 교체**
 
 Replace `src/app/page.tsx` with:
 ```tsx
@@ -2208,7 +2208,7 @@ export default async function HomePage() {
 }
 ```
 
-- [ ] **Step 2: 전체 테스트 실행**
+- [x] **Step 2: 전체 테스트 실행**
 
 로컬 PG(5433)가 켜져 있어야 한다. 꺼져 있으면 Global Constraints의 기동 명령을 먼저 실행.
 ```bash
@@ -2216,14 +2216,14 @@ npm run test
 ```
 Expected: 모든 테스트 PASS (labels, context, schemas, nav, data-clients, data-tasks, data-performance, data-expenses, data-billing + Plan 1 테스트).
 
-- [ ] **Step 3: 빌드 확인**
+- [x] **Step 3: 빌드 확인**
 
 ```bash
 npm run build
 ```
 Expected: 성공.
 
-- [ ] **Step 4: 커밋**
+- [x] **Step 4: 커밋**
 
 ```bash
 git add src/app/page.tsx
