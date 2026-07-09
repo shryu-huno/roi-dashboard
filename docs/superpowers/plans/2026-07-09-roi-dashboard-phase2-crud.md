@@ -1621,7 +1621,7 @@ git commit -m "feat: add client list screen (RLS-scoped for PM)"
   - `savePerformance(prev: ActionState, formData: FormData): Promise<ActionState>` — 폼의 `count_<taskId>` 필드를 모아 배치 upsert. 빈 값은 미입력으로 제외.
   - 고객사+연월 선택 → 과업별 횟수 입력 그리드(금액·합계 실시간).
 
-- [ ] **Step 1: 실적 액션 작성**
+- [x] **Step 1: 실적 액션 작성**
 
 Create `src/app/(app)/performance/actions.ts`:
 ```ts
@@ -1661,7 +1661,7 @@ export async function savePerformance(_prev: ActionState, formData: FormData): P
 }
 ```
 
-- [ ] **Step 2: 실적 그리드(클라이언트 컴포넌트) 작성**
+- [x] **Step 2: 실적 그리드(클라이언트 컴포넌트) 작성**
 
 Create `src/app/(app)/performance/PerformanceGrid.tsx`:
 ```tsx
@@ -1742,7 +1742,7 @@ export function PerformanceGrid({
 }
 ```
 
-- [ ] **Step 3: 실적 페이지 작성 (고객사+연월 선택 → 그리드)**
+- [x] **Step 3: 실적 페이지 작성 (고객사+연월 선택 → 그리드)**
 
 Create `src/app/(app)/performance/page.tsx`:
 ```tsx
@@ -1814,7 +1814,7 @@ export default async function PerformancePage({
 }
 ```
 
-- [ ] **Step 4: 빌드 확인 및 커밋**
+- [x] **Step 4: 빌드 확인 및 커밋**
 
 ```bash
 npm run build
