@@ -179,3 +179,87 @@ export async function getPmSummaries(
     ...agg,
   }));
 }
+
+export type TaskPerf = {
+  id: string;
+  name: string;
+  unitPrice: number;
+  contractAmount: number | null;
+  count: number;
+  amount: number;
+};
+
+export type MonthlyRow = {
+  month: number;
+  performance: number;
+  billing: number;
+  deposit: number;
+  expense: number;
+};
+
+export type ClientDetail = {
+  client: { id: string; name: string; status: string };
+  tasks: TaskPerf[];
+  monthly: MonthlyRow[];
+};
+
+export function getClientDetail(
+  ctx: RlsContext,
+  id: string,
+  year: number,
+  period: string,
+): Promise<ClientDetail | null> {
+  const { startMonth, endMonth } = resolvePeriod(period);
+  const monthRange = { gte: startMonth, lte: endMonth };
+  return withRLS(ctx, async (tx) => {
+    const client = await tx.client.findUnique({ where: { id } });
+    if (!client) return null; // 없거나 RLS로 은닉
+
+    const tasks = await tx.task.findMany({ where: { clientId: id }, orderBy: { name: "asc" } });
+    const perfRows = await tx.monthlyPerformance.findMany({
+      where: { year, month: monthRange, task: { clientId: id } },
+      select: { taskId: true, count: true, amount: true },
+    });
+    const perfByTask = new Map<string, { count: number; amount: number }>();
+    for (const r of perfRows) {
+      const cur = perfByTask.get(r.taskId) ?? { count: 0, amount: 0 };
+      perfByTask.set(r.taskId, { count: cur.count + r.count, amount: cur.amount + r.amount });
+    }
+    const taskRows: TaskPerf[] = tasks.map((t) => ({
+      id: t.id,
+      name: t.name,
+      unitPrice: t.unitPrice,
+      contractAmount: t.contractAmount,
+      count: perfByTask.get(t.id)?.count ?? 0,
+      amount: perfByTask.get(t.id)?.amount ?? 0,
+    }));
+
+    const perfM = await tx.monthlyPerformance.groupBy({
+      by: ["month"], where: { year, task: { clientId: id } }, _sum: { amount: true },
+    });
+    const billM = await tx.monthlyBilling.groupBy({
+      by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
+    });
+    const depM = await tx.monthlyDeposit.groupBy({
+      by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
+    });
+    const expM = await tx.expense.groupBy({
+      by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
+    });
+    const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
+      new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
+    const p = map(perfM), b = map(billM), d = map(depM), e = map(expM);
+    const monthly: MonthlyRow[] = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      return {
+        month,
+        performance: p.get(month) ?? 0,
+        billing: b.get(month) ?? 0,
+        deposit: d.get(month) ?? 0,
+        expense: e.get(month) ?? 0,
+      };
+    });
+
+    return { client: { id: client.id, name: client.name, status: client.status }, tasks: taskRows, monthly };
+  });
+}

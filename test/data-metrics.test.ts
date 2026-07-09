@@ -6,7 +6,7 @@ import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
-import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries } from "@/lib/data/metrics";
+import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries, getClientDetail } from "@/lib/data/metrics";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -127,5 +127,33 @@ describe("metrics: client & PM summaries", () => {
     expect(a).toMatchObject({ label: "PM A", clientCount: 1, performance: 40000, expense: 5000 });
     const b = rows.find((r) => r.pmId === pmB)!;
     expect(b).toMatchObject({ clientCount: 1, performance: 20000 });
+  });
+});
+
+describe("metrics: client detail", () => {
+  let pmA: string, pmB: string, clientA: string, taskA: string;
+  beforeEach(async () => {
+    await reset();
+    pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
+    pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
+    await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
+  });
+
+  it("returns detail with per-task period perf and 12 monthly rows", async () => {
+    const d = await getClientDetail(ADMIN, clientA, 2026, "all");
+    expect(d).not.toBeNull();
+    expect(d!.client.name).toBe("A사");
+    expect(d!.tasks[0]).toMatchObject({ name: "진단", unitPrice: 10000, contractAmount: 500000, count: 4, amount: 40000 });
+    expect(d!.monthly).toHaveLength(12);
+    expect(d!.monthly[2]).toEqual({ month: 3, performance: 40000, billing: 30000, deposit: 20000, expense: 0 });
+  });
+
+  it("returns null for another PM's client (RLS)", async () => {
+    const d = await getClientDetail({ userId: pmB, role: "PM" }, clientA, 2026, "all");
+    expect(d).toBeNull();
   });
 });
