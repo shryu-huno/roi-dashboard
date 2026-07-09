@@ -84,6 +84,7 @@ model Task {
   client         Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
   name           String
   unitPrice      Int
+  contractCount  Int?
   contractAmount Int?
   source         TaskSource @default(MANUAL)
   createdAt      DateTime   @default(now())

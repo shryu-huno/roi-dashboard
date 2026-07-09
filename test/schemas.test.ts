@@ -59,10 +59,20 @@ describe("billingSchema (null vs 0)", () => {
 });
 
 describe("taskSchema", () => {
-  it("accepts a task with null contractAmount", () => {
-    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: 10000, contractAmount: "" });
+  it("accepts a task with null contractCount (미입력)", () => {
+    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: 10000, contractCount: "" });
     expect(r.success).toBe(true);
-    if (r.success) expect(r.data.contractAmount).toBeNull();
+    if (r.success) expect(r.data.contractCount).toBeNull();
+  });
+  it("accepts a contractCount", () => {
+    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: 10000, contractCount: "12" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.contractCount).toBe(12);
+  });
+  it("strips thousands separators from unitPrice", () => {
+    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: "1,000,000", contractCount: "" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.unitPrice).toBe(1000000);
   });
   it("rejects empty name", () => {
     expect(taskSchema.safeParse({ clientId: "c1", name: "", unitPrice: 100 }).success).toBe(false);

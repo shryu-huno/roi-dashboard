@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { upsertPerformanceBatch, listPerformance } from "@/lib/data/performance";
+import { upsertPerformanceBatch, listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { createClient } from "@/lib/data/clients";
 import { createTask } from "@/lib/data/tasks";
 
@@ -56,5 +56,19 @@ describe("performance data layer", () => {
   it("rejects a row whose task belongs to a different client", async () => {
     const res = await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskB1, count: 1 }] });
     expect(res.ok).toBe(false);
+  });
+
+  it("sums count/amount across all months per task (계약 기간 누적)", async () => {
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 1, rows: [{ taskId: taskA1, count: 2 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 2, rows: [{ taskId: taskA1, count: 3 }] });
+    const totals = await listPerformanceTotals(ADMIN, clientA);
+    expect(totals).toHaveLength(1);
+    expect(totals[0]).toEqual({ taskId: taskA1, totalCount: 5, totalAmount: 50000 });
+  });
+
+  it("PM totals are RLS-scoped (no other client rows)", async () => {
+    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 1, rows: [{ taskId: taskB1, count: 4 }] });
+    const totals = await listPerformanceTotals({ userId: pmA, role: "PM" }, clientB);
+    expect(totals).toHaveLength(0);
   });
 });

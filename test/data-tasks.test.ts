@@ -25,12 +25,26 @@ describe("tasks data layer", () => {
     clientB = (await createClient(ADMIN, { name: "B사", pmId: pmB })).id;
   });
 
-  it("creates a task with MANUAL source and nullable contractAmount", async () => {
-    const t = await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractAmount: null });
+  it("creates a task with MANUAL source and null contract when count omitted", async () => {
+    const t = await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: null });
     expect(t.source).toBe("MANUAL");
+    expect(t.contractCount).toBeNull();
     expect(t.contractAmount).toBeNull();
     const rows = await listTasks(ADMIN, clientA);
     expect(rows.map((r) => r.name)).toEqual(["심리진단"]);
+  });
+
+  it("derives contractAmount = unitPrice * contractCount", async () => {
+    const t = await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: 12 });
+    expect(t.contractCount).toBe(12);
+    expect(t.contractAmount).toBe(120000);
+  });
+
+  it("recomputes contractAmount on update when unit price changes", async () => {
+    const t = await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: 5 });
+    await updateTask(ADMIN, t.id, { clientId: clientA, name: "심리진단", unitPrice: 12000, contractCount: 5 });
+    const rows = await listTasks(ADMIN, clientA);
+    expect(rows[0].contractAmount).toBe(60000);
   });
 
   it("PM lists only own client's tasks (RLS)", async () => {

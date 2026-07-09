@@ -14,6 +14,24 @@ export function listPerformance(ctx: RlsContext, clientId: string, year: number,
   );
 }
 
+// 계약 기간 전체(연/월 무관) 과업별 누적 횟수·금액. Plan 3 집계의 조회 기반이기도 하다.
+export type PerformanceTotal = { taskId: string; totalCount: number; totalAmount: number };
+
+export async function listPerformanceTotals(ctx: RlsContext, clientId: string): Promise<PerformanceTotal[]> {
+  const grouped = await withRLS(ctx, (tx) =>
+    tx.monthlyPerformance.groupBy({
+      by: ["taskId"],
+      where: { task: { clientId } },
+      _sum: { count: true, amount: true },
+    }),
+  );
+  return grouped.map((g) => ({
+    taskId: g.taskId,
+    totalCount: g._sum.count ?? 0,
+    totalAmount: g._sum.amount ?? 0,
+  }));
+}
+
 const FORBIDDEN = "FORBIDDEN_OR_MISSING_TASK";
 
 export function upsertPerformanceBatch(ctx: RlsContext, input: PerformanceBatchInput): Promise<ActionState> {
