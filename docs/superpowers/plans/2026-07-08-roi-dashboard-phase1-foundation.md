@@ -60,7 +60,7 @@
 - Consumes: 없음(최초 태스크).
 - Produces: 동작하는 Next.js 앱과 Vitest 러너. 후속 태스크는 `npm run test`, `npm run build`, `npm run dev`가 존재한다고 가정한다.
 
-- [ ] **Step 1: git 초기화 및 Next.js 앱 생성**
+- [x] **Step 1: git 초기화 및 Next.js 앱 생성**
 
 Run:
 ```bash
@@ -69,7 +69,7 @@ npx create-next-app@latest . --typescript --app --tailwind --eslint --src-dir --
 ```
 프롬프트가 뜨면 위 플래그와 동일하게(기본값) 선택. 기존 `CLAUDE.md`/`docs/`는 덮어쓰지 않도록 "디렉터리가 비어있지 않음" 경고가 나오면 계속 진행(y).
 
-- [ ] **Step 2: Node 버전 고정 및 Vitest 의존성 추가**
+- [x] **Step 2: Node 버전 고정 및 Vitest 의존성 추가**
 
 `package.json`에 `engines`를 추가하고 테스트 의존성을 설치.
 ```bash
@@ -78,7 +78,7 @@ npm install -D vitest @vitejs/plugin-react
 npm pkg set scripts.test="vitest run" scripts.test:watch="vitest"
 ```
 
-- [ ] **Step 3: Vitest 설정 작성**
+- [x] **Step 3: Vitest 설정 작성**
 
 Create `vitest.config.ts`:
 ```ts
@@ -98,7 +98,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 4: 스모크 테스트 작성 (실패 확인용)**
+- [x] **Step 4: 스모크 테스트 작성 (실패 확인용)**
 
 Create `test/smoke.test.ts`:
 ```ts
@@ -112,12 +112,12 @@ describe("smoke", () => {
 });
 ```
 
-- [ ] **Step 5: 테스트 실행 → 실패 확인**
+- [x] **Step 5: 테스트 실행 → 실패 확인**
 
 Run: `npm run test`
 Expected: FAIL — `Cannot find module '@/lib/smoke'`.
 
-- [ ] **Step 6: 최소 구현**
+- [x] **Step 6: 최소 구현**
 
 Create `src/lib/smoke.ts`:
 ```ts
@@ -126,17 +126,17 @@ export function add(a: number, b: number): number {
 }
 ```
 
-- [ ] **Step 7: 테스트 실행 → 통과 확인**
+- [x] **Step 7: 테스트 실행 → 통과 확인**
 
 Run: `npm run test`
 Expected: PASS (1 passed).
 
-- [ ] **Step 8: 빌드 확인**
+- [x] **Step 8: 빌드 확인**
 
 Run: `npm run build`
 Expected: 빌드 성공(에러 없이 종료).
 
-- [ ] **Step 9: .gitignore 및 .env.example 정리**
+- [x] **Step 9: .gitignore 및 .env.example 정리**
 
 `.gitignore`에 다음이 포함되어 있는지 확인하고 없으면 추가: `.env`, `.env.local`, `.env.test`, `node_modules`, `.next`.
 
@@ -154,7 +154,7 @@ AUTH_GOOGLE_SECRET=""
 ALLOWED_EMAIL_DOMAIN="huno.kr"
 ```
 
-- [ ] **Step 10: 커밋**
+- [x] **Step 10: 커밋**
 
 ```bash
 git add -A
@@ -173,7 +173,7 @@ git commit -m "chore: scaffold Next.js app with Vitest"
 - Consumes: Task 1의 앱.
 - Produces: `tokens` 객체(팔레트 단일 출처)와 CSS 변수. 후속 UI 태스크는 `tokens` import와 `bg-surface`/`text-fg` 류 CSS 변수를 사용한다.
 
-- [ ] **Step 1: 토큰 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 토큰 테스트 작성 (실패 확인용)**
 
 Create `test/tokens.test.ts`:
 ```ts
@@ -195,12 +195,12 @@ describe("design tokens", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- tokens`
 Expected: FAIL — `Cannot find module '@/lib/design/tokens'`.
 
-- [ ] **Step 3: 토큰 모듈 구현**
+- [x] **Step 3: 토큰 모듈 구현**
 
 Create `src/lib/design/tokens.ts`:
 ```ts
@@ -222,12 +222,12 @@ export const tokens = {
 } as const;
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- tokens`
 Expected: PASS.
 
-- [ ] **Step 5: CSS 변수 연결**
+- [x] **Step 5: CSS 변수 연결**
 
 `src/app/globals.css` 상단에 아래 변수 블록을 추가(Tailwind v4의 `@import "tailwindcss";` 아래):
 ```css
@@ -250,7 +250,7 @@ body {
 }
 ```
 
-- [ ] **Step 6: 빌드 확인 및 커밋**
+- [x] **Step 6: 빌드 확인 및 커밋**
 
 Run: `npm run build`
 Expected: 성공.
@@ -276,7 +276,7 @@ git commit -m "feat: add design tokens and base theme"
   - enums: `Role{ADMIN,SETTLEMENT,PM}`, `UserStatus{PENDING,ACTIVE,INACTIVE}`, `TaskSource{MANUAL,PDF}`, `ExpenseCategory{CORPORATE_CARD,PERSONAL_CARD,COUNSELING_FEE,INSTRUCTOR_FEE,PROMOTION,ETC}`.
   - 후속 태스크는 이 모델·필드명(`pmId`, `clientId`, `taskId`, `unitPrice`, `contractAmount`, `year`, `month`, `count`, `amount` 등)을 그대로 사용한다.
 
-- [ ] **Step 1: PostgreSQL 앱 역할·DB (이미 생성됨 — 검증만)**
+- [x] **Step 1: PostgreSQL 앱 역할·DB (이미 생성됨 — 검증만)**
 
 환경 준비 단계에서 **이미 완료**되었다. 이 머신에서는 포터블 PostgreSQL 16.8 클러스터가 **포트 5433**에서 실행 중이며(기본 5432는 다른 설치가 점유), 다음이 생성되어 있다:
 - 역할 `roi_app`: `LOGIN`, 비밀번호 `roi_app_pw`, **NOSUPERUSER, CREATEDB, NOBYPASSRLS**. (CREATEDB는 `prisma migrate dev`의 shadow DB 생성에 필요. RLS 우회와 무관 — 우회 차단은 NOSUPERUSER+NOBYPASSRLS가 담당.)
@@ -287,7 +287,7 @@ psql 경로: `C:\dev\pgsql\bin\psql.exe`. 서버 재시작이 필요하면: `C:\
 
 > 검증(그대로 실행): `& "C:\dev\pgsql\bin\psql.exe" -U roi_app -h localhost -p 5433 -d roi -c "select current_user, current_database();"` → `roi_app | roi` 반환.
 
-- [ ] **Step 2: Prisma 설치 및 초기화**
+- [x] **Step 2: Prisma 설치 및 초기화**
 
 ```bash
 npm install -D prisma@^6
@@ -307,11 +307,11 @@ ALLOWED_EMAIL_DOMAIN="huno.kr"
 ```
 > 주의: `prisma init`이 덮어쓴 `.env`의 기본 `DATABASE_URL`을 위 값(포트 5433)으로 교체할 것. 포트는 5432가 아니라 **5433**이다.
 
-- [ ] **Step 2b: schema.prisma의 관계 무결성 강제 옵션 설정**
+- [x] **Step 2b: schema.prisma의 관계 무결성 강제 옵션 설정**
 
 RLS가 PM 접근을 막을 때 FK 참조 검사가 RLS를 우회하지 않도록, 애플리케이션 레벨에서 관계를 관리한다. `prisma/schema.prisma`의 generator에 preview가 필요 없으므로 기본값 유지. (참고: FK 자체는 유지하되, PM은 자식 테이블만 접근하고 부모 FK 검증은 INSERT 시점에만 발생.)
 
-- [ ] **Step 3: 스키마 작성**
+- [x] **Step 3: 스키마 작성**
 
 Replace `prisma/schema.prisma` with:
 ```prisma
@@ -497,7 +497,7 @@ model VerificationToken {
 }
 ```
 
-- [ ] **Step 4: 마이그레이션 검증 및 생성**
+- [x] **Step 4: 마이그레이션 검증 및 생성**
 
 ```bash
 npx prisma validate
@@ -505,7 +505,7 @@ npx prisma migrate dev --name init
 ```
 Expected: `prisma/migrations/<timestamp>_init/migration.sql` 생성, `roi` DB에 적용, 클라이언트 생성.
 
-- [ ] **Step 5: Prisma 클라이언트 싱글턴 작성**
+- [x] **Step 5: Prisma 클라이언트 싱글턴 작성**
 
 Create `src/lib/db.ts`:
 ```ts
@@ -519,7 +519,7 @@ export const prisma =
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 ```
 
-- [ ] **Step 6: 테스트 DB 초기화 셋업 작성**
+- [x] **Step 6: 테스트 DB 초기화 셋업 작성**
 
 Create `test/global-setup.ts`:
 ```ts
@@ -551,7 +551,7 @@ function loadEnvTest(): Record<string, string> {
 npm install -D dotenv
 ```
 
-- [ ] **Step 7: DB 연결 테스트 작성 (실패 확인용)**
+- [x] **Step 7: DB 연결 테스트 작성 (실패 확인용)**
 
 Create `test/db.test.ts`:
 ```ts
@@ -576,12 +576,12 @@ describe("prisma connection", () => {
 });
 ```
 
-- [ ] **Step 8: 테스트 실행 → 통과 확인**
+- [x] **Step 8: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- db`
 Expected: PASS (스키마·기본값·연결 검증).
 
-- [ ] **Step 9: 커밋**
+- [x] **Step 9: 커밋**
 
 ```bash
 git add -A
@@ -602,14 +602,14 @@ git commit -m "feat: add Prisma schema, migration, and db client"
   - `withRLS<T>(ctx: { userId: string; role: "ADMIN" | "SETTLEMENT" | "PM" }, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>` — 요청별 사용자 컨텍스트를 주입한 트랜잭션. 데이터 접근이 필요한 후속 태스크(Plan 2·3)는 반드시 이 헬퍼 안에서 쿼리한다.
   - PostgreSQL RLS 정책: ADMIN/SETTLEMENT 전체, PM은 자신이 담당(`pmId`)인 Client 및 그 하위(Task/Performance/Billing/Deposit/Expense)만.
 
-- [ ] **Step 1: RLS 마이그레이션 골격 생성**
+- [x] **Step 1: RLS 마이그레이션 골격 생성**
 
 ```bash
 npx prisma migrate dev --create-only --name rls
 ```
 `prisma/migrations/<timestamp>_rls/migration.sql`가 빈 파일로 생성된다.
 
-- [ ] **Step 2: RLS 정책 SQL 작성**
+- [x] **Step 2: RLS 정책 SQL 작성**
 
 위 `migration.sql`에 아래 내용을 작성:
 ```sql
@@ -715,14 +715,14 @@ CREATE POLICY expense_rls ON "Expense"
 
 > 주의: `User`, `Account`, `Session`은 RLS를 걸지 않는다(인증·사용자관리는 앱 가드로 통제, 로그인 시점엔 세션 컨텍스트가 없음).
 
-- [ ] **Step 3: 마이그레이션 적용**
+- [x] **Step 3: 마이그레이션 적용**
 
 ```bash
 npx prisma migrate dev
 ```
 Expected: `roi` DB에 RLS 정책 적용.
 
-- [ ] **Step 4: withRLS 헬퍼 작성**
+- [x] **Step 4: withRLS 헬퍼 작성**
 
 Create `src/lib/rls.ts`:
 ```ts
@@ -751,7 +751,7 @@ export function withRLS<T>(
 }
 ```
 
-- [ ] **Step 5: RLS 테스트 작성 (실패 확인용)**
+- [x] **Step 5: RLS 테스트 작성 (실패 확인용)**
 
 Create `test/rls.test.ts`:
 
@@ -822,12 +822,12 @@ describe("RLS: PM sees only own clients", () => {
 });
 ```
 
-- [ ] **Step 6: 테스트 실행 → 통과 확인**
+- [x] **Step 6: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- rls`
 Expected: PASS (4 passed). 만약 ADMIN 케이스가 실패하고 PM 케이스도 전부 통과하면, 앱이 슈퍼유저로 접속 중일 가능성 → `.env.test`의 `DATABASE_URL`이 `roi_app` 인지 확인. 만약 시드(`beforeEach`)에서 `new row violates row-level security policy` 오류가 나면 `FORCE` RLS가 적용된 것이므로 시드가 ADMIN 컨텍스트 안에 있는지 확인.
 
-- [ ] **Step 7: 커밋**
+- [x] **Step 7: 커밋**
 
 ```bash
 git add -A
@@ -850,7 +850,7 @@ git commit -m "feat: enforce PM row-level security via Postgres RLS + withRLS he
   - `hasAtLeast(role: AppRole | null | undefined, required: AppRole): boolean` — 위계 기반 판정(ADMIN이 SETTLEMENT/PM 권한 포함).
   - `canManageUsers(role): boolean` (ADMIN만), `canEditSettlement(role): boolean` (ADMIN/SETTLEMENT).
 
-- [ ] **Step 1: 도메인 검증 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 도메인 검증 테스트 작성 (실패 확인용)**
 
 Create `test/domain.test.ts`:
 ```ts
@@ -878,12 +878,12 @@ describe("isAllowedEmail", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- domain`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 도메인 검증 구현**
+- [x] **Step 3: 도메인 검증 구현**
 
 Create `src/lib/auth/domain.ts`:
 ```ts
@@ -898,12 +898,12 @@ export function isAllowedEmail(
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- domain`
 Expected: PASS.
 
-- [ ] **Step 5: RBAC 테스트 작성 (실패 확인용)**
+- [x] **Step 5: RBAC 테스트 작성 (실패 확인용)**
 
 Create `test/rbac.test.ts`:
 ```ts
@@ -940,12 +940,12 @@ describe("permission predicates", () => {
 });
 ```
 
-- [ ] **Step 6: 테스트 실행 → 실패 확인**
+- [x] **Step 6: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- rbac`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 7: RBAC 구현**
+- [x] **Step 7: RBAC 구현**
 
 Create `src/lib/auth/rbac.ts`:
 ```ts
@@ -970,12 +970,12 @@ export function canEditSettlement(role: AppRole | null | undefined): boolean {
 }
 ```
 
-- [ ] **Step 8: 테스트 실행 → 통과 확인**
+- [x] **Step 8: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- rbac`
 Expected: PASS.
 
-- [ ] **Step 9: 커밋**
+- [x] **Step 9: 커밋**
 
 ```bash
 git add -A
@@ -1001,13 +1001,13 @@ git commit -m "feat: add auth domain check and RBAC predicates"
   - 세션 타입 확장: `session.user.role: AppRole | null`, `session.user.status: "PENDING"|"ACTIVE"|"INACTIVE"`, `session.user.id: string`.
   - 후속 태스크는 `import { auth } from "@/lib/auth"`로 세션을 읽는다.
 
-- [ ] **Step 1: 의존성 설치**
+- [x] **Step 1: 의존성 설치**
 
 ```bash
 npm install next-auth@beta @auth/prisma-adapter
 ```
 
-- [ ] **Step 2: 콜백 순수 로직 테스트 작성 (실패 확인용)**
+- [x] **Step 2: 콜백 순수 로직 테스트 작성 (실패 확인용)**
 
 `signIn` 콜백을 테스트 가능한 함수로 분리한다. Create `test/auth-callbacks.test.ts`:
 ```ts
@@ -1031,12 +1031,12 @@ describe("signInCallback", () => {
 });
 ```
 
-- [ ] **Step 3: 테스트 실행 → 실패 확인**
+- [x] **Step 3: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- auth-callbacks`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 4: Auth 설정 구현**
+- [x] **Step 4: Auth 설정 구현**
 
 Create `src/lib/auth/config.ts`:
 ```ts
@@ -1080,7 +1080,7 @@ export const authConfig: NextAuthConfig = {
 };
 ```
 
-- [ ] **Step 5: 세션 타입 확장 작성**
+- [x] **Step 5: 세션 타입 확장 작성**
 
 Create `src/types/next-auth.d.ts`:
 ```ts
@@ -1101,7 +1101,7 @@ declare module "next-auth" {
 ```
 `tsconfig.json`의 `include`에 `src/types/**/*.d.ts`가 포함되는지 확인(기본 `**/*.ts`면 자동 포함).
 
-- [ ] **Step 6: Auth 진입점 및 라우트 핸들러 작성**
+- [x] **Step 6: Auth 진입점 및 라우트 핸들러 작성**
 
 Create `src/lib/auth/index.ts`:
 ```ts
@@ -1118,17 +1118,17 @@ import { handlers } from "@/lib/auth";
 export const { GET, POST } = handlers;
 ```
 
-- [ ] **Step 7: 테스트 실행 → 통과 확인**
+- [x] **Step 7: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- auth-callbacks`
 Expected: PASS.
 
-- [ ] **Step 8: 타입·빌드 확인**
+- [x] **Step 8: 타입·빌드 확인**
 
 Run: `npm run build`
 Expected: 성공(세션 타입 확장이 인식되어야 함). 실패 시 `next-auth.d.ts`의 모듈 경로·include 설정 확인.
 
-- [ ] **Step 9: 커밋**
+- [x] **Step 9: 커밋**
 
 ```bash
 git add -A
@@ -1152,7 +1152,7 @@ git commit -m "feat: configure Auth.js with Google OAuth and huno.kr domain rest
   - `type SessionUser = { id: string; role: AppRole | null; status: ...; email?: ... }`.
   - 미들웨어: 비공개 경로 미인증 접근 시 `/login` 리다이렉트.
 
-- [ ] **Step 1: 세션 가드 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 세션 가드 테스트 작성 (실패 확인용)**
 
 가드의 판정 로직을 순수 함수 `resolveGuard`로 분리해 리다이렉트 대상을 검증한다. Create `test/session-guard.test.ts`:
 ```ts
@@ -1181,12 +1181,12 @@ describe("resolveGuard", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- session-guard`
 Expected: FAIL — 모듈/함수 없음.
 
-- [ ] **Step 3: 세션 가드 구현**
+- [x] **Step 3: 세션 가드 구현**
 
 Create `src/lib/auth/session.ts`:
 ```ts
@@ -1230,12 +1230,12 @@ export async function requireRole(required: AppRole): Promise<SessionUser> {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- session-guard`
 Expected: PASS.
 
-- [ ] **Step 5: 미들웨어 작성**
+- [x] **Step 5: 미들웨어 작성**
 
 > 중요: 데이터베이스 세션 전략에서는 미들웨어(Edge 런타임)에서 Prisma로 세션을 검증할 수 없다. 따라서 미들웨어는 **세션 쿠키 존재 여부만으로 미인증자를 빠르게 리다이렉트**하는 1차 관문이며, **실제 인가 강제는 서버 가드(`requireUser`/`requireRole`, Node 런타임) + RLS**가 담당한다. 쿠키가 있어도 서버 가드가 상태·역할을 재검증하므로 안전하다.
 
@@ -1266,7 +1266,7 @@ export const config = {
 };
 ```
 
-- [ ] **Step 6: 로그인·승인대기 화면 작성**
+- [x] **Step 6: 로그인·승인대기 화면 작성**
 
 Create `src/app/(auth)/login/page.tsx`:
 ```tsx
@@ -1307,7 +1307,7 @@ export default function PendingPage() {
 }
 ```
 
-- [ ] **Step 7: 루트 페이지를 가드로 교체**
+- [x] **Step 7: 루트 페이지를 가드로 교체**
 
 `src/app/page.tsx`(create-next-app 기본 스플래시)를 서버 가드가 걸린 최소 랜딩으로 교체. 미인증→`/login`, 승인대기/비활성→`/pending`으로 redirect되고, 활성 사용자만 통과한다(대시보드 본문은 Plan 3에서 구현).
 
@@ -1326,7 +1326,7 @@ export default async function HomePage() {
 }
 ```
 
-- [ ] **Step 8: 빌드 확인 및 커밋**
+- [x] **Step 8: 빌드 확인 및 커밋**
 
 Run: `npm run build`
 Expected: 성공.
@@ -1352,7 +1352,7 @@ git commit -m "feat: add route protection middleware, server guards, and guarded
   - `setUserStatus(input: { userId: string; status: "ACTIVE" | "INACTIVE" }): Promise<{ ok: boolean }>`.
   - 승인/역할부여가 반영된 관리자 화면(`/admin/users`).
 
-- [ ] **Step 1: 라벨 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 라벨 테스트 작성 (실패 확인용)**
 
 Create `test/labels.test.ts`:
 ```ts
@@ -1382,12 +1382,12 @@ describe("labels", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- labels`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 라벨 구현**
+- [x] **Step 3: 라벨 구현**
 
 Create `src/lib/labels.ts`:
 ```ts
@@ -1424,12 +1424,12 @@ export function expenseCategoryLabel(
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- labels`
 Expected: PASS.
 
-- [ ] **Step 5: 승인 액션 코어 로직 테스트 작성 (실패 확인용)**
+- [x] **Step 5: 승인 액션 코어 로직 테스트 작성 (실패 확인용)**
 
 server action은 세션 의존성이 있으므로, DB 반영 로직을 `applyApproval`/`applyStatus`(주입식 prisma 사용)로 분리해 실 DB로 검증한다. Create `test/user-admin-actions.test.ts`:
 ```ts
@@ -1468,12 +1468,12 @@ describe("applyStatus", () => {
 });
 ```
 
-- [ ] **Step 6: 테스트 실행 → 실패 확인**
+- [x] **Step 6: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- user-admin-actions`
 Expected: FAIL — 모듈/함수 없음.
 
-- [ ] **Step 7: 액션 구현**
+- [x] **Step 7: 액션 구현**
 
 Create `src/app/admin/users/actions.ts`:
 ```ts
@@ -1527,12 +1527,12 @@ export async function changeStatus(formData: FormData): Promise<void> {
 }
 ```
 
-- [ ] **Step 8: 테스트 실행 → 통과 확인**
+- [x] **Step 8: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- user-admin-actions`
 Expected: PASS.
 
-- [ ] **Step 9: 관리자 화면 작성**
+- [x] **Step 9: 관리자 화면 작성**
 
 Create `src/app/admin/users/page.tsx`:
 ```tsx
@@ -1594,12 +1594,12 @@ export default async function AdminUsersPage() {
 }
 ```
 
-- [ ] **Step 10: 빌드 확인 및 전체 테스트**
+- [x] **Step 10: 빌드 확인 및 전체 테스트**
 
 Run: `npm run build && npm run test`
 Expected: 빌드 성공, 모든 테스트 통과.
 
-- [ ] **Step 11: 커밋**
+- [x] **Step 11: 커밋**
 
 ```bash
 git add -A
@@ -1610,10 +1610,10 @@ git commit -m "feat: add admin user approval and role assignment"
 
 ## 최종 검증 (Definition of Done)
 
-- [ ] `npm run test` — 전 테스트 통과(smoke, tokens, db, rls, domain, rbac, auth-callbacks, session-guard, labels, user-admin-actions).
-- [ ] `npm run build` — 성공.
+- [x] `npm run test` — 전 테스트 통과(smoke, tokens, db, rls, domain, rbac, auth-callbacks, session-guard, labels, user-admin-actions).
+- [x] `npm run build` — 성공.
 - [ ] 수동 확인(로컬 dev, `npm run dev`): `@huno.kr` 구글 로그인 → 최초 접근 시 `/pending` → 관리자가 `/admin/users`에서 승인·역할부여 → 재로그인/새로고침 시 접근 가능.
-- [ ] RLS 검증: PM 컨텍스트에서 타 고객사 조회/수정 0건(test/rls.test.ts로 자동 검증됨).
+- [x] RLS 검증: PM 컨텍스트에서 타 고객사 조회/수정 0건(test/rls.test.ts로 자동 검증됨).
 
 ## 다음 계획으로 넘어가기 전 확인
 
