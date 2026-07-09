@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { expenseSchema } from "@/lib/validation/schemas";
 import { upsertExpense } from "@/lib/data/expenses";
-import type { ActionState } from "@/lib/action-state";
+import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function saveExpense(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireRole("SETTLEMENT");
@@ -20,6 +20,7 @@ export async function saveExpense(_prev: ActionState, formData: FormData): Promi
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 금액은 0 이상의 정수여야 합니다." };
   const result = await upsertExpense(ctx, parsed.data);
-  if (result.ok) revalidatePath("/expenses");
-  return result;
+  if (!result.ok) return result;
+  revalidatePath("/expenses");
+  return SAVED;
 }

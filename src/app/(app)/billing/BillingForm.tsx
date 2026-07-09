@@ -21,6 +21,7 @@ function AmountForm({
         <input type="number" min="0" name="amount" defaultValue={defaultValue} className="w-40 rounded border border-[var(--color-border)] px-2 py-1 text-sm" />
       </label>
       <button type="submit" className="rounded bg-[var(--color-primary)] px-3 py-1.5 text-sm text-white">저장</button>
+      {state.ok && state.message && <span className="text-sm text-[var(--color-primary)]">{state.message}</span>}
       {!state.ok && state.error && <span className="text-sm text-[var(--color-danger)]">{state.error}</span>}
     </form>
   );

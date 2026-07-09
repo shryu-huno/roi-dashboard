@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { performanceBatchSchema } from "@/lib/validation/schemas";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
-import type { ActionState } from "@/lib/action-state";
+import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function savePerformance(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
@@ -29,6 +29,7 @@ export async function savePerformance(_prev: ActionState, formData: FormData): P
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 횟수는 0 이상의 정수여야 합니다." };
 
   const result = await upsertPerformanceBatch(ctx, parsed.data);
-  if (result.ok) revalidatePath("/performance");
-  return result;
+  if (!result.ok) return result;
+  revalidatePath("/performance");
+  return SAVED;
 }

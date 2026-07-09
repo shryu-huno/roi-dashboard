@@ -28,6 +28,9 @@ export function PerformanceGrid({
       <input type="hidden" name="year" value={year} />
       <input type="hidden" name="month" value={month} />
 
+      {state.ok && state.message && (
+        <p className="mb-3 rounded border border-[var(--color-primary)] px-3 py-2 text-sm text-[var(--color-primary)]">{state.message}</p>
+      )}
       {!state.ok && state.error && (
         <p className="mb-3 rounded border border-[var(--color-danger)] px-3 py-2 text-sm text-[var(--color-danger)]">{state.error}</p>
       )}

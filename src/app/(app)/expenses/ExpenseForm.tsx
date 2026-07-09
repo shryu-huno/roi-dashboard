@@ -16,6 +16,9 @@ export function ExpenseForm({
   const [state, formAction] = useActionState(saveExpense, OK);
   return (
     <div>
+      {state.ok && state.message && (
+        <p className="mb-3 rounded border border-[var(--color-primary)] px-3 py-2 text-sm text-[var(--color-primary)]">{state.message}</p>
+      )}
       {!state.ok && state.error && (
         <p className="mb-3 rounded border border-[var(--color-danger)] px-3 py-2 text-sm text-[var(--color-danger)]">{state.error}</p>
       )}

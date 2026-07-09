@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { billingSchema, depositSchema } from "@/lib/validation/schemas";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
-import type { ActionState } from "@/lib/action-state";
+import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function saveBilling(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireRole("SETTLEMENT");
@@ -18,8 +18,9 @@ export async function saveBilling(_prev: ActionState, formData: FormData): Promi
   });
   if (!parsed.success) return { ok: false, error: "청구액은 0 이상의 정수여야 합니다." };
   const result = await upsertBilling(ctx, parsed.data);
-  if (result.ok) revalidatePath("/billing");
-  return result;
+  if (!result.ok) return result;
+  revalidatePath("/billing");
+  return SAVED;
 }
 
 export async function saveDeposit(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -33,6 +34,7 @@ export async function saveDeposit(_prev: ActionState, formData: FormData): Promi
   });
   if (!parsed.success) return { ok: false, error: "입금액은 0 이상의 정수여야 합니다." };
   const result = await upsertDeposit(ctx, parsed.data);
-  if (result.ok) revalidatePath("/billing");
-  return result;
+  if (!result.ok) return result;
+  revalidatePath("/billing");
+  return SAVED;
 }

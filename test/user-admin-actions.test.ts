@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 // applyApproval/applyStatus 는 세션 비의존이므로 node 환경에서 전이 import 가 깨지지 않도록 스텁한다.
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 
-import { applyApproval, applyStatus } from "@/app/admin/users/actions";
+import { applyApproval, applyStatus } from "@/app/(app)/admin/users/actions";
 
 beforeEach(async () => {
   await prisma.user.deleteMany();

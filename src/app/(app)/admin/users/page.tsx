@@ -8,7 +8,7 @@ export default async function AdminUsersPage() {
   const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
 
   return (
-    <main className="p-8">
+    <div>
       <h1 className="mb-4 text-xl font-semibold">사용자·권한 관리</h1>
       <table className="w-full border-collapse text-sm">
         <thead>
@@ -53,6 +53,6 @@ export default async function AdminUsersPage() {
           ))}
         </tbody>
       </table>
-    </main>
+    </div>
   );
 }

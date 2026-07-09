@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { listTasks } from "@/lib/data/tasks";
-import { listPerformance } from "@/lib/data/performance";
+import { listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { PerformanceGrid } from "./PerformanceGrid";
 
 const now = { year: 2026, month: 1 }; // 기본 연월(전역 기간 필터는 Plan 3). 사용자가 선택기로 변경.
@@ -21,10 +21,15 @@ export default async function PerformancePage({
   const year = Number(sp.year) || now.year;
   const month = Number(sp.month) || now.month;
 
-  const [tasks, perf] = clientId
-    ? await Promise.all([listTasks(ctx, clientId), listPerformance(ctx, clientId, year, month)])
-    : [[], []];
+  const [tasks, perf, totals] = clientId
+    ? await Promise.all([
+        listTasks(ctx, clientId),
+        listPerformance(ctx, clientId, year, month),
+        listPerformanceTotals(ctx, clientId),
+      ])
+    : [[], [], []];
   const initialCounts = Object.fromEntries(perf.map((p) => [p.taskId, p.count]));
+  const totalsByTask = new Map(totals.map((t) => [t.taskId, t]));
 
   return (
     <div>
@@ -53,13 +58,58 @@ export default async function PerformancePage({
       ) : tasks.length === 0 ? (
         <p className="text-[var(--color-muted)]">등록된 과업이 없습니다. 설정에서 과업을 먼저 등록하세요.</p>
       ) : (
-        <PerformanceGrid
-          clientId={clientId}
-          year={year}
-          month={month}
-          tasks={tasks.map((t) => ({ id: t.id, name: t.name, unitPrice: t.unitPrice }))}
-          initialCounts={initialCounts}
-        />
+        <>
+          <h2 className="mb-2 text-sm font-medium text-[var(--color-muted)]">{year}년 {month}월 실적 (해당 월만 저장)</h2>
+          <PerformanceGrid
+            clientId={clientId}
+            year={year}
+            month={month}
+            tasks={tasks.map((t) => ({ id: t.id, name: t.name, unitPrice: t.unitPrice }))}
+            initialCounts={initialCounts}
+          />
+
+          <h2 className="mb-2 mt-10 text-sm font-medium text-[var(--color-muted)]">계약 기간 누적 (전체 월 합계)</h2>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
+                <th className="py-2">과업</th>
+                <th className="text-right">누적 횟수</th>
+                <th className="text-right">계약 횟수</th>
+                <th className="text-right">누적 금액</th>
+                <th className="text-right">계약금</th>
+                <th className="text-right">달성률</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((t) => {
+                const tot = totalsByTask.get(t.id);
+                const cumCount = tot?.totalCount ?? 0;
+                const cumAmount = tot?.totalAmount ?? 0;
+                const rate = t.contractCount ? Math.round((cumCount / t.contractCount) * 100) : null;
+                return (
+                  <tr key={t.id} className="border-b border-[var(--color-border)]">
+                    <td className="py-2">{t.name}</td>
+                    <td className="text-right">{cumCount.toLocaleString("ko-KR")}</td>
+                    <td className="text-right">{t.contractCount == null ? "—" : t.contractCount.toLocaleString("ko-KR")}</td>
+                    <td className="text-right">{cumAmount.toLocaleString("ko-KR")}</td>
+                    <td className="text-right">{t.contractAmount == null ? "—" : t.contractAmount.toLocaleString("ko-KR")}</td>
+                    <td className="text-right">{rate == null ? "—" : `${rate}%`}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="font-medium">
+                <td className="py-2">합계</td>
+                <td className="text-right">{tasks.reduce((s, t) => s + (totalsByTask.get(t.id)?.totalCount ?? 0), 0).toLocaleString("ko-KR")}</td>
+                <td className="text-right">—</td>
+                <td className="text-right">{tasks.reduce((s, t) => s + (totalsByTask.get(t.id)?.totalAmount ?? 0), 0).toLocaleString("ko-KR")}</td>
+                <td className="text-right">{tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0).toLocaleString("ko-KR")}</td>
+                <td className="text-right">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </>
       )}
     </div>
   );
