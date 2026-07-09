@@ -999,7 +999,7 @@ git commit -m "feat: add expenses data layer with per-category upsert and RLS"
   - `getDeposit(ctx, ...)`, `upsertDeposit(ctx, input)` — 동일 형태.
   - `type AmountInput = { clientId: string; year: number; month: number; amount: number | null }`
 
-- [ ] **Step 1: 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 테스트 작성 (실패 확인용)**
 
 Create `test/data-billing.test.ts`:
 ```ts
@@ -1058,14 +1058,14 @@ describe("billing/deposit data layer", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 npm run test -- data-billing
 ```
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/data/billing.ts`:
 ```ts
@@ -1117,14 +1117,14 @@ export async function upsertDeposit(ctx: RlsContext, input: AmountInput): Promis
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 npm run test -- data-billing
 ```
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/billing.ts test/data-billing.test.ts
