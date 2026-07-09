@@ -1559,7 +1559,7 @@ git commit -m "feat: add client and task settings screens (SETTLEMENT+)"
 - Consumes: `requireUser`, `getRlsContext`, `listClients`.
 - Produces: 활성 사용자용 고객사 목록(PM은 RLS로 본인 담당만). 각 고객사에서 실적 입력으로 이동.
 
-- [ ] **Step 1: 목록 페이지 작성**
+- [x] **Step 1: 목록 페이지 작성**
 
 Create `src/app/(app)/clients/page.tsx`:
 ```tsx
@@ -1597,7 +1597,7 @@ export default async function ClientsPage() {
 }
 ```
 
-- [ ] **Step 2: 빌드 확인 및 커밋**
+- [x] **Step 2: 빌드 확인 및 커밋**
 
 ```bash
 npm run build
