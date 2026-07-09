@@ -76,7 +76,7 @@
   - `parsePeriodParams(sp: { year?: string; period?: string }, fallbackYear: number): { year: number; period: PeriodKey }`.
   - `PERIOD_OPTIONS: { value: PeriodKey; label: string }[]`.
 
-- [ ] **Step 1: 실패 테스트 작성**
+- [x] **Step 1: 실패 테스트 작성**
 
 Create `test/period.test.ts`:
 ```ts
@@ -116,12 +116,12 @@ describe("parsePeriodParams", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- period`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/period.ts`:
 ```ts
@@ -160,12 +160,12 @@ export function parsePeriodParams(
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- period`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 cd /c/dev/roi-dashboard
@@ -188,7 +188,7 @@ git commit -m "feat: add period utilities for dashboard date filtering"
   - `billingRate(billing: number, performance: number): number | null` — `청구/실적`, 실적=0 → null.
   - `collectionRate(deposit: number, billing: number): number | null` — `입금/청구`, 청구=0 → null.
 
-- [ ] **Step 1: 실패 테스트 작성**
+- [x] **Step 1: 실패 테스트 작성**
 
 Create `test/metrics-formulas.test.ts`:
 ```ts
@@ -235,12 +235,12 @@ describe("collectionRate (수금률)", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- metrics-formulas`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/metrics/formulas.ts`:
 ```ts
@@ -265,12 +265,12 @@ export function collectionRate(deposit: number, billing: number): number | null 
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- metrics-formulas`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/metrics/formulas.ts test/metrics-formulas.test.ts
@@ -291,7 +291,7 @@ git commit -m "feat: add KPI formula functions with zero-denominator handling"
   - `formatWon(v: number | null | undefined): string` — `null`/`undefined` → "—", 아니면 `"1,000,000원"`.
   - `formatPercent(v: number | null | undefined): string` — `null`/`undefined` → "—", 아니면 소수1자리 `"70.0%"` (입력은 0~1 비율).
 
-- [ ] **Step 1: 실패 테스트 작성**
+- [x] **Step 1: 실패 테스트 작성**
 
 Create `test/format.test.ts`:
 ```ts
@@ -327,12 +327,12 @@ describe("formatThousands (기존 유지)", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- format`
 Expected: FAIL — `formatWon`/`formatPercent` 없음.
 
-- [ ] **Step 3: 구현 (기존 파일에 추가)**
+- [x] **Step 3: 구현 (기존 파일에 추가)**
 
 Append to `src/lib/format.ts` (기존 `digitsOnly`·`formatThousands`는 그대로 두고 아래를 추가):
 ```ts
@@ -349,12 +349,12 @@ export function formatPercent(v: number | null | undefined): string {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- format`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/format.ts test/format.test.ts
@@ -375,7 +375,7 @@ git commit -m "feat: add formatWon and formatPercent display helpers"
   - `getPeriodTotals(ctx: RlsContext, year: number, period: string): Promise<PeriodTotals>`.
   - `getContractTotal(ctx: RlsContext): Promise<number>`.
 
-- [ ] **Step 1: 실패 테스트 작성**
+- [x] **Step 1: 실패 테스트 작성**
 
 Create `test/data-metrics.test.ts`:
 ```ts
@@ -449,12 +449,12 @@ describe("metrics: period totals & contract total", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/data/metrics.ts`:
 ```ts
@@ -510,12 +510,12 @@ export function getContractTotal(ctx: RlsContext): Promise<number> {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: PASS (4 passed).
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/metrics.ts test/data-metrics.test.ts
@@ -538,7 +538,7 @@ git commit -m "feat: add period totals and contract total aggregates with RLS"
   - `type ExpenseSlice = { category: ExpenseCategory; amount: number }`.
   - `getExpenseBreakdown(ctx: RlsContext, year: number, period: string): Promise<ExpenseSlice[]>`.
 
-- [ ] **Step 1: 실패 테스트 추가**
+- [x] **Step 1: 실패 테스트 추가**
 
 Append to `test/data-metrics.test.ts` 상단 import에 다음을 추가:
 ```ts
@@ -574,12 +574,12 @@ describe("metrics: trend & expense breakdown", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: FAIL — `getMonthlyTrend`/`getExpenseBreakdown` 없음.
 
-- [ ] **Step 3: 구현 (metrics.ts에 추가)**
+- [x] **Step 3: 구현 (metrics.ts에 추가)**
 
 Append to `src/lib/data/metrics.ts` (상단 import에 `ExpenseCategory` 추가):
 ```ts
@@ -633,12 +633,12 @@ export function getExpenseBreakdown(
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/metrics.ts test/data-metrics.test.ts
@@ -661,7 +661,7 @@ git commit -m "feat: add monthly trend and expense breakdown aggregates"
   - `type PmSummary = { pmId: string | null; label: string; clientCount: number; performance: number; expense: number }`.
   - `getPmSummaries(ctx: RlsContext, year: number, period: string): Promise<PmSummary[]>` — client.pmId 기준 rollup, pmId null은 `label: "미배정"`.
 
-- [ ] **Step 1: 실패 테스트 추가**
+- [x] **Step 1: 실패 테스트 추가**
 
 상단 import에 추가:
 ```ts
@@ -706,12 +706,12 @@ describe("metrics: client & PM summaries", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: FAIL — 함수 없음.
 
-- [ ] **Step 3: 구현 (metrics.ts에 추가)**
+- [x] **Step 3: 구현 (metrics.ts에 추가)**
 
 상단 import에 추가:
 ```ts
@@ -804,12 +804,12 @@ export async function getPmSummaries(
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/metrics.ts test/data-metrics.test.ts
@@ -832,7 +832,7 @@ git commit -m "feat: add client and PM rollup summaries with RLS"
   - `type ClientDetail = { client: { id: string; name: string; status: string }; tasks: TaskPerf[]; monthly: MonthlyRow[] }`.
   - `getClientDetail(ctx: RlsContext, id: string, year: number, period: string): Promise<ClientDetail | null>` — RLS로 접근 불가/없는 고객사면 `null`. `tasks`는 선택 구간 실적, `monthly`는 12행.
 
-- [ ] **Step 1: 실패 테스트 추가**
+- [x] **Step 1: 실패 테스트 추가**
 
 상단 import에 추가:
 ```ts
@@ -869,12 +869,12 @@ describe("metrics: client detail", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: FAIL — `getClientDetail` 없음.
 
-- [ ] **Step 3: 구현 (metrics.ts에 추가)**
+- [x] **Step 3: 구현 (metrics.ts에 추가)**
 
 파일 끝에 추가:
 ```ts
@@ -963,12 +963,12 @@ export function getClientDetail(
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm run test -- data-metrics`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/metrics.ts test/data-metrics.test.ts
