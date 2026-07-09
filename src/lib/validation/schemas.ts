@@ -8,7 +8,12 @@ export const EXPENSE_CATEGORIES = [
 
 const year = z.coerce.number().int().min(2000).max(2100);
 const month = z.coerce.number().int().min(1).max(12);
-const nonNegInt = z.coerce.number().int().min(0);
+// 비-nullable 정수 금액(≥0). 빈 문자열은 0으로 조용히 강제되지 않고 거부된다
+// (수익 대시보드에서 단가 빈칸이 0으로 저장되는 사고 방지).
+const nonNegInt = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? NaN : v),
+  z.coerce.number().int().min(0),
+);
 
 // 빈 문자열/undefined → null, 그 외엔 정수(≥0). "없음(null) vs 0" 구분용.
 const nullableAmount = z.preprocess(

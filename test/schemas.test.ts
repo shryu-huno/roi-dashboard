@@ -67,4 +67,34 @@ describe("taskSchema", () => {
   it("rejects empty name", () => {
     expect(taskSchema.safeParse({ clientId: "c1", name: "", unitPrice: 100 }).success).toBe(false);
   });
+  it("rejects empty-string unitPrice", () => {
+    expect(taskSchema.safeParse({ clientId: "c1", name: "x", unitPrice: "" }).success).toBe(false);
+  });
+});
+
+describe("expenseSchema – blank amount", () => {
+  it("rejects empty-string amount", () => {
+    expect(expenseSchema.safeParse({ clientId: "c1", year: 2026, month: 3, category: "OPS_FOOD", amount: "" }).success).toBe(false);
+  });
+});
+
+describe("performanceBatchSchema – blank count & year bounds", () => {
+  it("still accepts valid numeric-string count", () => {
+    const r = performanceBatchSchema.safeParse({
+      clientId: "c1", year: "2026", month: "3", rows: [{ taskId: "t1", count: "4" }],
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.rows[0].count).toBe(4);
+  });
+  it("rejects empty-string count in a row", () => {
+    expect(performanceBatchSchema.safeParse({
+      clientId: "c1", year: 2026, month: 3, rows: [{ taskId: "t1", count: "" }],
+    }).success).toBe(false);
+  });
+  it("rejects year below range (1999)", () => {
+    expect(performanceBatchSchema.safeParse({ clientId: "c1", year: 1999, month: 3, rows: [] }).success).toBe(false);
+  });
+  it("rejects year above range (2101)", () => {
+    expect(performanceBatchSchema.safeParse({ clientId: "c1", year: 2101, month: 3, rows: [] }).success).toBe(false);
+  });
 });
