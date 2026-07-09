@@ -1146,7 +1146,7 @@ git commit -m "feat: add billing/deposit data layer with null-vs-zero semantics 
   - `navItemsForRole(role: AppRole | null): { href: string; label: string }[]`
   - `(app)` 그룹 레이아웃: 좌측 사이드바 + 상단바 + 본문. `requireUser` 가드.
 
-- [ ] **Step 1: nav 테스트 작성 (실패 확인용)**
+- [x] **Step 1: nav 테스트 작성 (실패 확인용)**
 
 Create `test/nav.test.ts`:
 ```ts
@@ -1171,14 +1171,14 @@ describe("navItemsForRole", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 npm run test -- nav
 ```
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: nav 구현**
+- [x] **Step 3: nav 구현**
 
 Create `src/lib/shell/nav.ts`:
 ```ts
@@ -1201,14 +1201,14 @@ export function navItemsForRole(role: AppRole | null): NavItem[] {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 npm run test -- nav
 ```
 Expected: PASS.
 
-- [ ] **Step 5: 사이드바·상단바 컴포넌트 작성**
+- [x] **Step 5: 사이드바·상단바 컴포넌트 작성**
 
 Create `src/components/shell/Sidebar.tsx`:
 ```tsx
@@ -1261,7 +1261,7 @@ export function Topbar({ email, role }: { email: string; role: AppRole | null })
 }
 ```
 
-- [ ] **Step 6: (app) 레이아웃 작성**
+- [x] **Step 6: (app) 레이아웃 작성**
 
 Create `src/app/(app)/layout.tsx`:
 ```tsx
@@ -1283,7 +1283,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 }
 ```
 
-- [ ] **Step 7: 빌드 확인 및 커밋**
+- [x] **Step 7: 빌드 확인 및 커밋**
 
 ```bash
 npm run build
