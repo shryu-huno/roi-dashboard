@@ -1306,7 +1306,7 @@ git commit -m "feat: add app shell layout with role-based sidebar and topbar"
 - Consumes: `requireRole` (SETTLEMENT), `getRlsContext`, `listClients`/`createClient`/`updateClient`/`getClient` (clients), `listTasks`/`createTask`/`updateTask`/`deleteTask` (tasks), `clientSchema`/`taskSchema`, `prisma`(활성 PM 목록 — User는 RLS 미적용), `roleLabel`.
 - Produces: 설정 목록/상세 화면과 폼 서버 액션들(`createClientAction`, `updateClientAction`, `createTaskAction`, `updateTaskAction`, `deleteTaskAction`). 모두 `requireRole("SETTLEMENT")`로 시작.
 
-- [ ] **Step 1: 설정 액션 작성**
+- [x] **Step 1: 설정 액션 작성**
 
 Create `src/app/(app)/settings/clients/actions.ts`:
 ```ts
@@ -1384,7 +1384,7 @@ export async function deleteTaskAction(formData: FormData): Promise<void> {
 }
 ```
 
-- [ ] **Step 2: 설정 목록 페이지 작성**
+- [x] **Step 2: 설정 목록 페이지 작성**
 
 Create `src/app/(app)/settings/clients/page.tsx`:
 ```tsx
@@ -1457,7 +1457,7 @@ export default async function SettingsClientsPage() {
 }
 ```
 
-- [ ] **Step 3: 설정 상세(과업 CRUD) 페이지 작성**
+- [x] **Step 3: 설정 상세(과업 CRUD) 페이지 작성**
 
 Create `src/app/(app)/settings/clients/[id]/page.tsx`:
 ```tsx
@@ -1537,7 +1537,7 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
 }
 ```
 
-- [ ] **Step 4: 빌드 확인 및 커밋**
+- [x] **Step 4: 빌드 확인 및 커밋**
 
 ```bash
 npm run build
