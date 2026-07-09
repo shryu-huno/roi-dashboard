@@ -425,7 +425,7 @@ git commit -m "feat: add zod input schemas for clients, tasks, performance, expe
   - `updateClient(ctx, id, input): Promise<ActionState>`
   - `type ClientInput = { name: string; status?: string; contractStart?: Date|null; contractEnd?: Date|null; pmId?: string|null }`
 
-- [ ] **Step 1: 테스트 작성 (실패 확인용)**
+- [x] **Step 1: 테스트 작성 (실패 확인용)**
 
 Create `test/data-clients.test.ts`:
 ```ts
@@ -476,14 +476,14 @@ describe("clients data layer", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 npm run test -- data-clients
 ```
 Expected: FAIL — 모듈 없음.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 Create `src/lib/data/clients.ts`:
 ```ts
@@ -538,14 +538,14 @@ export async function updateClient(ctx: RlsContext, id: string, input: ClientInp
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 npm run test -- data-clients
 ```
 Expected: PASS.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add src/lib/data/clients.ts test/data-clients.test.ts
