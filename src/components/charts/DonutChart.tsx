@@ -14,7 +14,7 @@ export function DonutChart({ segments }: { segments: { label: string; value: num
   if (total === 0) {
     return <p className="text-sm text-[var(--color-muted)]">데이터가 없습니다.</p>;
   }
-  const R = 60, C = 2 * Math.PI * R;
+  const R = 88, C = 2 * Math.PI * R;
   const activeSeg = active === null ? null : segments[active];
   const dashes = segments.map((s) => (s.value / total) * C);
   const arcs = dashes.map((dash, i) => ({
@@ -22,10 +22,10 @@ export function DonutChart({ segments }: { segments: { label: string; value: num
     offset: dashes.slice(0, i).reduce((sum, d) => sum + d, 0),
   }));
   return (
-    <div className="flex flex-wrap items-center gap-6">
-      <div className="relative" style={{ width: 160, height: 160 }}>
-        <svg width="160" height="160" viewBox="0 0 160 160">
-          <g transform="translate(80,80) rotate(-90)">
+    <div className="flex flex-wrap items-center gap-8">
+      <div className="relative" style={{ width: 224, height: 224 }}>
+        <svg width="224" height="224" viewBox="0 0 224 224">
+          <g transform="translate(112,112) rotate(-90)">
             {segments.map((s, i) => {
               const { dash, offset } = arcs[i];
               const dim = active !== null && active !== i;
@@ -35,7 +35,7 @@ export function DonutChart({ segments }: { segments: { label: string; value: num
                   r={R}
                   fill="none"
                   stroke={COLORS[i % COLORS.length]}
-                  strokeWidth={active === i ? 30 : 24}
+                  strokeWidth={active === i ? 40 : 32}
                   strokeDasharray={`${dash} ${C - dash}`}
                   strokeDashoffset={-offset}
                   opacity={dim ? 0.35 : 1}
@@ -50,35 +50,35 @@ export function DonutChart({ segments }: { segments: { label: string; value: num
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
           {activeSeg ? (
             <>
-              <span className="max-w-[92px] text-[11px] font-medium leading-tight text-[var(--color-fg)]">
+              <span className="max-w-[128px] text-sm font-medium leading-tight text-[var(--color-fg)]">
                 {activeSeg.label}
               </span>
-              <span className="text-xs font-semibold text-[var(--color-fg)]">{formatWon(activeSeg.value)}</span>
-              <span className="text-[11px] text-[var(--color-muted)]">
+              <span className="text-base font-semibold text-[var(--color-fg)]">{formatWon(activeSeg.value)}</span>
+              <span className="text-sm text-[var(--color-muted)]">
                 {((activeSeg.value / total) * 100).toFixed(1)}%
               </span>
             </>
           ) : (
             <>
-              <span className="text-[10px] text-[var(--color-muted)]">합계</span>
-              <span className="text-xs font-semibold text-[var(--color-fg)]">{formatWon(total)}</span>
+              <span className="text-xs text-[var(--color-muted)]">합계</span>
+              <span className="text-base font-semibold text-[var(--color-fg)]">{formatWon(total)}</span>
             </>
           )}
         </div>
       </div>
-      <ul className="flex flex-col gap-1 text-xs">
+      <ul className="grid grid-flow-col grid-rows-4 gap-x-10 gap-y-2 text-sm">
         {segments.map((s, i) => (
           <li
             key={s.label}
-            className="flex items-center gap-2 rounded px-1 py-0.5"
+            className="flex items-center gap-2.5 rounded px-1.5 py-1"
             style={{ background: active === i ? "var(--color-border)" : "transparent", cursor: "pointer" }}
             onMouseEnter={() => setActive(i)}
             onMouseLeave={() => setActive((cur) => (cur === i ? null : cur))}
           >
-            <span className="inline-block h-3 w-3 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
-            <span className="w-40 text-[var(--color-fg)]">{s.label}</span>
-            <span className="w-28 text-right text-[var(--color-fg)]">{formatWon(s.value)}</span>
-            <span className="w-12 text-right text-[var(--color-muted)]">{((s.value / total) * 100).toFixed(0)}%</span>
+            <span className="inline-block h-3.5 w-3.5 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
+            <span className="w-44 text-[var(--color-fg)]">{s.label}</span>
+            <span className="w-32 text-right text-[var(--color-fg)]">{formatWon(s.value)}</span>
+            <span className="w-14 text-right text-[var(--color-muted)]">{((s.value / total) * 100).toFixed(0)}%</span>
           </li>
         ))}
       </ul>
