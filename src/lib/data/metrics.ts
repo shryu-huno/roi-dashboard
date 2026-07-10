@@ -180,13 +180,13 @@ export async function getPmSummaries(
   }));
 }
 
+export type TaskMonthAmount = { month: number; amount: number };
+
 export type TaskPerf = {
   id: string;
   name: string;
-  unitPrice: number;
-  contractAmount: number | null;
-  count: number;
-  amount: number;
+  monthly: TaskMonthAmount[];
+  total: number;
 };
 
 export type MonthlyRow = {
@@ -199,6 +199,7 @@ export type MonthlyRow = {
 
 export type ClientDetail = {
   client: { id: string; name: string; status: string };
+  contract: number;
   tasks: TaskPerf[];
   monthly: MonthlyRow[];
   expenses: ExpenseSlice[];
@@ -217,23 +218,23 @@ export function getClientDetail(
     if (!client) return null; // 없거나 RLS로 은닉
 
     const tasks = await tx.task.findMany({ where: { clientId: id }, orderBy: { name: "asc" } });
+    const contract = tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange, task: { clientId: id } },
-      select: { taskId: true, count: true, amount: true },
+      select: { taskId: true, month: true, amount: true },
     });
-    const perfByTask = new Map<string, { count: number; amount: number }>();
+    const byTaskMonth = new Map<string, Map<number, number>>();
     for (const r of perfRows) {
-      const cur = perfByTask.get(r.taskId) ?? { count: 0, amount: 0 };
-      perfByTask.set(r.taskId, { count: cur.count + r.count, amount: cur.amount + r.amount });
+      const m = byTaskMonth.get(r.taskId) ?? new Map<number, number>();
+      m.set(r.month, (m.get(r.month) ?? 0) + r.amount);
+      byTaskMonth.set(r.taskId, m);
     }
-    const taskRows: TaskPerf[] = tasks.map((t) => ({
-      id: t.id,
-      name: t.name,
-      unitPrice: t.unitPrice,
-      contractAmount: t.contractAmount,
-      count: perfByTask.get(t.id)?.count ?? 0,
-      amount: perfByTask.get(t.id)?.amount ?? 0,
-    }));
+    const months = Array.from({ length: endMonth - startMonth + 1 }, (_, i) => startMonth + i);
+    const taskRows: TaskPerf[] = tasks.map((t) => {
+      const mm = byTaskMonth.get(t.id) ?? new Map<number, number>();
+      const monthly = months.map((month) => ({ month, amount: mm.get(month) ?? 0 }));
+      return { id: t.id, name: t.name, monthly, total: monthly.reduce((s, x) => s + x.amount, 0) };
+    });
 
     const perfM = await tx.monthlyPerformance.groupBy({
       by: ["month"], where: { year, task: { clientId: id } }, _sum: { amount: true },
@@ -265,6 +266,6 @@ export function getClientDetail(
       };
     });
 
-    return { client: { id: client.id, name: client.name, status: client.status }, tasks: taskRows, monthly, expenses };
+    return { client: { id: client.id, name: client.name, status: client.status }, contract, tasks: taskRows, monthly, expenses };
   });
 }

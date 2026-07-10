@@ -143,13 +143,25 @@ describe("metrics: client detail", () => {
     await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
   });
 
-  it("returns detail with per-task period perf and 12 monthly rows", async () => {
+  it("returns detail with per-task monthly amounts and contract total", async () => {
     const d = await getClientDetail(ADMIN, clientA, 2026, "all");
     expect(d).not.toBeNull();
     expect(d!.client.name).toBe("A사");
-    expect(d!.tasks[0]).toMatchObject({ name: "진단", unitPrice: 10000, contractAmount: 500000, count: 4, amount: 40000 });
+    expect(d!.contract).toBe(500000);
+    const t = d!.tasks[0];
+    expect(t.name).toBe("진단");
+    expect(t.total).toBe(40000);
+    expect(t.monthly).toHaveLength(12);
+    expect(t.monthly.find((m) => m.month === 3)!.amount).toBe(40000);
+    expect(t.monthly.find((m) => m.month === 1)!.amount).toBe(0);
     expect(d!.monthly).toHaveLength(12);
     expect(d!.monthly[2]).toEqual({ month: 3, performance: 40000, billing: 30000, deposit: 20000, expense: 0 });
+  });
+
+  it("task monthly columns follow the selected period (h1 → months 1..6)", async () => {
+    const d = await getClientDetail(ADMIN, clientA, 2026, "h1");
+    expect(d!.tasks[0].monthly.map((m) => m.month)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(d!.tasks[0].total).toBe(40000);
   });
 
   it("returns null for another PM's client (RLS)", async () => {
