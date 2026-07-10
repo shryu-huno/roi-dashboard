@@ -100,19 +100,21 @@ export type ClientSummary = {
   id: string;
   name: string;
   pmId: string | null;
+  pmLabel: string;
+  industry: string | null;
   performance: number;
   expense: number;
   contract: number;
 };
 
-export function getClientSummaries(
+export async function getClientSummaries(
   ctx: RlsContext,
   year: number,
   period: string,
 ): Promise<ClientSummary[]> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
-  return withRLS(ctx, async (tx) => {
+  const base = await withRLS(ctx, async (tx) => {
     const clients = await tx.client.findMany({ orderBy: { name: "asc" } });
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange },
@@ -140,11 +142,22 @@ export function getClientSummaries(
       id: c.id,
       name: c.name,
       pmId: c.pmId,
+      industry: c.industry,
       performance: perfByClient.get(c.id) ?? 0,
       expense: expByClient.get(c.id) ?? 0,
       contract: contractByClient.get(c.id) ?? 0,
     }));
   });
+
+  const pmIds = [...new Set(base.map((c) => c.pmId).filter((x): x is string => x !== null))];
+  const users = pmIds.length
+    ? await prisma.user.findMany({ where: { id: { in: pmIds } } })
+    : [];
+  const labelById = new Map(users.map((u) => [u.id, u.name ?? u.email]));
+  return base.map((c) => ({
+    ...c,
+    pmLabel: c.pmId === null ? "미배정" : labelById.get(c.pmId) ?? "(알 수 없음)",
+  }));
 }
 
 export type PmSummary = {

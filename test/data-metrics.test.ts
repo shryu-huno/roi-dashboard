@@ -121,6 +121,20 @@ describe("metrics: client & PM summaries", () => {
     expect(rows.map((r) => r.name)).toEqual(["A사"]);
   });
 
+  it("client summaries include pmLabel", async () => {
+    const rows = await getClientSummaries(ADMIN, 2026, "all");
+    expect(rows.find((r) => r.name === "A사")!.pmLabel).toBe("PM A");
+    expect(rows.find((r) => r.name === "B사")!.pmLabel).toBe("PM B");
+  });
+
+  it("client summary uses 미배정 for no PM and returns industry", async () => {
+    await createClient(ADMIN, { name: "C사", industry: "제조" });
+    const rows = await getClientSummaries(ADMIN, 2026, "all");
+    const c = rows.find((r) => r.name === "C사")!;
+    expect(c.pmLabel).toBe("미배정");
+    expect(c.industry).toBe("제조");
+  });
+
   it("PM summaries roll up by pmId (ADMIN)", async () => {
     const rows = await getPmSummaries(ADMIN, 2026, "all");
     const a = rows.find((r) => r.pmId === pmA)!;
