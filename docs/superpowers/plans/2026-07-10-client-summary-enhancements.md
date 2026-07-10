@@ -51,7 +51,7 @@
 **Interfaces:**
 - Produces: `clientSchema`에 `industry: string | null` (선택), `ClientInput.industry?: string | null`, `createClient`/`updateClient`가 industry를 저장/patch.
 
-- [ ] **Step 1: schema.prisma에 industry 추가**
+- [x] **Step 1: schema.prisma에 industry 추가**
 
 `Client` 모델의 `status` 줄 아래에 추가:
 
@@ -77,12 +77,12 @@ model Client {
 }
 ```
 
-- [ ] **Step 2: 마이그레이션 생성·적용**
+- [x] **Step 2: 마이그레이션 생성·적용**
 
 Run: `cd /c/dev/roi-dashboard && npx prisma migrate dev --name add_client_industry`
 Expected: `prisma/migrations/<ts>_add_client_industry/migration.sql`이 생기고 내용은 `ALTER TABLE "Client" ADD COLUMN "industry" TEXT;`. dev DB에 적용되고 Prisma Client가 재생성됨. (로컬 PG 5433이 떠 있어야 함)
 
-- [ ] **Step 3: clientSchema에 industry 실패 테스트 작성**
+- [x] **Step 3: clientSchema에 industry 실패 테스트 작성**
 
 `test/schemas.test.ts`의 `import` 문에 `clientSchema` 추가(`from "@/lib/validation/schemas"`), 파일 하단에 추가:
 
@@ -101,12 +101,12 @@ describe("clientSchema industry", () => {
 });
 ```
 
-- [ ] **Step 4: 테스트 실패 확인**
+- [x] **Step 4: 테스트 실패 확인**
 
 Run: `npm test -- schemas`
 Expected: FAIL — `industry`가 스키마에 없어 `r.data.industry`가 undefined.
 
-- [ ] **Step 5: clientSchema에 industry 추가**
+- [x] **Step 5: clientSchema에 industry 추가**
 
 `src/lib/validation/schemas.ts`의 `clientSchema`에 `industry` 필드 추가:
 
@@ -121,12 +121,12 @@ export const clientSchema = z.object({
 });
 ```
 
-- [ ] **Step 6: 스키마 테스트 통과 확인**
+- [x] **Step 6: 스키마 테스트 통과 확인**
 
 Run: `npm test -- schemas`
 Expected: PASS
 
-- [ ] **Step 7: 데이터 계층 industry 실패 테스트 작성**
+- [x] **Step 7: 데이터 계층 industry 실패 테스트 작성**
 
 `test/data-clients.test.ts` 하단(마지막 `it` 뒤, describe 안)에 추가:
 
@@ -141,12 +141,12 @@ Expected: PASS
   });
 ```
 
-- [ ] **Step 8: 테스트 실패 확인**
+- [x] **Step 8: 테스트 실패 확인**
 
 Run: `npm test -- data-clients`
 Expected: FAIL — `ClientInput`에 industry가 없어 타입 에러 또는 저장 안 됨.
 
-- [ ] **Step 9: clients.ts에 industry 반영**
+- [x] **Step 9: clients.ts에 industry 반영**
 
 `src/lib/data/clients.ts`의 `ClientInput`에 `industry?: string | null;` 추가, `createClient`의 `data`에 `industry: input.industry ?? null,` 추가, `updateClient`의 `data`에 `industry: input.industry,` 추가:
 
@@ -187,12 +187,12 @@ updateClient `data` 블록:
       },
 ```
 
-- [ ] **Step 10: 데이터 계층 테스트 통과 확인**
+- [x] **Step 10: 데이터 계층 테스트 통과 확인**
 
 Run: `npm test -- data-clients`
 Expected: PASS
 
-- [ ] **Step 11: 커밋**
+- [x] **Step 11: 커밋**
 
 ```bash
 cd /c/dev/roi-dashboard
@@ -218,7 +218,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 _주: 이 태스크는 UI/서버액션이라 자동 단위 테스트가 없다. `npm run build`와 수동 확인으로 검증한다._
 
-- [ ] **Step 1: 두 액션이 industry를 읽도록 수정**
+- [x] **Step 1: 두 액션이 industry를 읽도록 수정**
 
 `src/app/(app)/settings/clients/actions.ts`의 `createClientAction`과 `updateClientAction` 둘 다 `clientSchema.safeParse({…})` 객체에 `industry: formData.get("industry"),`를 추가한다. 예(createClientAction):
 
@@ -235,7 +235,7 @@ _주: 이 태스크는 UI/서버액션이라 자동 단위 테스트가 없다. 
 
 updateClientAction의 `safeParse` 객체에도 동일하게 `industry: formData.get("industry"),` 한 줄 추가.
 
-- [ ] **Step 2: NewClientForm에 업종 입력칸 추가**
+- [x] **Step 2: NewClientForm에 업종 입력칸 추가**
 
 `src/app/(app)/settings/clients/NewClientForm.tsx`에서 "담당 PM" `<label>` 블록 바로 뒤에 추가:
 
@@ -246,7 +246,7 @@ updateClientAction의 `safeParse` 객체에도 동일하게 `industry: formData.
       </label>
 ```
 
-- [ ] **Step 3: EditClientForm 컴포넌트 생성**
+- [x] **Step 3: EditClientForm 컴포넌트 생성**
 
 `src/app/(app)/settings/clients/[id]/EditClientForm.tsx`:
 
@@ -313,7 +313,7 @@ export function EditClientForm({ client, pms }: { client: ClientInit; pms: Pm[] 
 }
 ```
 
-- [ ] **Step 4: settings/clients/[id]/page.tsx에 편집 폼과 PM 목록 연결**
+- [x] **Step 4: settings/clients/[id]/page.tsx에 편집 폼과 PM 목록 연결**
 
 `src/app/(app)/settings/clients/[id]/page.tsx`를 아래로 교체:
 
@@ -372,12 +372,12 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
 }
 ```
 
-- [ ] **Step 5: 빌드로 타입·컴파일 검증**
+- [x] **Step 5: 빌드로 타입·컴파일 검증**
 
 Run: `npm run build`
 Expected: 성공(에러 없음). `client.industry`, `client.pmId`, `client.contractStart` 등이 Prisma 타입에 존재.
 
-- [ ] **Step 6: 커밋**
+- [x] **Step 6: 커밋**
 
 ```bash
 cd /c/dev/roi-dashboard
@@ -403,7 +403,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
   - `ClientDetail`에 `contract: number` 추가.
   - `getClientDetail`의 `tasks`가 선택 기간의 월별 금액 배열을 반환.
 
-- [ ] **Step 1: client detail 테스트를 새 shape로 교체**
+- [x] **Step 1: client detail 테스트를 새 shape로 교체**
 
 `test/data-metrics.test.ts`의 `it("returns detail with per-task period perf and 12 monthly rows", …)` 블록을 아래 두 테스트로 교체:
 
@@ -430,12 +430,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
   });
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [x] **Step 2: 테스트 실패 확인**
 
 Run: `npm test -- data-metrics`
 Expected: FAIL — `d!.contract`, `t.total`, `t.monthly` 미존재.
 
-- [ ] **Step 3: metrics.ts의 타입과 getClientDetail 수정**
+- [x] **Step 3: metrics.ts의 타입과 getClientDetail 수정**
 
 `src/lib/data/metrics.ts`에서 `TaskPerf` 타입(183-190 부근)을 교체하고 `ClientDetail`에 `contract`를 추가:
 
@@ -489,12 +489,12 @@ export type ClientDetail = {
     return { client: { id: client.id, name: client.name, status: client.status }, contract, tasks: taskRows, monthly, expenses };
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 Run: `npm test -- data-metrics`
 Expected: PASS
 
-- [ ] **Step 5: clients/[id]/page.tsx의 상단 합계와 과업 표 수정**
+- [x] **Step 5: clients/[id]/page.tsx의 상단 합계와 과업 표 수정**
 
 `src/app/(app)/clients/[id]/page.tsx` 상단 import에 `resolvePeriod`를 추가한다(기존 `parsePeriodParams`와 같은 모듈):
 
@@ -548,12 +548,12 @@ import { parsePeriodParams, resolvePeriod } from "@/lib/period";
       </section>
 ```
 
-- [ ] **Step 6: 빌드 검증**
+- [x] **Step 6: 빌드 검증**
 
 Run: `npm run build`
 Expected: 성공. `t.total`/`t.monthly`/`detail.contract` 타입 일치.
 
-- [ ] **Step 7: 커밋**
+- [x] **Step 7: 커밋**
 
 ```bash
 cd /c/dev/roi-dashboard
@@ -575,7 +575,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Consumes: Task 1의 `Client.industry`.
 - Produces: `ClientSummary`에 `pmLabel: string`(null pmId → "미배정")과 `industry: string | null` 추가. `getPmSummaries`는 기존대로 `pmId`/`performance`/`expense`만 사용하므로 영향 없음.
 
-- [ ] **Step 1: summaries 테스트 추가(실패)**
+- [x] **Step 1: summaries 테스트 추가(실패)**
 
 `test/data-metrics.test.ts`의 `describe("metrics: client & PM summaries", …)` 안, `it("client summaries per client (ADMIN)", …)` 뒤에 추가:
 
@@ -595,12 +595,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
   });
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [x] **Step 2: 테스트 실패 확인**
 
 Run: `npm test -- data-metrics`
 Expected: FAIL — `pmLabel`/`industry` 미존재.
 
-- [ ] **Step 3: ClientSummary 타입과 getClientSummaries 수정**
+- [x] **Step 3: ClientSummary 타입과 getClientSummaries 수정**
 
 `src/lib/data/metrics.ts`의 `ClientSummary`에 두 필드 추가:
 
@@ -676,12 +676,12 @@ export async function getClientSummaries(
 
 _주: `resolvePeriod`, `prisma`, `withRLS`는 이미 이 파일에서 import되어 있음. `getPmSummaries`는 `getClientSummaries` 결과의 `pmId`/`performance`/`expense`만 쓰므로 그대로 동작._
 
-- [ ] **Step 4: 테스트 통과 확인(회귀 포함)**
+- [x] **Step 4: 테스트 통과 확인(회귀 포함)**
 
 Run: `npm test -- data-metrics`
 Expected: PASS (기존 `getPmSummaries` 테스트 포함 전부 통과).
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 cd /c/dev/roi-dashboard
@@ -708,7 +708,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
   - `sortClients(rows, mode): ClientRow[]`
   - `paginate<T>(rows, page, size?): { pageRows: T[]; totalPages: number; page: number }`
 
-- [ ] **Step 1: 헬퍼 테스트 작성(실패)**
+- [x] **Step 1: 헬퍼 테스트 작성(실패)**
 
 `test/client-summary-sort.test.ts`:
 
@@ -775,12 +775,12 @@ describe("paginate", () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [x] **Step 2: 테스트 실패 확인**
 
 Run: `npm test -- client-summary-sort`
 Expected: FAIL — 모듈 `@/lib/clients/summary-view` 없음.
 
-- [ ] **Step 3: 헬퍼 구현**
+- [x] **Step 3: 헬퍼 구현**
 
 `src/lib/clients/summary-view.ts`:
 
@@ -833,12 +833,12 @@ export function paginate<T>(rows: T[], page: number, size = PAGE_SIZE): { pageRo
 }
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 Run: `npm test -- client-summary-sort`
 Expected: PASS
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 cd /c/dev/roi-dashboard
@@ -859,7 +859,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: Task 4의 `getClientSummaries` 결과(`ClientSummary[]`), Task 5의 `filterClients`/`sortClients`/`paginate`/`SortMode`/`ClientRow`.
 
-- [ ] **Step 1: ClientSummaryTable 컴포넌트 생성**
+- [x] **Step 1: ClientSummaryTable 컴포넌트 생성**
 
 `src/components/dashboard/ClientSummaryTable.tsx`:
 
@@ -953,7 +953,7 @@ export function ClientSummaryTable({ clients }: { clients: ClientRow[] }) {
 }
 ```
 
-- [ ] **Step 2: 대시보드에서 고객사별 요약을 컴포넌트로 교체**
+- [x] **Step 2: 대시보드에서 고객사별 요약을 컴포넌트로 교체**
 
 `src/app/(app)/dashboard/page.tsx`:
 
@@ -974,17 +974,17 @@ import { ClientSummaryTable } from "@/components/dashboard/ClientSummaryTable";
 
 (c) 이제 `Link`는 이 파일에서 더 이상 쓰이지 않으므로 첫 줄 `import Link from "next/link";`를 삭제한다. (`margin`/`attainment`/`formatWon`/`formatPercent`는 KPI·PM표에서 계속 사용하므로 유지.)
 
-- [ ] **Step 3: 빌드 + 린트 검증**
+- [x] **Step 3: 빌드 + 린트 검증**
 
 Run: `npm run build`
 Expected: 성공. 미사용 import 경고/에러 없음(Link 제거 확인). `clients`(ClientSummary[])가 `ClientSummaryTable`의 `ClientRow[]` prop에 구조적으로 대입 가능.
 
-- [ ] **Step 4: 전체 테스트 실행**
+- [x] **Step 4: 전체 테스트 실행**
 
 Run: `npm test`
 Expected: 전부 PASS (기존 121개 + 신규 케이스).
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 cd /c/dev/roi-dashboard
@@ -998,9 +998,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## 최종 검증
 
-- [ ] `npm test` 전체 통과
-- [ ] `npm run build` 성공
-- [ ] 수동 확인(선택): `npm run dev` 후
+- [x] `npm test` 전체 통과
+- [x] `npm run build` 성공
+- [x] 수동 확인(선택): `npm run dev` 후
   - 설정>고객사>과업·단가 화면에서 고객사 정보 편집(업종 포함) 저장
   - 새 고객사 생성 시 업종 입력
   - 대시보드 고객사별 요약에서 검색/정렬 토글(가나다·PM별·업종별)/페이지 이동
