@@ -183,9 +183,7 @@ export async function getPmSummaries(
       expense: cur.expense + c.expense,
     });
   }
-  const pmIds = [...byPm.keys()].filter((k): k is string => k !== null);
-  const users = await prisma.user.findMany({ where: { id: { in: pmIds } } });
-  const labelById = new Map(users.map((u) => [u.id, u.name ?? u.email]));
+  const labelById = new Map(clients.map((c) => [c.pmId, c.pmLabel]));
   return [...byPm.entries()].map(([pmId, agg]) => ({
     pmId,
     label: pmId === null ? "미배정" : labelById.get(pmId) ?? "(알 수 없음)",
