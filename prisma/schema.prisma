@@ -63,6 +63,7 @@ model Client {
   id           String   @id @default(cuid())
   name         String
   status       String   @default("진행중")
+  industry     String?
   contractStart DateTime?
   contractEnd   DateTime?
   pmId         String?

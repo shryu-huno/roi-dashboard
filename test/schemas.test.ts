@@ -4,6 +4,7 @@ import {
   expenseSchema,
   billingSchema,
   taskSchema,
+  clientSchema,
 } from "@/lib/validation/schemas";
 
 describe("performanceBatchSchema", () => {
@@ -116,5 +117,18 @@ describe("performanceBatchSchema – blank count & year bounds", () => {
   });
   it("rejects year above range (2101)", () => {
     expect(performanceBatchSchema.safeParse({ clientId: "c1", year: 2101, month: 3, rows: [] }).success).toBe(false);
+  });
+});
+
+describe("clientSchema industry", () => {
+  it("maps empty string industry to null", () => {
+    const r = clientSchema.safeParse({ name: "A사", industry: "" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.industry).toBeNull();
+  });
+  it("keeps a provided industry", () => {
+    const r = clientSchema.safeParse({ name: "A사", industry: "제조" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.industry).toBe("제조");
   });
 });

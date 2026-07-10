@@ -64,4 +64,13 @@ describe("clients data layer", () => {
     expect(found?.name).toBe("새이름");
     expect(found?.contractStart?.toISOString()).toBe(start.toISOString());
   });
+
+  it("creates and updates industry", async () => {
+    const c = await createClient(ADMIN, { name: "A사", pmId: pmA, industry: "제조" });
+    expect((await getClient(ADMIN, c.id))?.industry).toBe("제조");
+    await updateClient(ADMIN, c.id, { name: "A사", industry: "IT" });
+    expect((await getClient(ADMIN, c.id))?.industry).toBe("IT");
+    await updateClient(ADMIN, c.id, { name: "A사", industry: null });
+    expect((await getClient(ADMIN, c.id))?.industry).toBeNull();
+  });
 });

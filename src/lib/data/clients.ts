@@ -4,6 +4,7 @@ import type { ActionState } from "@/lib/action-state";
 export type ClientInput = {
   name: string;
   status?: string;
+  industry?: string | null;
   contractStart?: Date | null;
   contractEnd?: Date | null;
   pmId?: string | null;
@@ -23,6 +24,7 @@ export function createClient(ctx: RlsContext, input: ClientInput) {
       data: {
         name: input.name,
         status: input.status ?? "진행중",
+        industry: input.industry ?? null,
         contractStart: input.contractStart ?? null,
         contractEnd: input.contractEnd ?? null,
         pmId: input.pmId ?? null,
@@ -40,6 +42,7 @@ export async function updateClient(ctx: RlsContext, id: string, input: ClientInp
       data: {
         name: input.name,
         status: input.status,
+        industry: input.industry,
         contractStart: input.contractStart,
         contractEnd: input.contractEnd,
         pmId: input.pmId,

@@ -34,6 +34,7 @@ const nullableAmount = z.preprocess(
 export const clientSchema = z.object({
   name: z.string().min(1),
   status: z.string().optional(),
+  industry: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
   contractStart: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
   contractEnd: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
   pmId: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
