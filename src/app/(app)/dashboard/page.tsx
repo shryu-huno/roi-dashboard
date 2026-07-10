@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { hasAtLeast } from "@/lib/auth/rbac";
@@ -16,6 +15,7 @@ import { DonutChart } from "@/components/charts/DonutChart";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { BarList } from "@/components/charts/BarList";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import { ClientSummaryTable } from "@/components/dashboard/ClientSummaryTable";
 
 export default async function DashboardPage({
   searchParams,
@@ -105,26 +105,7 @@ export default async function DashboardPage({
 
       <section className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">고객사별 요약</h2>
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
-              <th className="py-2">고객사</th><th>실적</th><th>지출</th><th>수익률</th><th>달성률</th>
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c) => (
-              <tr key={c.id} className="border-b border-[var(--color-border)]">
-                <td className="py-2">
-                  <Link href={`/clients/${c.id}`} className="text-[var(--color-primary)]">{c.name}</Link>
-                </td>
-                <td>{formatWon(c.performance)}</td>
-                <td>{formatWon(c.expense)}</td>
-                <td>{formatPercent(margin(c.performance, c.expense))}</td>
-                <td>{formatPercent(attainment(c.performance, c.contract))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ClientSummaryTable clients={clients} />
       </section>
     </div>
   );
