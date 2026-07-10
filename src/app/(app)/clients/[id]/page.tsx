@@ -6,8 +6,10 @@ import { parsePeriodParams } from "@/lib/period";
 import { getClientDetail } from "@/lib/data/metrics";
 import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { formatWon, formatPercent } from "@/lib/format";
+import { expenseCategoryLabel } from "@/lib/labels";
 import { KpiCard } from "@/components/charts/KpiCard";
 import { FunnelChart } from "@/components/charts/FunnelChart";
+import { DonutChart } from "@/components/charts/DonutChart";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 
 export default async function ClientDetailPage({
@@ -84,6 +86,13 @@ export default async function ClientDetailPage({
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">지출 구성 (선택 구간)</h2>
+        <DonutChart
+          segments={detail.expenses.map((s) => ({ label: expenseCategoryLabel(s.category), value: s.amount }))}
+        />
       </section>
 
       <section className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">

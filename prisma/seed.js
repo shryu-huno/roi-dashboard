@@ -39,6 +39,14 @@ const CLIENT_NAMES = [
   "사랑복지재단", "아름드리유통", "자연지혜", "차오름에듀", "카린화장품", "타임교육원",
 ];
 
+// 계약금액 없이(과업 contractCount/contractAmount=null) 실제 수행분만큼 실적이
+// 잡히고 비용이 발생하는 고객사. 실적은 다른 고객사와 동일하게 단가×횟수로 산정.
+const COST_BASED_CLIENT = "온다복지관";
+const COST_BASED_TASKS = [
+  { name: "긴급 심리지원", unitPrice: 100000 },
+  { name: "현장 파견 상담", unitPrice: 150000 },
+];
+
 const TASK_TEMPLATES = [
   { name: "심리검사 진단", unitPrice: 50000, contractCount: 40 },
   { name: "집단상담 프로그램", unitPrice: 300000, contractCount: 12 },
@@ -79,7 +87,7 @@ async function main() {
       await tx.$executeRaw`SELECT set_config('app.user_role', 'ADMIN', true)`;
 
       // 재실행 idempotent: 시드 고객사만 삭제(cascade). 수동 입력 고객사는 보존.
-      await tx.client.deleteMany({ where: { name: { in: CLIENT_NAMES } } });
+      await tx.client.deleteMany({ where: { name: { in: [...CLIENT_NAMES, COST_BASED_CLIENT] } } });
 
       let taskTotal = 0, perfTotal = 0, expenseTotal = 0, billingTotal = 0;
 
@@ -165,14 +173,90 @@ async function main() {
         }
       }
 
-      return { clients: CLIENT_NAMES.length, taskTotal, perfTotal, expenseTotal, billingTotal };
+      // 계약금액 없는 발생비용 기반 고객사 1곳.
+      {
+        const client = await tx.client.create({
+          data: {
+            name: COST_BASED_CLIENT,
+            status: "진행중",
+            pmId: pms[0].id,
+            contractStart: null, // 사전 계약 없음
+            contractEnd: null,
+          },
+        });
+
+        const monthlyClientPerf = {}; // month -> 실적 합
+        for (const tpl of COST_BASED_TASKS) {
+          const task = await tx.task.create({
+            data: {
+              clientId: client.id,
+              name: tpl.name,
+              unitPrice: tpl.unitPrice,
+              contractCount: null, // 계약 횟수 없음 → 계약금액도 없음
+              contractAmount: null,
+            },
+          });
+          taskTotal++;
+
+          // 실적: 다른 고객사와 동일하게 단가×횟수. 무작위 6~9개월.
+          const activeMonths = ri(6, 9);
+          const months = new Set();
+          while (months.size < activeMonths) months.add(ri(1, 12));
+          for (const month of months) {
+            const count = ri(1, 5);
+            const amount = tpl.unitPrice * count;
+            await tx.monthlyPerformance.create({
+              data: { taskId: task.id, year: YEAR, month, count, amount },
+            });
+            perfTotal++;
+            monthlyClientPerf[month] = (monthlyClientPerf[month] ?? 0) + amount;
+          }
+        }
+
+        // 지출: 4개 분류 × 3개월.
+        const cats = EXPENSE_CATS.slice(0, 4);
+        const expMonths = [ri(1, 4), ri(5, 8), ri(9, 12)];
+        for (const month of expMonths) {
+          for (const category of cats) {
+            const amount = round1000(ri(50000, 800000));
+            await tx.expense.upsert({
+              where: { clientId_year_month_category: { clientId: client.id, year: YEAR, month, category } },
+              update: { amount },
+              create: { clientId: client.id, year: YEAR, month, category, amount },
+            });
+            expenseTotal++;
+          }
+        }
+
+        // 청구/입금: 실적 있는 달마다.
+        let idx = 0;
+        for (const [monthStr, perf] of Object.entries(monthlyClientPerf)) {
+          const month = Number(monthStr);
+          const billing = round1000(perf * (0.9 + rnd() * 0.2));
+          const deposit = idx % 3 === 0 ? round1000(billing * 0.6) : billing;
+          await tx.monthlyBilling.upsert({
+            where: { clientId_year_month: { clientId: client.id, year: YEAR, month } },
+            update: { amount: billing },
+            create: { clientId: client.id, year: YEAR, month, amount: billing },
+          });
+          await tx.monthlyDeposit.upsert({
+            where: { clientId_year_month: { clientId: client.id, year: YEAR, month } },
+            update: { amount: deposit },
+            create: { clientId: client.id, year: YEAR, month, amount: deposit },
+          });
+          billingTotal++;
+          idx++;
+        }
+      }
+
+      return { clients: CLIENT_NAMES.length + 1, taskTotal, perfTotal, expenseTotal, billingTotal };
     },
     { timeout: 120000, maxWait: 20000 },
   );
 
   console.log("시드 완료:");
   console.log(`  임직원 추가/갱신: ${NEW_USERS.length}명`);
-  console.log(`  고객사: ${summary.clients}개 (마지막 1개는 PM 미배정)`);
+  console.log(`  고객사: ${summary.clients}개 (${COST_BASED_CLIENT} 1개는 계약금액 없이 발생비용 기반, 타임교육원은 PM 미배정)`);
   console.log(`  과업: ${summary.taskTotal}개, 실적행: ${summary.perfTotal}개`);
   console.log(`  지출행: ${summary.expenseTotal}개, 청구·입금 달: ${summary.billingTotal}개`);
   console.log(`  연도: ${YEAR}`);

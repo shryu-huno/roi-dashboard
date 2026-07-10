@@ -201,6 +201,7 @@ export type ClientDetail = {
   client: { id: string; name: string; status: string };
   tasks: TaskPerf[];
   monthly: MonthlyRow[];
+  expenses: ExpenseSlice[];
 };
 
 export function getClientDetail(
@@ -246,6 +247,10 @@ export function getClientDetail(
     const expM = await tx.expense.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
     });
+    const expCat = await tx.expense.groupBy({
+      by: ["category"], where: { year, month: monthRange, clientId: id }, _sum: { amount: true },
+    });
+    const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
     const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
       new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
     const p = map(perfM), b = map(billM), d = map(depM), e = map(expM);
@@ -260,6 +265,6 @@ export function getClientDetail(
       };
     });
 
-    return { client: { id: client.id, name: client.name, status: client.status }, tasks: taskRows, monthly };
+    return { client: { id: client.id, name: client.name, status: client.status }, tasks: taskRows, monthly, expenses };
   });
 }
