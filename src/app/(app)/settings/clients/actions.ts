@@ -14,6 +14,7 @@ export async function createClientAction(_prev: ActionState, formData: FormData)
   const parsed = clientSchema.safeParse({
     name: formData.get("name"),
     status: formData.get("status") ?? undefined,
+    industry: formData.get("industry"),
     contractStart: formData.get("contractStart"),
     contractEnd: formData.get("contractEnd"),
     pmId: formData.get("pmId"),
@@ -31,6 +32,7 @@ export async function updateClientAction(_prev: ActionState, formData: FormData)
   const parsed = clientSchema.safeParse({
     name: formData.get("name"),
     status: formData.get("status") ?? undefined,
+    industry: formData.get("industry"),
     contractStart: formData.get("contractStart"),
     contractEnd: formData.get("contractEnd"),
     pmId: formData.get("pmId"),

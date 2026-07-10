@@ -24,6 +24,10 @@ export function NewClientForm({ pms }: { pms: Pm[] }) {
         </select>
       </label>
       <label className="flex flex-col text-xs text-[var(--color-muted)]">
+        업종
+        <input name="industry" className="mt-1 w-40 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+      </label>
+      <label className="flex flex-col text-xs text-[var(--color-muted)]">
         계약 시작
         <input type="date" name="contractStart" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
       </label>
