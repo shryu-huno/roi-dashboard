@@ -14,7 +14,7 @@ export const PAGE_SIZE = 10;
 
 export function filterClients(rows: ClientRow[], query: string): ClientRow[] {
   const q = query.trim().toLowerCase();
-  if (!q) return rows;
+  if (!q) return [...rows];
   return rows.filter((r) => r.name.toLowerCase().includes(q));
 }
 
@@ -25,6 +25,9 @@ function groupCmp(a: string | null, b: string | null, isUnassigned: (v: string |
   if (ua && ub) return 0;
   const av = a ?? "";
   const bv = b ?? "";
+  // 코드포인트 비교(의도적으로 localeCompare "ko" 아님): 완성형 한글(U+AC00~)은 코드포인트
+  // 순서가 가나다 순과 일치하고, 라틴 라벨(예: "IT")은 한글보다 앞선다. localeCompare("ko")는
+  // 한글을 라틴보다 앞에 두어 의도한 순서와 어긋난다. 이름 tiebreak은 byName에서 localeCompare 사용.
   return av < bv ? -1 : av > bv ? 1 : 0;
 }
 
