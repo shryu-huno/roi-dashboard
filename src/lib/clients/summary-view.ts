@@ -12,9 +12,21 @@ export type SortMode = "name" | "pm" | "industry";
 
 export const PAGE_SIZE = 10;
 
-export function filterClients(rows: ClientRow[], query: string): ClientRow[] {
+// 청구·보고 주기 선택지(표준 순서). 카드/폼/검증이 공유한다.
+export const CYCLE_VALUES = ["월", "분기", "중간", "최종"] as const;
+export type CycleValue = (typeof CYCLE_VALUES)[number];
+
+// 선택된 주기를 표준 순서로 정렬해 "·"로 결합. 미선택이면 "미설정".
+export function formatCycle(values: string[]): string {
+  const ordered = CYCLE_VALUES.filter((v) => values.includes(v));
+  return ordered.length ? ordered.join("·") : "미설정";
+}
+
+export function filterClients<T extends { name: string; pmLabel: string; industry: string | null }>(rows: T[], query: string, mode: SortMode = "name"): T[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...rows];
+  if (mode === "pm") return rows.filter((r) => r.pmLabel.toLowerCase().includes(q));
+  if (mode === "industry") return rows.filter((r) => (r.industry ?? "").toLowerCase().includes(q));
   return rows.filter((r) => r.name.toLowerCase().includes(q));
 }
 
@@ -31,8 +43,11 @@ function groupCmp(a: string | null, b: string | null, isUnassigned: (v: string |
   return av < bv ? -1 : av > bv ? 1 : 0;
 }
 
-export function sortClients(rows: ClientRow[], mode: SortMode): ClientRow[] {
-  const byName = (a: ClientRow, b: ClientRow) => a.name.localeCompare(b.name, "ko");
+export function sortClients<T extends { name: string; pmLabel: string; industry: string | null }>(
+  rows: T[],
+  mode: SortMode,
+): T[] {
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name, "ko");
   const copy = [...rows];
   if (mode === "pm") {
     return copy.sort((a, b) => groupCmp(a.pmLabel, b.pmLabel, (v) => v === "미배정") || byName(a, b));

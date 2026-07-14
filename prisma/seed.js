@@ -17,56 +17,23 @@ if (!process.env.DATABASE_URL) {
 const prisma = new PrismaClient();
 const YEAR = 2026;
 
-// 결정적 PRNG (재실행 시 동일 데이터).
-let _s = 20260710;
-const rnd = () => {
-  _s = (_s * 1103515245 + 12345) & 0x7fffffff;
-  return _s / 0x7fffffff;
-};
-const ri = (min, max) => min + Math.floor(rnd() * (max - min + 1));
-const round1000 = (v) => Math.round(v / 1000) * 1000;
+// 고객사·과업·월별 실적 데이터. 엑셀 5파트_고객사정리.xlsx에서 생성한다.
+// 재생성: `python prisma/build-seed-data.py` (Sheet1=고객사/담당PM, Sheet2=과업/월별 실적).
+const CLIENTS = require("./seed-data.json");
 
 const NEW_USERS = [
-  { email: "park.sj@huno.kr", name: "박서준", role: "PM" },
-  { email: "choi.yn@huno.kr", name: "최유나", role: "PM" },
-  { email: "jung.dh@huno.kr", name: "정도현", role: "PM" },
-  { email: "oh.sh@huno.kr", name: "오세훈", role: "PM" },
-  { email: "han.jw@huno.kr", name: "한지우", role: "SETTLEMENT" },
-];
-
-const CLIENT_NAMES = [
-  "가온컨설팅", "나래교육", "다온헬스케어", "라온물류", "마루테크", "바다건설",
-  "사랑복지재단", "아름드리유통", "자연지혜", "차오름에듀", "카린화장품", "타임교육원",
-];
-
-// 계약금액 없이(과업 contractCount/contractAmount=null) 실제 수행분만큼 실적이
-// 잡히고 비용이 발생하는 고객사. 실적은 다른 고객사와 동일하게 단가×횟수로 산정.
-const COST_BASED_CLIENT = "온다복지관";
-const COST_BASED_TASKS = [
-  { name: "긴급 심리지원", unitPrice: 100000 },
-  { name: "현장 파견 상담", unitPrice: 150000 },
-];
-
-const TASK_TEMPLATES = [
-  { name: "심리검사 진단", unitPrice: 50000, contractCount: 40 },
-  { name: "집단상담 프로그램", unitPrice: 300000, contractCount: 12 },
-  { name: "개인상담 세션", unitPrice: 80000, contractCount: 30 },
-  { name: "관리자 리더십 교육", unitPrice: 500000, contractCount: 6 },
-  { name: "직무 스트레스 검사", unitPrice: 30000, contractCount: 100 },
-  { name: "찾아가는 상담", unitPrice: 150000, contractCount: 20 },
-  { name: "힐링 워크숍", unitPrice: 700000, contractCount: 4 },
-  { name: "1:1 코칭", unitPrice: 120000, contractCount: 15 },
-  { name: "온라인 강의 콘텐츠", unitPrice: 250000, contractCount: 8 },
-  { name: "조직 진단 컨설팅", unitPrice: 1000000, contractCount: 3 },
-];
-
-const EXPENSE_CATS = [
-  "LABOR_COUNSELOR", "OPS_TRANSPORT", "OPS_FOOD", "EDUCATION_PROGRAM",
-  "TEST_MATERIAL", "PROMOTION_OFFLINE", "OPS_LODGING", "GENERAL_ETC",
+  { email: "shryu@huno.kr", name: "류승환", role: "ADMIN" },
+  { email: "sms@huno.kr", name: "심명섭", role: "ADMIN" },
+  { email: "cocoball@huno.kr", name: "강규민", role: "PM" },
+  { email: "tkfk0804@huno.kr", name: "이사라", role: "PM" },
+  { email: "hjryu@huno.kr", name: "류현주", role: "PM" },
+  { email: "lsj@huno.kr", name: "이승준", role: "PM" },
+  { email: "oes@huno.kr", name: "오은숙", role: "SETTLEMENT" }  
 ];
 
 async function main() {
-  // 1) 임직원 5명 (RLS 미적용 → 트랜잭션 밖 upsert, 재실행 안전).
+  // 1) 임직원 upsert (RLS 미적용 → 트랜잭션 밖, 재실행 안전).
+  //    이름 변경도 반영하도록 update에 name 포함.
   for (const u of NEW_USERS) {
     await prisma.user.upsert({
       where: { email: u.email },
@@ -75,190 +42,78 @@ async function main() {
     });
   }
 
+  // NEW_USERS에 없는 기존 사용자는 삭제(목록을 임직원의 단일 소스로 취급).
+  // User 삭제 시 ClientManager/Account/Session은 onDelete: Cascade로 함께 정리된다.
+  const removed = await prisma.user.deleteMany({
+    where: { email: { notIn: NEW_USERS.map((u) => u.email) } },
+  });
+
   const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
   if (!admin) throw new Error("ADMIN 사용자가 없습니다. 먼저 관리자 계정을 승인하세요.");
-  const pms = await prisma.user.findMany({ where: { role: "PM", status: "ACTIVE" }, orderBy: { email: "asc" } });
-  if (pms.length === 0) throw new Error("배정할 PM이 없습니다.");
 
-  // 2) 고객사·과업·실적·지출·청구/입금 (RLS 대상 → ADMIN 컨텍스트 트랜잭션).
+  // 담당PM 이름 → userId 매핑(엑셀의 담당PM 이름을 사용자와 문자열 매칭; 동명이인 없음 전제).
+  const allUsers = await prisma.user.findMany({ select: { id: true, name: true } });
+  const userIdByName = new Map(allUsers.map((u) => [u.name, u.id]));
+
+  // 2) 고객사·과업·월별 실적 (RLS 대상 → ADMIN 컨텍스트 트랜잭션).
   const summary = await prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.user_id', ${admin.id}, true)`;
       await tx.$executeRaw`SELECT set_config('app.user_role', 'ADMIN', true)`;
 
-      // 재실행 idempotent: 시드 고객사만 삭제(cascade). 수동 입력 고객사는 보존.
-      await tx.client.deleteMany({ where: { name: { in: [...CLIENT_NAMES, COST_BASED_CLIENT] } } });
+      // 모든 고객사 삭제 후 엑셀 데이터로 재적재(cascade로 과업/실적/지출/청구/입금/담당 정리).
+      await tx.client.deleteMany({});
 
-      let taskTotal = 0, perfTotal = 0, expenseTotal = 0, billingTotal = 0;
+      let taskTotal = 0, perfTotal = 0, unassigned = 0;
 
-      for (let i = 0; i < CLIENT_NAMES.length; i++) {
-        // 마지막 고객사는 PM 미배정(대시보드 "미배정" 행 검증용).
-        const pmId = i === CLIENT_NAMES.length - 1 ? null : pms[i % pms.length].id;
+      for (const c of CLIENTS) {
+        // 담당PM 이름이 사용자와 매칭되면 배정, 아니면 미배정.
+        const userId = c.pm ? userIdByName.get(c.pm) : undefined;
+        if (!userId) unassigned++;
         const client = await tx.client.create({
           data: {
-            name: CLIENT_NAMES[i],
+            name: c.name,
             status: "진행중",
-            pmId,
-            contractStart: new Date(Date.UTC(YEAR, 0, 1)),
-            contractEnd: new Date(Date.UTC(YEAR, 11, 31)),
+            industry: null,
+            businessType: c.businessType || null,
+            contractStart: c.contractStart ? new Date(c.contractStart) : null,
+            contractEnd: c.contractEnd ? new Date(c.contractEnd) : null,
+            billingCycle: c.billingCycle || [],
+            reportCycle: c.reportCycle || [],
+            managers: userId ? { create: [{ userId }] } : undefined,
           },
         });
 
-        // 과업 2~4개(고객사마다 다양).
-        const taskCount = 2 + (i % 3);
-        const chosen = Array.from({ length: taskCount }, (_, k) => TASK_TEMPLATES[(i + k) % TASK_TEMPLATES.length]);
-        const monthlyClientPerf = {}; // month -> 실적 합
-
-        for (const tpl of chosen) {
+        for (const t of c.tasks) {
           const task = await tx.task.create({
             data: {
               clientId: client.id,
-              name: tpl.name,
-              unitPrice: tpl.unitPrice,
-              contractCount: tpl.contractCount,
-              contractAmount: tpl.unitPrice * tpl.contractCount, // 단가×횟수 (deriveContractAmount와 동일)
+              name: t.name,
+              unitPrice: t.unitPrice,
+              contractCount: t.contractCount,
+              contractAmount: t.contractAmount,
             },
           });
           taskTotal++;
 
-          // 활성 개월 수 6~9개월, 무작위 월에 실적.
-          const activeMonths = ri(6, 9);
-          const months = new Set();
-          while (months.size < activeMonths) months.add(ri(1, 12));
-          const maxPerMonth = Math.max(2, Math.round(tpl.contractCount / 8));
-          for (const month of months) {
-            const count = ri(1, maxPerMonth);
-            const amount = tpl.unitPrice * count;
+          for (const p of t.performances) {
             await tx.monthlyPerformance.create({
-              data: { taskId: task.id, year: YEAR, month, count, amount },
+              data: { taskId: task.id, year: YEAR, month: p.month, count: p.count, amount: p.amount },
             });
             perfTotal++;
-            monthlyClientPerf[month] = (monthlyClientPerf[month] ?? 0) + amount;
           }
-        }
-
-        // 지출: 4개 분류 × 3개월.
-        const cats = Array.from({ length: 4 }, (_, k) => EXPENSE_CATS[(i + k) % EXPENSE_CATS.length]);
-        const expMonths = [ri(1, 4), ri(5, 8), ri(9, 12)];
-        for (const month of expMonths) {
-          for (const category of cats) {
-            const amount = round1000(ri(50000, 800000));
-            await tx.expense.upsert({
-              where: { clientId_year_month_category: { clientId: client.id, year: YEAR, month, category } },
-              update: { amount },
-              create: { clientId: client.id, year: YEAR, month, category, amount },
-            });
-            expenseTotal++;
-          }
-        }
-
-        // 청구/입금: 실적이 있는 달마다. 일부 달은 입금<청구(미수금 강조 검증용).
-        let idx = 0;
-        for (const [monthStr, perf] of Object.entries(monthlyClientPerf)) {
-          const month = Number(monthStr);
-          const billing = round1000(perf * (0.9 + rnd() * 0.2));
-          const deposit = idx % 3 === 0 ? round1000(billing * 0.6) : billing; // 1/3은 미수금
-          await tx.monthlyBilling.upsert({
-            where: { clientId_year_month: { clientId: client.id, year: YEAR, month } },
-            update: { amount: billing },
-            create: { clientId: client.id, year: YEAR, month, amount: billing },
-          });
-          await tx.monthlyDeposit.upsert({
-            where: { clientId_year_month: { clientId: client.id, year: YEAR, month } },
-            update: { amount: deposit },
-            create: { clientId: client.id, year: YEAR, month, amount: deposit },
-          });
-          billingTotal++;
-          idx++;
         }
       }
 
-      // 계약금액 없는 발생비용 기반 고객사 1곳.
-      {
-        const client = await tx.client.create({
-          data: {
-            name: COST_BASED_CLIENT,
-            status: "진행중",
-            pmId: pms[0].id,
-            contractStart: null, // 사전 계약 없음
-            contractEnd: null,
-          },
-        });
-
-        const monthlyClientPerf = {}; // month -> 실적 합
-        for (const tpl of COST_BASED_TASKS) {
-          const task = await tx.task.create({
-            data: {
-              clientId: client.id,
-              name: tpl.name,
-              unitPrice: tpl.unitPrice,
-              contractCount: null, // 계약 횟수 없음 → 계약금액도 없음
-              contractAmount: null,
-            },
-          });
-          taskTotal++;
-
-          // 실적: 다른 고객사와 동일하게 단가×횟수. 무작위 6~9개월.
-          const activeMonths = ri(6, 9);
-          const months = new Set();
-          while (months.size < activeMonths) months.add(ri(1, 12));
-          for (const month of months) {
-            const count = ri(1, 5);
-            const amount = tpl.unitPrice * count;
-            await tx.monthlyPerformance.create({
-              data: { taskId: task.id, year: YEAR, month, count, amount },
-            });
-            perfTotal++;
-            monthlyClientPerf[month] = (monthlyClientPerf[month] ?? 0) + amount;
-          }
-        }
-
-        // 지출: 4개 분류 × 3개월.
-        const cats = EXPENSE_CATS.slice(0, 4);
-        const expMonths = [ri(1, 4), ri(5, 8), ri(9, 12)];
-        for (const month of expMonths) {
-          for (const category of cats) {
-            const amount = round1000(ri(50000, 800000));
-            await tx.expense.upsert({
-              where: { clientId_year_month_category: { clientId: client.id, year: YEAR, month, category } },
-              update: { amount },
-              create: { clientId: client.id, year: YEAR, month, category, amount },
-            });
-            expenseTotal++;
-          }
-        }
-
-        // 청구/입금: 실적 있는 달마다.
-        let idx = 0;
-        for (const [monthStr, perf] of Object.entries(monthlyClientPerf)) {
-          const month = Number(monthStr);
-          const billing = round1000(perf * (0.9 + rnd() * 0.2));
-          const deposit = idx % 3 === 0 ? round1000(billing * 0.6) : billing;
-          await tx.monthlyBilling.upsert({
-            where: { clientId_year_month: { clientId: client.id, year: YEAR, month } },
-            update: { amount: billing },
-            create: { clientId: client.id, year: YEAR, month, amount: billing },
-          });
-          await tx.monthlyDeposit.upsert({
-            where: { clientId_year_month: { clientId: client.id, year: YEAR, month } },
-            update: { amount: deposit },
-            create: { clientId: client.id, year: YEAR, month, amount: deposit },
-          });
-          billingTotal++;
-          idx++;
-        }
-      }
-
-      return { clients: CLIENT_NAMES.length + 1, taskTotal, perfTotal, expenseTotal, billingTotal };
+      return { clients: CLIENTS.length, taskTotal, perfTotal, unassigned };
     },
     { timeout: 120000, maxWait: 20000 },
   );
 
   console.log("시드 완료:");
-  console.log(`  임직원 추가/갱신: ${NEW_USERS.length}명`);
-  console.log(`  고객사: ${summary.clients}개 (${COST_BASED_CLIENT} 1개는 계약금액 없이 발생비용 기반, 타임교육원은 PM 미배정)`);
+  console.log(`  임직원 추가/갱신: ${NEW_USERS.length}명, 삭제: ${removed.count}명`);
+  console.log(`  고객사: ${summary.clients}개 (담당 미배정: ${summary.unassigned}개)`);
   console.log(`  과업: ${summary.taskTotal}개, 실적행: ${summary.perfTotal}개`);
-  console.log(`  지출행: ${summary.expenseTotal}개, 청구·입금 달: ${summary.billingTotal}개`);
   console.log(`  연도: ${YEAR}`);
 }
 

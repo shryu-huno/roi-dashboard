@@ -3,22 +3,24 @@
 import { useActionState } from "react";
 import { updateClientAction } from "../actions";
 import { OK } from "@/lib/action-state";
+import { CYCLE_VALUES } from "@/lib/clients/summary-view";
 
-type Pm = { id: string; label: string };
 type ClientInit = {
   id: string;
   name: string;
   status: string;
-  pmId: string | null;
+  businessType: string | null;
   industry: string | null;
   contractStart: string; // "yyyy-mm-dd" | ""
   contractEnd: string;
+  billingCycle: string[];
+  reportCycle: string[];
 };
 
 const labelCls = "flex flex-col text-xs text-[var(--color-muted)]";
 const inputCls = "mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm";
 
-export function EditClientForm({ client, pms }: { client: ClientInit; pms: Pm[] }) {
+export function EditClientForm({ client }: { client: ClientInit }) {
   const [state, formAction] = useActionState(updateClientAction, OK);
   return (
     <form action={formAction} className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -32,12 +34,11 @@ export function EditClientForm({ client, pms }: { client: ClientInit; pms: Pm[] 
         <input name="status" defaultValue={client.status} className={`${inputCls} w-32`} />
       </label>
       <label className={labelCls}>
-        담당 PM
-        <select name="pmId" defaultValue={client.pmId ?? ""} className={`${inputCls} w-48`}>
-          <option value="">미지정</option>
-          {pms.map((p) => (
-            <option key={p.id} value={p.id}>{p.label}</option>
-          ))}
+        사업자 구분
+        <select name="businessType" defaultValue={client.businessType ?? ""} className={`${inputCls} bg-[var(--color-surface)] text-[var(--color-fg)]`}>
+          <option value="">선택 안 함</option>
+          <option value="휴노">휴노</option>
+          <option value="휴노INC">휴노INC</option>
         </select>
       </label>
       <label className={labelCls}>
@@ -52,6 +53,28 @@ export function EditClientForm({ client, pms }: { client: ClientInit; pms: Pm[] 
         계약 종료
         <input type="date" name="contractEnd" defaultValue={client.contractEnd} className={inputCls} />
       </label>
+      <div className={labelCls}>
+        <span>청구 주기 (복수 선택)</span>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+          {CYCLE_VALUES.map((v) => (
+            <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
+              <input type="checkbox" name="billingCycle" value={v} defaultChecked={client.billingCycle.includes(v)} />
+              {v}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className={labelCls}>
+        <span>보고 주기 (복수 선택)</span>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+          {CYCLE_VALUES.map((v) => (
+            <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
+              <input type="checkbox" name="reportCycle" value={v} defaultChecked={client.reportCycle.includes(v)} />
+              {v}
+            </label>
+          ))}
+        </div>
+      </div>
       <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">저장</button>
       {state.ok && state.message && <span className="text-sm text-[var(--color-primary)]">{state.message}</span>}
       {!state.ok && state.error && <span className="text-sm text-[var(--color-danger)]">{state.error}</span>}

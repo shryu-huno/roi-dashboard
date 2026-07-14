@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CYCLE_VALUES } from "@/lib/clients/summary-view";
 
 export const EXPENSE_CATEGORIES = [
   "CORPORATE_CARD", "PERSONAL_CARD", "LABOR_COUNSELOR", "LABOR_INSTRUCTOR",
@@ -31,13 +32,27 @@ const nullableAmount = z.preprocess(
   z.coerce.number().int().min(0).nullable(),
 );
 
+// 체크박스 그룹(복수). 배열이 아니면 단일값을 배열로 감싸고, 빈 값은 걸러낸 뒤 주기 enum으로 검증.
+const cycleArray = z.preprocess(
+  (v) => (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x) => x !== "" && x != null),
+  z.array(z.enum(CYCLE_VALUES)),
+);
+
 export const clientSchema = z.object({
   name: z.string().min(1),
   status: z.string().optional(),
+  businessType: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
   industry: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
   contractStart: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
   contractEnd: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
-  pmId: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
+  // 담당 PM 여러 명. 빈 값은 걸러내고, 미포함이면 undefined(배정 유지).
+  pmIds: z.preprocess(
+    (v) => (v === undefined ? undefined : (Array.isArray(v) ? v : [v]).filter((x) => x !== "" && x != null)),
+    z.array(z.string()).optional(),
+  ),
+  // 청구·보고 주기(복수 선택). 체크박스는 항상 폼에 있으므로 미선택이면 [](클리어).
+  billingCycle: cycleArray,
+  reportCycle: cycleArray,
 });
 
 export const taskSchema = z.object({

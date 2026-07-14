@@ -22,9 +22,9 @@ describe("performance data layer", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA1 = (await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000 })).id;
-    clientB = (await createClient(ADMIN, { name: "B사", pmId: pmB })).id;
+    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
     taskB1 = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000 })).id;
   });
 

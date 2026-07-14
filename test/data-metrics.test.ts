@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { createClient } from "@/lib/data/clients";
+import { createClient, updateClient, archiveClient } from "@/lib/data/clients";
 import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
@@ -28,9 +28,9 @@ describe("metrics: period totals & contract total", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
-    clientB = (await createClient(ADMIN, { name: "B사", pmId: pmB })).id;
+    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
     taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
     // A사: 3월 실적 4회(40000), 지출 3월 5000, 청구 3월 30000, 입금 3월 20000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
@@ -65,6 +65,15 @@ describe("metrics: period totals & contract total", () => {
     expect(await getContractTotal(ADMIN)).toBe(1300000); // 500000 + 800000
     expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(500000); // A만
   });
+
+  it("archived client is excluded from company-wide totals and contract", async () => {
+    await archiveClient(ADMIN, clientB); // B사 보관
+    const t = await getPeriodTotals(ADMIN, 2026, "h1");
+    expect(t.performance).toBe(40000); // A사만 (B사 20000 제외)
+    expect(await getContractTotal(ADMIN)).toBe(500000); // A사 계약금만
+    const trend = await getMonthlyTrend(ADMIN, 2026);
+    expect(trend[2]).toMatchObject({ month: 3, performance: 40000 }); // 3월도 A사만
+  });
 });
 
 describe("metrics: trend & expense breakdown", () => {
@@ -72,7 +81,7 @@ describe("metrics: trend & expense breakdown", () => {
   beforeEach(async () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000 })).id;
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
@@ -100,9 +109,9 @@ describe("metrics: client & PM summaries", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", name: "PM A", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", name: "PM B", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
-    clientB = (await createClient(ADMIN, { name: "B사", pmId: pmB })).id;
+    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
     taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
@@ -113,7 +122,8 @@ describe("metrics: client & PM summaries", () => {
     const rows = await getClientSummaries(ADMIN, 2026, "all");
     expect(rows.map((r) => r.name)).toEqual(["A사", "B사"]);
     const a = rows.find((r) => r.name === "A사")!;
-    expect(a).toMatchObject({ performance: 40000, expense: 5000, contract: 500000, pmId: pmA });
+    expect(a).toMatchObject({ performance: 40000, expense: 5000, contract: 500000 });
+    expect(a.pms).toEqual([{ id: pmA, label: "PM A" }]);
   });
 
   it("PM A sees only own client summary (RLS)", async () => {
@@ -142,6 +152,17 @@ describe("metrics: client & PM summaries", () => {
     const b = rows.find((r) => r.pmId === pmB)!;
     expect(b).toMatchObject({ clientCount: 1, performance: 20000 });
   });
+
+  it("multi-PM client: labels join and each PM gets full amount", async () => {
+    await updateClient(ADMIN, clientA, { name: "A사", pmIds: [pmA, pmB] }); // A사 담당 2명
+    const summaries = await getClientSummaries(ADMIN, 2026, "all");
+    expect(summaries.find((r) => r.name === "A사")!.pmLabel).toBe("PM A, PM B");
+
+    const rows = await getPmSummaries(ADMIN, 2026, "all");
+    // A사 실적 40000이 두 PM 모두에 전액 반영. B는 자기 B사 20000 + A사 40000.
+    expect(rows.find((r) => r.pmId === pmA)!).toMatchObject({ clientCount: 1, performance: 40000 });
+    expect(rows.find((r) => r.pmId === pmB)!).toMatchObject({ clientCount: 2, performance: 60000 });
+  });
 });
 
 describe("metrics: client detail", () => {
@@ -150,7 +171,7 @@ describe("metrics: client detail", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
     await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });

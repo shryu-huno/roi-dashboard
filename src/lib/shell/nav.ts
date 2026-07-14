@@ -13,9 +13,9 @@ export function navItemsForRole(role: AppRole | null): NavItem[] {
     items.push({ href: "/expenses", label: "지출 입력" });
     items.push({ href: "/billing", label: "청구·입금 입력" });
   }
-  // 고객사·과업·단가 설정은 정산담당자/관리자만.
-  if (role === "SETTLEMENT" || role === "ADMIN") {
-    items.push({ href: "/settings/clients", label: "설정" });
+  // 고객사 설정: 정산담당자/관리자는 전체 고객사, PM은 배정받은 고객사만(RLS로 범위 제한).
+  if (role) {
+    items.push({ href: "/settings/clients", label: "고객사 설정" });
   }
   if (role === "ADMIN") items.push({ href: "/admin/users", label: "사용자 관리" });
   return items;

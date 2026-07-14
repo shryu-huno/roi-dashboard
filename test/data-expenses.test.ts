@@ -20,8 +20,8 @@ describe("expenses data layer", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmId: pmA })).id;
-    clientB = (await createClient(ADMIN, { name: "B사", pmId: pmB })).id;
+    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
   });
 
   it("upserts one row per category and updates in place", async () => {

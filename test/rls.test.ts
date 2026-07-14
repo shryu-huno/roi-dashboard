@@ -31,8 +31,8 @@ describe("RLS: PM sees only own clients", () => {
     pmA = a.id;
     pmB = b.id;
     await withRLS(ADMIN, async (tx) => {
-      clientA = (await tx.client.create({ data: { name: "A사", pmId: pmA } })).id;
-      clientB = (await tx.client.create({ data: { name: "B사", pmId: pmB } })).id;
+      clientA = (await tx.client.create({ data: { name: "A사", managers: { create: [{ userId: pmA }] } } })).id;
+      clientB = (await tx.client.create({ data: { name: "B사", managers: { create: [{ userId: pmB }] } } })).id;
       taskA = (await tx.task.create({ data: { clientId: clientA, name: "심리진단", unitPrice: 10000 } })).id;
       await tx.task.create({ data: { clientId: clientB, name: "전문가상담", unitPrice: 20000 } });
     });
@@ -60,10 +60,12 @@ describe("RLS: PM sees only own clients", () => {
     expect(result.count).toBe(0);
   });
 
-  it("PM A cannot create a client attributed to PM B (WITH CHECK)", async () => {
+  it("PM cannot create a client (WITH CHECK: 담당 멤버십 없음)", async () => {
+    // N:M 모델에선 Client INSERT 시점에 담당 멤버십이 없어 PM은 고객사를 생성할 수 없다
+    // (고객사 생성은 앱상 SETTLEMENT/ADMIN 전용).
     await expect(
       withRLS({ userId: pmA, role: "PM" }, (tx) =>
-        tx.client.create({ data: { name: "탈취시도", pmId: pmB } }),
+        tx.client.create({ data: { name: "탈취시도" } }),
       ),
     ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
   });
@@ -76,11 +78,19 @@ describe("RLS: PM sees only own clients", () => {
     ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
   });
 
-  it("PM A CAN create a client for themselves (WITH CHECK positive control)", async () => {
-    const created = await withRLS({ userId: pmA, role: "PM" }, (tx) =>
-      tx.client.create({ data: { name: "본인고객사", pmId: pmA } }),
+  it("PM A CAN update their own managed client (USING/WITH CHECK positive control)", async () => {
+    const result = await withRLS({ userId: pmA, role: "PM" }, (tx) =>
+      tx.client.updateMany({ where: { id: clientA }, data: { status: "보류" } }),
     );
-    expect(created.pmId).toBe(pmA);
+    expect(result.count).toBe(1);
+  });
+
+  it("PM cannot self-assign as a manager (ClientManager WITH CHECK)", async () => {
+    await expect(
+      withRLS({ userId: pmA, role: "PM" }, (tx) =>
+        tx.clientManager.create({ data: { clientId: clientB, userId: pmA } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
   });
 
   it("SETTLEMENT reads all clients", async () => {

@@ -1,0 +1,2937 @@
+[
+  {
+    "name": "한국수출입은행",
+    "pm": "강규민",
+    "businessType": "휴노",
+    "contractStart": "2025-09-23",
+    "contractEnd": "2026-09-22",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월"
+    ],
+    "tasks": [
+      {
+        "name": "사내상담",
+        "unitPrice": 1666667,
+        "contractCount": 12,
+        "contractAmount": 20000000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 1666667
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 1666667
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 1666667
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 1666667
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 1666667
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 1666667
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "경기도청 북부청사",
+    "pm": "강규민",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월",
+      "분기",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 3000000,
+        "contractCount": 1,
+        "contractAmount": 3000000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 3000000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 5850000,
+        "contractCount": 12,
+        "contractAmount": 70200000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 5850000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 5850000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 5850000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 5850000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 5850000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 5850000
+          }
+        ]
+      },
+      {
+        "name": "힐링 프로그램",
+        "unitPrice": 2900000,
+        "contractCount": 7,
+        "contractAmount": 20300000,
+        "performances": [
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 2900000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 2900000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 2900000
+          }
+        ]
+      },
+      {
+        "name": "정신과 전문의 상담",
+        "unitPrice": 2000000,
+        "contractCount": 4,
+        "contractAmount": 8000000,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 2000000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 2000000
+          }
+        ]
+      },
+      {
+        "name": "의료비 지원",
+        "unitPrice": 500000,
+        "contractCount": 4,
+        "contractAmount": 2000000,
+        "performances": []
+      },
+      {
+        "name": "홍보비",
+        "unitPrice": 4000000,
+        "contractCount": 1,
+        "contractAmount": 4000000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 4000000
+          }
+        ]
+      },
+      {
+        "name": "운영비",
+        "unitPrice": 200000,
+        "contractCount": 12,
+        "contractAmount": 2400000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 200000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "인천항만공사",
+    "pm": "강규민",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "상주상담",
+        "unitPrice": 582000,
+        "contractCount": 48,
+        "contractAmount": 27936000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 4,
+            "amount": 2328000
+          },
+          {
+            "month": 2,
+            "count": 4,
+            "amount": 2328000
+          },
+          {
+            "month": 3,
+            "count": 4,
+            "amount": 2328000
+          },
+          {
+            "month": 4,
+            "count": 4,
+            "amount": 2328000
+          },
+          {
+            "month": 5,
+            "count": 4,
+            "amount": 2328000
+          },
+          {
+            "month": 6,
+            "count": 4,
+            "amount": 2328000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "창원소방본부",
+    "pm": "강규민",
+    "businessType": "휴노INC",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 90000,
+        "contractCount": 185,
+        "contractAmount": 16650000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 10,
+            "amount": 900000
+          },
+          {
+            "month": 2,
+            "count": 10,
+            "amount": 900000
+          },
+          {
+            "month": 3,
+            "count": 7,
+            "amount": 630000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 90000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 90000
+          }
+        ]
+      },
+      {
+        "name": "쉼프로그램",
+        "unitPrice": 0,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 4,
+            "count": 6,
+            "amount": 0
+          }
+        ]
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 152000,
+        "contractCount": 10,
+        "contractAmount": 1520000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 152000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 152000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 152000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 152000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 152000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 152000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "인천국제공항공사",
+    "pm": "류승환",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "분기"
+    ],
+    "reportCycle": [
+      "분기",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 72727,
+        "contractCount": 1025,
+        "contractAmount": 74545455,
+        "performances": [
+          {
+            "month": 1,
+            "count": 57,
+            "amount": 4145455
+          },
+          {
+            "month": 2,
+            "count": 74,
+            "amount": 5381818
+          },
+          {
+            "month": 3,
+            "count": 81,
+            "amount": 5890909
+          },
+          {
+            "month": 4,
+            "count": 71,
+            "amount": 5163636
+          },
+          {
+            "month": 5,
+            "count": 71,
+            "amount": 5163636
+          },
+          {
+            "month": 6,
+            "count": 57,
+            "amount": 4145455
+          }
+        ]
+      },
+      {
+        "name": "교대근무자 맞춤형 케어",
+        "unitPrice": 727273,
+        "contractCount": 4,
+        "contractAmount": 2909091,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 727273
+          }
+        ]
+      },
+      {
+        "name": "소규모 맞춤 특강",
+        "unitPrice": 3272727,
+        "contractCount": 4,
+        "contractAmount": 13090909,
+        "performances": [
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 3272727
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 3272727
+          }
+        ]
+      },
+      {
+        "name": "심리 및 피지컬 케어",
+        "unitPrice": 872727,
+        "contractCount": 4,
+        "contractAmount": 3490909,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 872727
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 872727
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 872727
+          }
+        ]
+      },
+      {
+        "name": "기타 체험 클래스",
+        "unitPrice": 772727,
+        "contractCount": 6,
+        "contractAmount": 4636364,
+        "performances": [
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 772727
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 772727
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 772727
+          }
+        ]
+      },
+      {
+        "name": "온라인 프로그램",
+        "unitPrice": 545455,
+        "contractCount": 6,
+        "contractAmount": 3272727,
+        "performances": [
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 545455
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 545455
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 545455
+          }
+        ]
+      },
+      {
+        "name": "홍보 및 관리",
+        "unitPrice": 181818,
+        "contractCount": 1,
+        "contractAmount": 181818,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 181818
+          }
+        ]
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 90909,
+        "contractCount": 12,
+        "contractAmount": 1090909,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 90909
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 90909
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 90909
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 90909
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 90909
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 90909
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "인하대병원",
+    "pm": "류승환",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "분기"
+    ],
+    "reportCycle": [
+      "분기",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 80000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 2,
+            "count": 2,
+            "amount": 160000
+          },
+          {
+            "month": 3,
+            "count": 7,
+            "amount": 560000
+          },
+          {
+            "month": 4,
+            "count": 7,
+            "amount": 560000
+          },
+          {
+            "month": 5,
+            "count": 12,
+            "amount": 960000
+          },
+          {
+            "month": 6,
+            "count": 4,
+            "amount": 320000
+          }
+        ]
+      },
+      {
+        "name": "프로그램",
+        "unitPrice": 700000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 1000000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      }
+    ]
+  },
+  {
+    "name": "인천시노사민정",
+    "pm": "류승환",
+    "businessType": "휴노",
+    "contractStart": "2026-03-16",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "중간",
+      "최종"
+    ],
+    "reportCycle": [
+      "월"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 86364,
+        "contractCount": 1080,
+        "contractAmount": 93272727,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 86364
+          },
+          {
+            "month": 4,
+            "count": 73,
+            "amount": 6304545
+          },
+          {
+            "month": 5,
+            "count": 183,
+            "amount": 15804545
+          },
+          {
+            "month": 6,
+            "count": 204,
+            "amount": 17618182
+          },
+          {
+            "month": 7,
+            "count": 130,
+            "amount": 11227273
+          }
+        ]
+      },
+      {
+        "name": "강의형 프로그램",
+        "unitPrice": 545455,
+        "contractCount": 5,
+        "contractAmount": 2727273,
+        "performances": []
+      },
+      {
+        "name": "체험형 프로그램",
+        "unitPrice": 727273,
+        "contractCount": 11,
+        "contractAmount": 8000000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 727273
+          },
+          {
+            "month": 6,
+            "count": 4,
+            "amount": 2909091
+          }
+        ]
+      },
+      {
+        "name": "심리진단",
+        "unitPrice": 909091,
+        "contractCount": 1,
+        "contractAmount": 909091,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 909091
+          }
+        ]
+      },
+      {
+        "name": "운영관리",
+        "unitPrice": 90909,
+        "contractCount": 9,
+        "contractAmount": 818182,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 90909
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 90909
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 90909
+          }
+        ]
+      },
+      {
+        "name": "홍보 컨텐츠",
+        "unitPrice": 1363636,
+        "contractCount": 1,
+        "contractAmount": 1363636,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 1363636
+          }
+        ]
+      },
+      {
+        "name": "홍보 물품 제작",
+        "unitPrice": 1363636,
+        "contractCount": 1,
+        "contractAmount": 1363636,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 1363636
+          }
+        ]
+      },
+      {
+        "name": "소계",
+        "unitPrice": -272727,
+        "contractCount": 1,
+        "contractAmount": -272727,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": -272727
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "라인 계열(7개)",
+    "pm": "류현주",
+    "businessType": "휴노",
+    "contractStart": "2026-04-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 85000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 40,
+            "amount": 3400000
+          },
+          {
+            "month": 2,
+            "count": 31,
+            "amount": 2635000
+          },
+          {
+            "month": 3,
+            "count": 31,
+            "amount": 2635000
+          },
+          {
+            "month": 4,
+            "count": 33,
+            "amount": 2805000
+          },
+          {
+            "month": 5,
+            "count": 42,
+            "amount": 3570000
+          },
+          {
+            "month": 6,
+            "count": 41,
+            "amount": 3485000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 85000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 2,
+            "count": 2,
+            "amount": 170000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 85000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 85000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 85000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 85000
+          },
+          {
+            "month": 2,
+            "count": 3,
+            "amount": 255000
+          },
+          {
+            "month": 3,
+            "count": 4,
+            "amount": 340000
+          },
+          {
+            "month": 4,
+            "count": 3,
+            "amount": 255000
+          },
+          {
+            "month": 5,
+            "count": 3,
+            "amount": 255000
+          },
+          {
+            "month": 6,
+            "count": 5,
+            "amount": 425000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 85000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 8,
+            "amount": 680000
+          },
+          {
+            "month": 2,
+            "count": 5,
+            "amount": 425000
+          },
+          {
+            "month": 3,
+            "count": 2,
+            "amount": 170000
+          },
+          {
+            "month": 4,
+            "count": 4,
+            "amount": 340000
+          },
+          {
+            "month": 5,
+            "count": 5,
+            "amount": 425000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 85000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 3,
+            "amount": 255000
+          },
+          {
+            "month": 2,
+            "count": 5,
+            "amount": 425000
+          },
+          {
+            "month": 4,
+            "count": 3,
+            "amount": 255000
+          },
+          {
+            "month": 6,
+            "count": 13,
+            "amount": 1105000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 85000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 4,
+            "amount": 340000
+          },
+          {
+            "month": 2,
+            "count": 8,
+            "amount": 680000
+          },
+          {
+            "month": 3,
+            "count": 8,
+            "amount": 680000
+          },
+          {
+            "month": 4,
+            "count": 6,
+            "amount": 510000
+          },
+          {
+            "month": 6,
+            "count": 2,
+            "amount": 170000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 85000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 2,
+            "amount": 170000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 85000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 85000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "국가유산진흥원",
+    "pm": "류현주",
+    "businessType": "휴노INC",
+    "contractStart": "2026-01-14",
+    "contractEnd": "2026-12-14",
+    "billingCycle": [
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "직무스트레스진단",
+        "unitPrice": 500000,
+        "contractCount": 1,
+        "contractAmount": 500000,
+        "performances": [
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 500000
+          }
+        ]
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 68000,
+        "contractCount": 200,
+        "contractAmount": 13600000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 68000
+          },
+          {
+            "month": 2,
+            "count": 4,
+            "amount": 272000
+          },
+          {
+            "month": 3,
+            "count": 7,
+            "amount": 476000
+          },
+          {
+            "month": 4,
+            "count": 13,
+            "amount": 884000
+          },
+          {
+            "month": 5,
+            "count": 12,
+            "amount": 816000
+          },
+          {
+            "month": 6,
+            "count": 12,
+            "amount": 816000
+          }
+        ]
+      },
+      {
+        "name": "참여형 프로그램(심리)",
+        "unitPrice": 550000,
+        "contractCount": 7,
+        "contractAmount": 3850000,
+        "performances": [
+          {
+            "month": 7,
+            "count": 6,
+            "amount": 3300000
+          },
+          {
+            "month": 8,
+            "count": 2,
+            "amount": 1100000
+          }
+        ]
+      },
+      {
+        "name": "참여형 프로그램(신체)",
+        "unitPrice": 900000,
+        "contractCount": 7,
+        "contractAmount": 6300000,
+        "performances": [
+          {
+            "month": 7,
+            "count": 4,
+            "amount": 3600000
+          },
+          {
+            "month": 8,
+            "count": 4,
+            "amount": 3600000
+          }
+        ]
+      },
+      {
+        "name": "집단프로그램",
+        "unitPrice": 700000,
+        "contractCount": 20,
+        "contractAmount": 14000000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 700000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 700000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 700000
+          }
+        ]
+      },
+      {
+        "name": "명사특강",
+        "unitPrice": 2200000,
+        "contractCount": 2,
+        "contractAmount": 4400000,
+        "performances": []
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 100000,
+        "contractCount": 12,
+        "contractAmount": 1200000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 100000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "기상청",
+    "pm": "류현주",
+    "businessType": "휴노INC",
+    "contractStart": "2026-03-10",
+    "contractEnd": "2026-12-10",
+    "billingCycle": [
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "전문가 상담",
+        "unitPrice": 80000,
+        "contractCount": 150,
+        "contractAmount": 12000000,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 80000
+          },
+          {
+            "month": 4,
+            "count": 37,
+            "amount": 2960000
+          },
+          {
+            "month": 5,
+            "count": 56,
+            "amount": 4480000
+          },
+          {
+            "month": 6,
+            "count": 30,
+            "amount": 2400000
+          }
+        ]
+      },
+      {
+        "name": "마음건강검진",
+        "unitPrice": 800000,
+        "contractCount": 1,
+        "contractAmount": 800000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 800000
+          }
+        ]
+      },
+      {
+        "name": "참여프로그램(90분)",
+        "unitPrice": 760000,
+        "contractCount": 5,
+        "contractAmount": 3800000,
+        "performances": []
+      },
+      {
+        "name": "참여프로그램(60분)",
+        "unitPrice": 670000,
+        "contractCount": 20,
+        "contractAmount": 13400000,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 670000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 670000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "한국가스기술공사",
+    "pm": "류현주",
+    "businessType": "휴노",
+    "contractStart": "2026-04-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "분기"
+    ],
+    "reportCycle": [
+      "분기",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "조직진단",
+        "unitPrice": 1015000,
+        "contractCount": 1,
+        "contractAmount": 1015000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 1015000
+          }
+        ]
+      },
+      {
+        "name": "전문가 심리상담",
+        "unitPrice": 80000,
+        "contractCount": 400,
+        "contractAmount": 32000000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 11,
+            "amount": 880000
+          },
+          {
+            "month": 5,
+            "count": 27,
+            "amount": 2160000
+          },
+          {
+            "month": 6,
+            "count": 20,
+            "amount": 1600000
+          }
+        ]
+      },
+      {
+        "name": "홍보 및 운영관리",
+        "unitPrice": 165000,
+        "contractCount": 9,
+        "contractAmount": 1485000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 165000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 165000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 165000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "한국중부발전",
+    "pm": "이사라",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-08-31",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "개인상담",
+        "unitPrice": 90000,
+        "contractCount": 1000,
+        "contractAmount": 90000000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 59,
+            "amount": 5310000
+          },
+          {
+            "month": 2,
+            "count": 49,
+            "amount": 4410000
+          },
+          {
+            "month": 3,
+            "count": 70,
+            "amount": 6300000
+          },
+          {
+            "month": 4,
+            "count": 76,
+            "amount": 6840000
+          },
+          {
+            "month": 5,
+            "count": 63,
+            "amount": 5670000
+          }
+        ]
+      },
+      {
+        "name": "찾아가는 상담",
+        "unitPrice": 800000,
+        "contractCount": 17,
+        "contractAmount": 13600000,
+        "performances": []
+      },
+      {
+        "name": "직무스트레스검사",
+        "unitPrice": 1960000,
+        "contractCount": 1,
+        "contractAmount": 1960000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 1960000
+          }
+        ]
+      },
+      {
+        "name": "직장인강점검사 및 해석상담",
+        "unitPrice": 90000,
+        "contractCount": 100,
+        "contractAmount": 9000000,
+        "performances": []
+      },
+      {
+        "name": "템플스테이",
+        "unitPrice": 1300000,
+        "contractCount": 12,
+        "contractAmount": 15600000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 1300000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 1300000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 1300000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 1300000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 1300000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 1300000
+          },
+          {
+            "month": 7,
+            "count": 1,
+            "amount": 1300000
+          },
+          {
+            "month": 8,
+            "count": 1,
+            "amount": 1300000
+          }
+        ]
+      },
+      {
+        "name": "체험형프로그램",
+        "unitPrice": 900000,
+        "contractCount": 8,
+        "contractAmount": 7200000,
+        "performances": [
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 900000
+          }
+        ]
+      },
+      {
+        "name": "서비스 운영및 관리",
+        "unitPrice": 320000,
+        "contractCount": 12,
+        "contractAmount": 3840000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 320000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 320000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 320000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 320000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 320000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 320000
+          },
+          {
+            "month": 7,
+            "count": 1,
+            "amount": 320000
+          },
+          {
+            "month": 8,
+            "count": 1,
+            "amount": 320000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "중부발전서비스",
+    "pm": "이사라",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-11-20",
+    "billingCycle": [
+      "중간",
+      "최종"
+    ],
+    "reportCycle": [
+      "중간",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 90000,
+        "contractCount": 24,
+        "contractAmount": 2160000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 90000
+          },
+          {
+            "month": 3,
+            "count": 4,
+            "amount": 360000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 90000
+          }
+        ]
+      },
+      {
+        "name": "프로그램",
+        "unitPrice": 1100000,
+        "contractCount": 13,
+        "contractAmount": 14300000,
+        "performances": [
+          {
+            "month": 8,
+            "count": 13,
+            "amount": 14300000
+          }
+        ]
+      },
+      {
+        "name": "서비스 안내",
+        "unitPrice": 340000,
+        "contractCount": 1,
+        "contractAmount": 340000,
+        "performances": []
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 100000,
+        "contractCount": 12,
+        "contractAmount": 1200000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 100000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "폭스바겐파이낸셜서비스코리아",
+    "pm": "이사라",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-05-31",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 100000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 5,
+            "count": 3,
+            "amount": 300000
+          }
+        ]
+      },
+      {
+        "name": "프로그램",
+        "unitPrice": 800000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 200000,
+        "contractCount": 12,
+        "contractAmount": 2400000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 200000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "한국수자원공사",
+    "pm": "이사라",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "분기"
+    ],
+    "reportCycle": [
+      "분기",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 62000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 40,
+            "amount": 2480000
+          },
+          {
+            "month": 2,
+            "count": 49,
+            "amount": 3038000
+          },
+          {
+            "month": 3,
+            "count": 33,
+            "amount": 2046000
+          },
+          {
+            "month": 4,
+            "count": 45,
+            "amount": 2790000
+          },
+          {
+            "month": 5,
+            "count": 46,
+            "amount": 2852000
+          },
+          {
+            "month": 6,
+            "count": 42,
+            "amount": 2604000
+          }
+        ]
+      },
+      {
+        "name": "프로그램",
+        "unitPrice": 800000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 800000
+          },
+          {
+            "month": 6,
+            "count": 3,
+            "amount": 2400000
+          }
+        ]
+      },
+      {
+        "name": "심리진단",
+        "unitPrice": 5000000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 7,
+            "count": 1,
+            "amount": 5000000
+          }
+        ]
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 200000,
+        "contractCount": 12,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 200000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "링키지랩",
+    "pm": "이사라",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "중간",
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 3000000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "프로그램",
+        "unitPrice": 800000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 100000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": [
+          {
+            "month": 1,
+            "count": 7,
+            "amount": 700000
+          },
+          {
+            "month": 2,
+            "count": 10,
+            "amount": 1000000
+          },
+          {
+            "month": 3,
+            "count": 4,
+            "amount": 400000
+          },
+          {
+            "month": 4,
+            "count": 7,
+            "amount": 700000
+          },
+          {
+            "month": 5,
+            "count": 6,
+            "amount": 600000
+          },
+          {
+            "month": 6,
+            "count": 19,
+            "amount": 1900000
+          }
+        ]
+      },
+      {
+        "name": "홍보",
+        "unitPrice": 500000,
+        "contractCount": 1,
+        "contractAmount": 500000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 500000
+          }
+        ]
+      },
+      {
+        "name": "운영관리",
+        "unitPrice": 200000,
+        "contractCount": 12,
+        "contractAmount": 2400000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 200000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "포스코DX",
+    "pm": "이사라",
+    "businessType": "휴노",
+    "contractStart": "2026-01-30",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "분기"
+    ],
+    "reportCycle": [
+      "월",
+      "분기",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 3000000,
+        "contractCount": 2,
+        "contractAmount": 6000000,
+        "performances": []
+      },
+      {
+        "name": "사내상담",
+        "unitPrice": 900000,
+        "contractCount": 23,
+        "contractAmount": 20700000,
+        "performances": [
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 900000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 900000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 900000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 900000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 900000
+          }
+        ]
+      },
+      {
+        "name": "사외상담",
+        "unitPrice": 88000,
+        "contractCount": 575,
+        "contractAmount": 50600000,
+        "performances": [
+          {
+            "month": 2,
+            "count": 13,
+            "amount": 1144000
+          },
+          {
+            "month": 3,
+            "count": 18,
+            "amount": 1584000
+          },
+          {
+            "month": 4,
+            "count": 20,
+            "amount": 1760000
+          },
+          {
+            "month": 5,
+            "count": 21,
+            "amount": 1848000
+          },
+          {
+            "month": 6,
+            "count": 38,
+            "amount": 3344000
+          }
+        ]
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 150000,
+        "contractCount": 23,
+        "contractAmount": 3450000,
+        "performances": [
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 150000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 150000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 150000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 150000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 150000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "가좌근로자복합문화센터",
+    "pm": "류승환",
+    "businessType": "휴노",
+    "contractStart": "2026-04-03",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "상주상담",
+        "unitPrice": 575000,
+        "contractCount": 40,
+        "contractAmount": 23000000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 575000
+          },
+          {
+            "month": 5,
+            "count": 3,
+            "amount": 1725000
+          },
+          {
+            "month": 6,
+            "count": 6,
+            "amount": 3450000
+          }
+        ]
+      },
+      {
+        "name": "강의형 프로그램",
+        "unitPrice": 725000,
+        "contractCount": 4,
+        "contractAmount": 2900000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 725000
+          },
+          {
+            "month": 7,
+            "count": 1,
+            "amount": 725000
+          }
+        ]
+      },
+      {
+        "name": "체험형 프로그램",
+        "unitPrice": 900000,
+        "contractCount": 12,
+        "contractAmount": 10800000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 900000
+          },
+          {
+            "month": 6,
+            "count": 2,
+            "amount": 1800000
+          },
+          {
+            "month": 7,
+            "count": 2,
+            "amount": 1800000
+          }
+        ]
+      },
+      {
+        "name": "EAP 서비스 안내 및 홍보",
+        "unitPrice": 200000,
+        "contractCount": 1,
+        "contractAmount": 200000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 200000
+          }
+        ]
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 100000,
+        "contractCount": 9,
+        "contractAmount": 900000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 100000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "국회",
+    "pm": "류현주",
+    "businessType": "휴노",
+    "contractStart": "2026-01-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 1000000,
+        "contractCount": 1,
+        "contractAmount": 1000000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 1000000
+          }
+        ]
+      },
+      {
+        "name": "사내상담(책임상담사)",
+        "unitPrice": 5200000,
+        "contractCount": 12,
+        "contractAmount": 62400000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 5200000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 5200000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 5200000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 5200000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 5200000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 5200000
+          }
+        ]
+      },
+      {
+        "name": "사내상담(상담사)",
+        "unitPrice": 4700000,
+        "contractCount": 12,
+        "contractAmount": 56400000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 4700000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 4700000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 4700000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 4700000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 4700000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 4700000
+          }
+        ]
+      },
+      {
+        "name": "사내상담실 운영비용",
+        "unitPrice": 200000,
+        "contractCount": 12,
+        "contractAmount": 2400000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 200000
+          }
+        ]
+      },
+      {
+        "name": "사외상담",
+        "unitPrice": 68000,
+        "contractCount": 200,
+        "contractAmount": 13600000,
+        "performances": [
+          {
+            "month": 2,
+            "count": 20,
+            "amount": 1360000
+          },
+          {
+            "month": 3,
+            "count": 13,
+            "amount": 884000
+          },
+          {
+            "month": 4,
+            "count": 32,
+            "amount": 2176000
+          },
+          {
+            "month": 5,
+            "count": 31,
+            "amount": 2108000
+          },
+          {
+            "month": 6,
+            "count": 20,
+            "amount": 1360000
+          }
+        ]
+      },
+      {
+        "name": "전문가 특강",
+        "unitPrice": 7000000,
+        "contractCount": 1,
+        "contractAmount": 7000000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 7000000
+          }
+        ]
+      },
+      {
+        "name": "프로그램",
+        "unitPrice": 400000,
+        "contractCount": 12,
+        "contractAmount": 4800000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 400000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 400000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 400000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 400000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 400000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 400000
+          }
+        ]
+      },
+      {
+        "name": "EAP 서비스 안내 및 홍보",
+        "unitPrice": 400000,
+        "contractCount": 2,
+        "contractAmount": 800000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 2,
+            "amount": 800000
+          }
+        ]
+      },
+      {
+        "name": "서비스 운영 및 관리",
+        "unitPrice": 100000,
+        "contractCount": 12,
+        "contractAmount": 1200000,
+        "performances": [
+          {
+            "month": 1,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 2,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 3,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 100000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 100000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "한국산업기술진흥원",
+    "pm": "류승환",
+    "businessType": "휴노INC",
+    "contractStart": "2026-04-16",
+    "contractEnd": "2026-12-18",
+    "billingCycle": [
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "중간",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리상담",
+        "unitPrice": 70000,
+        "contractCount": 455,
+        "contractAmount": 31850000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 2,
+            "amount": 140000
+          },
+          {
+            "month": 5,
+            "count": 13,
+            "amount": 910000
+          },
+          {
+            "month": 6,
+            "count": 28,
+            "amount": 1960000
+          }
+        ]
+      },
+      {
+        "name": "힐링 클래스 프로그램",
+        "unitPrice": 700000,
+        "contractCount": 6,
+        "contractAmount": 4200000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 700000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 700000
+          }
+        ]
+      },
+      {
+        "name": "가족친화 힐링 프로그램",
+        "unitPrice": 800000,
+        "contractCount": 6,
+        "contractAmount": 4800000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 800000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 800000
+          }
+        ]
+      },
+      {
+        "name": "캠페인",
+        "unitPrice": 800000,
+        "contractCount": 2,
+        "contractAmount": 1600000,
+        "performances": [
+          {
+            "month": 6,
+            "count": 2,
+            "amount": 1600000
+          }
+        ]
+      },
+      {
+        "name": "홍보 및 운영",
+        "unitPrice": 200000,
+        "contractCount": 9,
+        "contractAmount": 1800000,
+        "performances": [
+          {
+            "month": 4,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 200000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 200000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "국민건강보험공단",
+    "pm": "강규민",
+    "businessType": "휴노",
+    "contractStart": "2026-05-18",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "분기",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 1000000,
+        "contractCount": 1,
+        "contractAmount": 1000000,
+        "performances": []
+      },
+      {
+        "name": "심리상담",
+        "unitPrice": 80000,
+        "contractCount": 1850,
+        "contractAmount": 148000000,
+        "performances": [
+          {
+            "month": 6,
+            "count": 249,
+            "amount": 19920000
+          }
+        ]
+      },
+      {
+        "name": "위기관리 긴급 지원",
+        "unitPrice": 110000,
+        "contractCount": 50,
+        "contractAmount": 5500000,
+        "performances": []
+      },
+      {
+        "name": "정신과 초진비 지원",
+        "unitPrice": 100000,
+        "contractCount": 30,
+        "contractAmount": 3000000,
+        "performances": []
+      },
+      {
+        "name": "집단상담 프로그램",
+        "unitPrice": 950000,
+        "contractCount": 20,
+        "contractAmount": 19000000,
+        "performances": []
+      },
+      {
+        "name": "스트레스 관리 특강",
+        "unitPrice": 1000000,
+        "contractCount": 20,
+        "contractAmount": 20000000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 1000000
+          }
+        ]
+      },
+      {
+        "name": "서비스 홍보",
+        "unitPrice": 12000000,
+        "contractCount": 1,
+        "contractAmount": 12000000,
+        "performances": [
+          {
+            "month": 5,
+            "count": 1,
+            "amount": 12000000
+          },
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 12000000
+          }
+        ]
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 100000,
+        "contractCount": 8,
+        "contractAmount": 800000,
+        "performances": []
+      }
+    ]
+  },
+  {
+    "name": "한국과학기술기획평가원",
+    "pm": "류현주",
+    "businessType": "휴노",
+    "contractStart": "2026-06-04",
+    "contractEnd": "2026-11-30",
+    "billingCycle": [
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 2500000,
+        "contractCount": 1,
+        "contractAmount": 2500000,
+        "performances": [
+          {
+            "month": 7,
+            "count": 1,
+            "amount": 2500000
+          }
+        ]
+      },
+      {
+        "name": "개인 심리상담",
+        "unitPrice": 85000,
+        "contractCount": 157,
+        "contractAmount": 13345000,
+        "performances": [
+          {
+            "month": 6,
+            "count": 4,
+            "amount": 340000
+          }
+        ]
+      },
+      {
+        "name": "체험형 프로그램",
+        "unitPrice": 1100000,
+        "contractCount": 2,
+        "contractAmount": 2200000,
+        "performances": []
+      },
+      {
+        "name": "강의형 프로그램",
+        "unitPrice": 900000,
+        "contractCount": 1,
+        "contractAmount": 900000,
+        "performances": []
+      },
+      {
+        "name": "서비스 홍보",
+        "unitPrice": 300000,
+        "contractCount": 1,
+        "contractAmount": 300000,
+        "performances": [
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 300000
+          }
+        ]
+      },
+      {
+        "name": "서비스 관리",
+        "unitPrice": 100000,
+        "contractCount": 6,
+        "contractAmount": 600000,
+        "performances": [
+          {
+            "month": 6,
+            "count": 1,
+            "amount": 100000
+          }
+        ]
+      },
+      {
+        "name": "절삭",
+        "unitPrice": 0,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      }
+    ]
+  },
+  {
+    "name": "국가과학기술연구회",
+    "pm": "이승준",
+    "businessType": "휴노",
+    "contractStart": "2026-07-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "중간",
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 1000000,
+        "contractCount": 1,
+        "contractAmount": 1000000,
+        "performances": []
+      },
+      {
+        "name": "개인 심리상담",
+        "unitPrice": 70000,
+        "contractCount": 1300,
+        "contractAmount": 91000000,
+        "performances": []
+      },
+      {
+        "name": "서비스 홍보",
+        "unitPrice": 100000,
+        "contractCount": 12,
+        "contractAmount": 1200000,
+        "performances": []
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 1200000,
+        "contractCount": 1,
+        "contractAmount": 1200000,
+        "performances": []
+      }
+    ]
+  },
+  {
+    "name": "현대하이카손해사정",
+    "pm": "이승준",
+    "businessType": "휴노",
+    "contractStart": "2026-07-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "분기"
+    ],
+    "reportCycle": [
+      "월",
+      "분기"
+    ],
+    "tasks": [
+      {
+        "name": "개인 심리상담",
+        "unitPrice": 95000,
+        "contractCount": 360,
+        "contractAmount": 34200000,
+        "performances": []
+      },
+      {
+        "name": "서비스 안내, 운영 및 관리",
+        "unitPrice": 150000,
+        "contractCount": 12,
+        "contractAmount": 1800000,
+        "performances": []
+      }
+    ]
+  },
+  {
+    "name": "세인관세법인",
+    "pm": "이승준",
+    "businessType": "휴노",
+    "contractStart": "2026-07-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "월"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "심리진단",
+        "unitPrice": 2500000,
+        "contractCount": 1,
+        "contractAmount": 2500000,
+        "performances": []
+      },
+      {
+        "name": "개인 심리상담(외부상담센터)",
+        "unitPrice": 90000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "개인 심리상담(사내상담 형태)",
+        "unitPrice": 600000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "체험형 프로그램",
+        "unitPrice": 1100000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "강의형 프로그램",
+        "unitPrice": 900000,
+        "contractCount": null,
+        "contractAmount": null,
+        "performances": []
+      },
+      {
+        "name": "서비스 안내",
+        "unitPrice": 300000,
+        "contractCount": 1,
+        "contractAmount": 300000,
+        "performances": []
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 200000,
+        "contractCount": 12,
+        "contractAmount": 2400000,
+        "performances": []
+      }
+    ]
+  },
+  {
+    "name": "한국사회복지협의회(두산소방가족)",
+    "pm": "이승준",
+    "businessType": "휴노",
+    "contractStart": "2026-07-01",
+    "contractEnd": "2026-12-31",
+    "billingCycle": [
+      "중간",
+      "최종"
+    ],
+    "reportCycle": [
+      "월",
+      "최종"
+    ],
+    "tasks": [
+      {
+        "name": "개인 심리상담",
+        "unitPrice": 79000,
+        "contractCount": 960,
+        "contractAmount": 75840000,
+        "performances": []
+      },
+      {
+        "name": "운영 및 관리",
+        "unitPrice": 100000,
+        "contractCount": 12,
+        "contractAmount": 1200000,
+        "performances": []
+      }
+    ]
+  }
+]

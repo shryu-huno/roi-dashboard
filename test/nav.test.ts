@@ -4,8 +4,8 @@ import { navItemsForRole } from "@/lib/shell/nav";
 const hrefs = (role: Parameters<typeof navItemsForRole>[0]) => navItemsForRole(role).map((i) => i.href);
 
 describe("navItemsForRole", () => {
-  it("PM sees dashboard first, then clients/performance/expenses/billing", () => {
-    expect(hrefs("PM")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing"]);
+  it("PM sees dashboard first, then clients/performance/expenses/billing, then settings", () => {
+    expect(hrefs("PM")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients"]);
   });
   it("SETTLEMENT adds settings", () => {
     expect(hrefs("SETTLEMENT")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients"]);

@@ -51,7 +51,7 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  managedClients Client[] @relation("ClientPM")
+  managedClients ClientManager[]
   accounts  Account[]
   sessions  Session[]
 
@@ -66,17 +66,29 @@ model Client {
   industry     String?
   contractStart DateTime?
   contractEnd   DateTime?
-  pmId         String?
-  pm           User?    @relation("ClientPM", fields: [pmId], references: [id])
+  businessType String?  // 사업자 구분: 휴노 | 휴노INC
+  billingCycle String[] @default([]) // 청구 주기(복수): 월/분기/중간/최종
+  reportCycle  String[] @default([]) // 보고 주기(복수): 월/분기/중간/최종
+  deletedAt    DateTime? // 소프트 삭제(보관). null=활성, 값=보관됨(목록에서 숨김).
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  managers     ClientManager[]
   tasks        Task[]
   billings     MonthlyBilling[]
   deposits     MonthlyDeposit[]
   expenses     Expense[]
+}
 
-  @@index([pmId])
+// 고객사–담당PM 다대다 조인. 한 고객사에 여러 PM을 지정할 수 있다.
+model ClientManager {
+  clientId String
+  userId   String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, userId])
+  @@index([userId])
 }
 
 model Task {

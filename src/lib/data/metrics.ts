@@ -19,20 +19,21 @@ export function getPeriodTotals(
   const monthRange = { gte: startMonth, lte: endMonth };
   return withRLS(ctx, async (tx) => {
     // 순차 await (같은 tx에서 병렬 쿼리 금지).
+    // 보관(소프트 삭제)된 고객사의 실적·청구·입금·지출은 전사 집계에서 제외한다.
     const perf = await tx.monthlyPerformance.aggregate({
-      where: { year, month: monthRange },
+      where: { year, month: monthRange, task: { client: { deletedAt: null } } },
       _sum: { amount: true },
     });
     const billing = await tx.monthlyBilling.aggregate({
-      where: { year, month: monthRange },
+      where: { year, month: monthRange, client: { deletedAt: null } },
       _sum: { amount: true },
     });
     const deposit = await tx.monthlyDeposit.aggregate({
-      where: { year, month: monthRange },
+      where: { year, month: monthRange, client: { deletedAt: null } },
       _sum: { amount: true },
     });
     const expense = await tx.expense.aggregate({
-      where: { year, month: monthRange },
+      where: { year, month: monthRange, client: { deletedAt: null } },
       _sum: { amount: true },
     });
     return {
@@ -46,8 +47,35 @@ export function getPeriodTotals(
 
 export function getContractTotal(ctx: RlsContext): Promise<number> {
   return withRLS(ctx, async (tx) => {
-    const r = await tx.task.aggregate({ _sum: { contractAmount: true } });
+    const r = await tx.task.aggregate({ where: { client: { deletedAt: null } }, _sum: { contractAmount: true } });
     return r._sum.contractAmount ?? 0;
+  });
+}
+
+// 고객사별 진행율 계산용: 해당 연도 누적 실적금액과 전체 계약금액을 고객사별로 반환.
+// 진행율 = perf / contract (attainment)로 목록 카드에서 계산한다.
+export function getClientYearProgress(
+  ctx: RlsContext,
+  year: number,
+): Promise<{ perf: Map<string, number>; contract: Map<string, number> }> {
+  return withRLS(ctx, async (tx) => {
+    // 순차 await (같은 tx에서 병렬 쿼리 금지).
+    const perfRows = await tx.monthlyPerformance.findMany({
+      where: { year, task: { client: { deletedAt: null } } },
+      select: { amount: true, task: { select: { clientId: true } } },
+    });
+    const contractRows = await tx.task.groupBy({
+      by: ["clientId"],
+      where: { client: { deletedAt: null } },
+      _sum: { contractAmount: true },
+    });
+    const perf = new Map<string, number>();
+    for (const r of perfRows) {
+      const cid = r.task.clientId;
+      perf.set(cid, (perf.get(cid) ?? 0) + r.amount);
+    }
+    const contract = new Map(contractRows.map((r) => [r.clientId, r._sum.contractAmount ?? 0]));
+    return { perf, contract };
   });
 }
 
@@ -57,12 +85,12 @@ export function getMonthlyTrend(ctx: RlsContext, year: number): Promise<TrendPoi
   return withRLS(ctx, async (tx) => {
     const perf = await tx.monthlyPerformance.groupBy({
       by: ["month"],
-      where: { year },
+      where: { year, task: { client: { deletedAt: null } } },
       _sum: { amount: true },
     });
     const exp = await tx.expense.groupBy({
       by: ["month"],
-      where: { year },
+      where: { year, client: { deletedAt: null } },
       _sum: { amount: true },
     });
     const perfByMonth = new Map(perf.map((r) => [r.month, r._sum.amount ?? 0]));
@@ -89,7 +117,7 @@ export function getExpenseBreakdown(
   return withRLS(ctx, async (tx) => {
     const rows = await tx.expense.groupBy({
       by: ["category"],
-      where: { year, month: { gte: startMonth, lte: endMonth } },
+      where: { year, month: { gte: startMonth, lte: endMonth }, client: { deletedAt: null } },
       _sum: { amount: true },
     });
     return rows.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
@@ -99,8 +127,8 @@ export function getExpenseBreakdown(
 export type ClientSummary = {
   id: string;
   name: string;
-  pmId: string | null;
-  pmLabel: string;
+  pms: { id: string; label: string }[]; // 담당 PM(여러 명)
+  pmLabel: string; // 담당 PM 라벨(쉼표 결합), 없으면 "미배정"
   industry: string | null;
   performance: number;
   expense: number;
@@ -115,7 +143,7 @@ export async function getClientSummaries(
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
   const base = await withRLS(ctx, async (tx) => {
-    const clients = await tx.client.findMany({ orderBy: { name: "asc" } });
+    const clients = await tx.client.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" }, include: { managers: true } });
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange },
       select: { amount: true, task: { select: { clientId: true } } },
@@ -141,7 +169,7 @@ export async function getClientSummaries(
     return clients.map((c) => ({
       id: c.id,
       name: c.name,
-      pmId: c.pmId,
+      pmIds: c.managers.map((m) => m.userId),
       industry: c.industry,
       performance: perfByClient.get(c.id) ?? 0,
       expense: expByClient.get(c.id) ?? 0,
@@ -149,15 +177,17 @@ export async function getClientSummaries(
     }));
   });
 
-  const pmIds = [...new Set(base.map((c) => c.pmId).filter((x): x is string => x !== null))];
+  const pmIds = [...new Set(base.flatMap((c) => c.pmIds))];
   const users = pmIds.length
     ? await prisma.user.findMany({ where: { id: { in: pmIds } } })
     : [];
   const labelById = new Map(users.map((u) => [u.id, u.name ?? u.email]));
-  return base.map((c) => ({
-    ...c,
-    pmLabel: c.pmId === null ? "미배정" : labelById.get(c.pmId) ?? "(알 수 없음)",
-  }));
+  return base.map(({ pmIds, ...c }) => {
+    const pms = pmIds
+      .map((id) => ({ id, label: labelById.get(id) ?? "(알 수 없음)" }))
+      .sort((a, b) => a.label.localeCompare(b.label, "ko"));
+    return { ...c, pms, pmLabel: pms.length ? pms.map((p) => p.label).join(", ") : "미배정" };
+  });
 }
 
 export type PmSummary = {
@@ -175,18 +205,29 @@ export async function getPmSummaries(
 ): Promise<PmSummary[]> {
   const clients = await getClientSummaries(ctx, year, period);
   const byPm = new Map<string | null, { clientCount: number; performance: number; expense: number }>();
-  for (const c of clients) {
-    const cur = byPm.get(c.pmId) ?? { clientCount: 0, performance: 0, expense: 0 };
-    byPm.set(c.pmId, {
+  const labelById = new Map<string | null, string>([[null, "미배정"]]);
+  const add = (pmId: string | null, c: ClientSummary) => {
+    const cur = byPm.get(pmId) ?? { clientCount: 0, performance: 0, expense: 0 };
+    byPm.set(pmId, {
       clientCount: cur.clientCount + 1,
       performance: cur.performance + c.performance,
       expense: cur.expense + c.expense,
     });
+  };
+  for (const c of clients) {
+    // PM이 여러 명이면 각 PM 행에 고객사 실적/지출을 전액 반영(중복 집계).
+    if (c.pms.length === 0) {
+      add(null, c);
+    } else {
+      for (const p of c.pms) {
+        labelById.set(p.id, p.label);
+        add(p.id, c);
+      }
+    }
   }
-  const labelById = new Map(clients.map((c) => [c.pmId, c.pmLabel]));
   return [...byPm.entries()].map(([pmId, agg]) => ({
     pmId,
-    label: pmId === null ? "미배정" : labelById.get(pmId) ?? "(알 수 없음)",
+    label: labelById.get(pmId) ?? "(알 수 없음)",
     ...agg,
   }));
 }
