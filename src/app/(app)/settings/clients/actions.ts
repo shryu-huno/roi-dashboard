@@ -89,7 +89,7 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
     unitPrice: formData.get("unitPrice"),
     contractCount: formData.get("contractCount"),
   });
-  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 0 이상의 정수여야 합니다." };
+  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 정수여야 합니다(음수 가능)." };
   await createTask(ctx, parsed.data);
   revalidatePath(`/settings/clients/${String(formData.get("clientId"))}`);
   return SAVED;
@@ -105,7 +105,7 @@ export async function updateTaskAction(_prev: ActionState, formData: FormData): 
     unitPrice: formData.get("unitPrice"),
     contractCount: formData.get("contractCount"),
   });
-  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 0 이상의 정수여야 합니다." };
+  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 정수여야 합니다(음수 가능)." };
   const result = await updateTask(ctx, id, parsed.data);
   revalidatePath(`/settings/clients/${String(formData.get("clientId"))}`);
   return result.ok ? SAVED : result;

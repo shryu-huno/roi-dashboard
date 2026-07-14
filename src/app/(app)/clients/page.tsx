@@ -10,9 +10,11 @@ import { ClientsList } from "@/components/clients/ClientsList";
 export default async function ClientsPage() {
   const user = await requireUser();
   const ctx = getRlsContext(user);
-  const clients = await listClients(ctx);
-  // 진행율은 올해 누적 실적 ÷ 전체 계약금액.
-  const { perf, contract } = await getClientYearProgress(ctx, new Date().getFullYear());
+  // 진행율은 올해 누적 실적 ÷ 전체 계약금액. 두 조회는 독립 트랜잭션이라 병렬 실행.
+  const [clients, { perf, contract }] = await Promise.all([
+    listClients(ctx),
+    getClientYearProgress(ctx, new Date().getFullYear()),
+  ]);
   const showPm = hasAtLeast(user.role, "SETTLEMENT");
 
   const pmIds = [...new Set(clients.flatMap((c) => c.managers.map((m) => m.userId)))];

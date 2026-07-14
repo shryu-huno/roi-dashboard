@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { createTaskAction, updateTaskAction, deleteTaskAction } from "../actions";
 import { OK, type ActionState } from "@/lib/action-state";
-import { digitsOnly, formatThousands } from "@/lib/format";
+import { digitsOnly, formatThousandsSigned, signedDigitsOnly } from "@/lib/format";
 
 type Task = {
   id: string;
@@ -19,7 +19,7 @@ const cardCls =
   "mb-3 flex flex-wrap items-end gap-4 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5";
 
 function contractAmountOf(unit: string, count: string): number {
-  const u = Number(digitsOnly(unit));
+  const u = Number(signedDigitsOnly(unit));
   const c = Number(digitsOnly(count));
   return u * c;
 }
@@ -57,7 +57,7 @@ function NewTaskForm({ clientId }: { clientId: string }) {
         단가(원)
         <input
           name="unitPrice" inputMode="numeric" required value={unit}
-          onChange={(e) => setUnit(formatThousands(e.target.value))}
+          onChange={(e) => setUnit(formatThousandsSigned(e.target.value))}
           className={`${inputCls} w-40 text-right`}
         />
       </label>
@@ -85,7 +85,7 @@ function EditTaskRow({ clientId, task }: { clientId: string; task: Task }) {
   const [state, formAction] = useActionState(updateTaskAction, OK);
   const [delState, delAction] = useActionState(deleteTaskAction, OK);
   const [name, setName] = useState(task.name);
-  const [unit, setUnit] = useState(formatThousands(task.unitPrice));
+  const [unit, setUnit] = useState(formatThousandsSigned(task.unitPrice));
   const [count, setCount] = useState(task.contractCount != null ? String(task.contractCount) : "");
 
   const amount = contractAmountOf(unit, count);
@@ -103,7 +103,7 @@ function EditTaskRow({ clientId, task }: { clientId: string; task: Task }) {
           단가(원)
           <input
             name="unitPrice" inputMode="numeric" required value={unit}
-            onChange={(e) => setUnit(formatThousands(e.target.value))}
+            onChange={(e) => setUnit(formatThousandsSigned(e.target.value))}
             className={`${inputCls} w-40 text-right`}
           />
         </label>

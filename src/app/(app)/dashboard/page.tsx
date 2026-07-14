@@ -4,7 +4,7 @@ import { hasAtLeast } from "@/lib/auth/rbac";
 import { parsePeriodParams } from "@/lib/period";
 import {
   getPeriodTotals, getContractTotal, getMonthlyTrend,
-  getExpenseBreakdown, getClientSummaries, getPmSummaries,
+  getExpenseBreakdown, getClientSummaries, rollupPmSummaries,
 } from "@/lib/data/metrics";
 import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { formatWon, formatPercent } from "@/lib/format";
@@ -27,13 +27,16 @@ export default async function DashboardPage({
   const ctx = getRlsContext(user);
   const { year, period } = parsePeriodParams(sp, new Date().getFullYear());
 
-  const totals = await getPeriodTotals(ctx, year, period);
-  const contract = await getContractTotal(ctx);
-  const trend = await getMonthlyTrend(ctx, year);
-  const breakdown = await getExpenseBreakdown(ctx, year, period);
-  const clients = await getClientSummaries(ctx, year, period);
+  // 각 조회는 독립 트랜잭션이므로 병렬 실행 가능.
+  const [totals, contract, trend, breakdown, clients] = await Promise.all([
+    getPeriodTotals(ctx, year, period),
+    getContractTotal(ctx),
+    getMonthlyTrend(ctx, year),
+    getExpenseBreakdown(ctx, year, period),
+    getClientSummaries(ctx, year, period),
+  ]);
   const showPm = hasAtLeast(user.role, "SETTLEMENT");
-  const pms = showPm ? await getPmSummaries(ctx, year, period) : [];
+  const pms = showPm ? rollupPmSummaries(clients) : [];
 
   const marginV = margin(totals.performance, totals.expense);
   const attainmentV = attainment(totals.performance, contract);

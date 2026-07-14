@@ -204,6 +204,11 @@ export async function getPmSummaries(
   period: string,
 ): Promise<PmSummary[]> {
   const clients = await getClientSummaries(ctx, year, period);
+  return rollupPmSummaries(clients);
+}
+
+/** 이미 조회한 고객사 요약에서 PM별 rollup 계산 (대시보드에서 중복 조회 방지용). */
+export function rollupPmSummaries(clients: ClientSummary[]): PmSummary[] {
   const byPm = new Map<string | null, { clientCount: number; performance: number; expense: number }>();
   const labelById = new Map<string | null, string>([[null, "미배정"]]);
   const add = (pmId: string | null, c: ClientSummary) => {

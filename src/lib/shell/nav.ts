@@ -5,7 +5,7 @@ export type NavItem = { href: string; label: string };
 export function navItemsForRole(role: AppRole | null): NavItem[] {
   const items: NavItem[] = [];
   // 대시보드는 역할이 부여된(승인된) 사용자에게만. getRlsContext는 role null이면 throw.
-  if (role) items.push({ href: "/dashboard", label: "대시보드" });
+  if (role) items.push({ href: "/dashboard", label: "전체 현황" });
   items.push({ href: "/clients", label: "고객사 목록" });
   items.push({ href: "/performance", label: "실적 입력" });
   // 실적·지출·청구/입금 입력은 역할이 부여된 사용자 모두. RLS가 담당 고객사로 범위 제한.

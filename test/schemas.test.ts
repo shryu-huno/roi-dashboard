@@ -91,6 +91,11 @@ describe("taskSchema", () => {
   it("rejects empty-string unitPrice", () => {
     expect(taskSchema.safeParse({ clientId: "c1", name: "x", unitPrice: "" }).success).toBe(false);
   });
+  it("accepts a negative unitPrice (마이너스 조정/차감)", () => {
+    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: "-1,000,000", contractCount: "" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.unitPrice).toBe(-1000000);
+  });
 });
 
 describe("expenseSchema – blank amount", () => {

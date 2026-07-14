@@ -16,8 +16,7 @@ export function withRLS<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT set_config('app.user_id', ${ctx.userId}, true)`;
-    await tx.$executeRaw`SELECT set_config('app.user_role', ${ctx.role}, true)`;
+    await tx.$executeRaw`SELECT set_config('app.user_id', ${ctx.userId}, true), set_config('app.user_role', ${ctx.role}, true)`;
     return fn(tx);
   });
 }

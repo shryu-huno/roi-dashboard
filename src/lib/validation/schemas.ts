@@ -23,6 +23,15 @@ const nonNegInt = z.preprocess(
   z.coerce.number().int().min(0),
 );
 
+// 부호 있는 정수 금액. 단가는 음수(마이너스 조정/차감)도 허용한다. 빈 문자열은 거부(NaN).
+const signedInt = z.preprocess(
+  (v) => {
+    const s = stripCommas(v);
+    return typeof s === "string" && s.trim() === "" ? NaN : s;
+  },
+  z.coerce.number().int(),
+);
+
 // 빈 문자열/undefined → null, 그 외엔 정수(≥0). "없음(null) vs 0" 구분용.
 const nullableAmount = z.preprocess(
   (v) => {
@@ -58,7 +67,7 @@ export const clientSchema = z.object({
 export const taskSchema = z.object({
   clientId: z.string().min(1),
   name: z.string().min(1),
-  unitPrice: nonNegInt,
+  unitPrice: signedInt,
   // 계약금은 저장 시 단가×횟수로 파생한다. 폼은 계약 횟수만 입력한다(빈칸=미입력=null).
   contractCount: nullableAmount,
 });

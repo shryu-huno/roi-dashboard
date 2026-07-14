@@ -3,8 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // 런타임(앱): 커넥션 풀러 경유(Supabase는 6543 포트, ?pgbouncer=true). 로컬은 다이렉트와 동일.
+  url       = env("DATABASE_URL")
+  // 마이그레이션/introspection: 풀러를 우회한 다이렉트 연결(Supabase는 5432). 로컬은 DATABASE_URL과 동일.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {

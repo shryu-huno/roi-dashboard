@@ -9,6 +9,21 @@ export function formatThousands(v: string | number | null | undefined): string {
   return d === "" ? "" : Number(d).toLocaleString("ko-KR");
 }
 
+/** 부호(-) 허용, 숫자만 남긴다. 맨 앞의 - 하나만 인정한다. (예: "-1,000원" → "-1000") */
+export function signedDigitsOnly(s: string): string {
+  const neg = s.trimStart().startsWith("-");
+  return (neg ? "-" : "") + s.replace(/[^\d]/g, "");
+}
+
+/** 부호 허용 천단위 콤마. 음수 단가(마이너스 조정) 표시용. (예: -1000000 → "-1,000,000") */
+export function formatThousandsSigned(v: string | number | null | undefined): string {
+  const raw = signedDigitsOnly(String(v ?? ""));
+  const neg = raw.startsWith("-");
+  const d = raw.replace(/[^\d]/g, "");
+  if (d === "") return neg ? "-" : "";
+  return (neg ? "-" : "") + Number(d).toLocaleString("ko-KR");
+}
+
 /** 정수 원화. null/undefined → "—". (예: 1000000 → "1,000,000원") */
 export function formatWon(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
