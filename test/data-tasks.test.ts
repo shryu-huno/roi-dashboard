@@ -47,6 +47,24 @@ describe("tasks data layer", () => {
     expect(rows[0].contractAmount).toBe(60000);
   });
 
+  it("stores a manual contractAmount override instead of unitPrice × count", async () => {
+    const t = await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: 50, contractAmount: 480000 });
+    expect(t.contractAmount).toBe(480000); // 자동값 500000 대신 수동값
+    expect(t.contractCount).toBe(50);
+  });
+
+  it("updates a manual contractAmount override", async () => {
+    const t = await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: 50 });
+    await updateTask(ADMIN, t.id, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: 50, contractAmount: 480000 });
+    const rows = await listTasks(ADMIN, clientA);
+    expect(rows[0].contractAmount).toBe(480000);
+  });
+
+  it("falls back to unitPrice × count when contractAmount is omitted", async () => {
+    const t = await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: 50 });
+    expect(t.contractAmount).toBe(500000);
+  });
+
   it("PM lists only own client's tasks (RLS)", async () => {
     await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000 });
     await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000 });

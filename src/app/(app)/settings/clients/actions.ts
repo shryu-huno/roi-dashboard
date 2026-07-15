@@ -90,6 +90,7 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
     name: formData.get("name"),
     unitPrice: formData.get("unitPrice"),
     contractCount: formData.get("contractCount"),
+    contractAmount: formData.get("contractAmount"),
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 정수여야 합니다(음수 가능)." };
   await createTask(ctx, parsed.data);
@@ -106,6 +107,7 @@ export async function updateTaskAction(_prev: ActionState, formData: FormData): 
     name: formData.get("name"),
     unitPrice: formData.get("unitPrice"),
     contractCount: formData.get("contractCount"),
+    contractAmount: formData.get("contractAmount"),
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 정수여야 합니다(음수 가능)." };
   const result = await updateTask(ctx, id, parsed.data);

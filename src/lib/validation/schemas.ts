@@ -41,6 +41,15 @@ const nullableAmount = z.preprocess(
   z.coerce.number().int().min(0).nullable(),
 );
 
+// 빈 문자열/undefined → null, 그 외엔 부호 있는 정수. 계약금 수동 입력용(음수 조정 허용).
+const nullableSignedAmount = z.preprocess(
+  (v) => {
+    const s = stripCommas(v);
+    return s === "" || s === undefined || s === null ? null : s;
+  },
+  z.coerce.number().int().nullable(),
+);
+
 // 체크박스 그룹(복수). 배열이 아니면 단일값을 배열로 감싸고, 빈 값은 걸러낸 뒤 주기 enum으로 검증.
 const cycleArray = z.preprocess(
   (v) => (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x) => x !== "" && x != null),
@@ -68,8 +77,11 @@ export const taskSchema = z.object({
   clientId: z.string().min(1),
   name: z.string().min(1),
   unitPrice: signedInt,
-  // 계약금은 저장 시 단가×횟수로 파생한다. 폼은 계약 횟수만 입력한다(빈칸=미입력=null).
+  // 계약 횟수(빈칸=미입력=null).
   contractCount: nullableAmount,
+  // 계약금은 단가×횟수로 자동 계산되지만 사용자가 직접 수정할 수 있다.
+  // 빈칸이면 서버가 단가×횟수로 파생한다.
+  contractAmount: nullableSignedAmount,
 });
 
 export const performanceBatchSchema = z.object({

@@ -6,11 +6,17 @@ export type TaskInput = {
   name: string;
   unitPrice: number;
   contractCount?: number | null;
+  contractAmount?: number | null;
 };
 
-// 계약금은 항상 서버가 단가×횟수로 파생한다(횟수 미입력이면 계약금도 null).
+// 계약금은 단가×횟수로 파생한다(횟수 미입력이면 null).
 function deriveContractAmount(unitPrice: number, contractCount: number | null | undefined): number | null {
   return contractCount == null ? null : unitPrice * contractCount;
+}
+
+// 사용자가 계약금을 직접 입력했으면 그 값을, 아니면(빈칸) 단가×횟수 자동값을 쓴다.
+function resolveContractAmount(input: TaskInput): number | null {
+  return input.contractAmount ?? deriveContractAmount(input.unitPrice, input.contractCount);
 }
 
 export function listTasks(ctx: RlsContext, clientId: string) {
@@ -25,7 +31,7 @@ export function createTask(ctx: RlsContext, input: TaskInput) {
         name: input.name,
         unitPrice: input.unitPrice,
         contractCount: input.contractCount ?? null,
-        contractAmount: deriveContractAmount(input.unitPrice, input.contractCount),
+        contractAmount: resolveContractAmount(input),
       },
     }),
   );
@@ -39,7 +45,7 @@ export async function updateTask(ctx: RlsContext, id: string, input: TaskInput):
         name: input.name,
         unitPrice: input.unitPrice,
         contractCount: input.contractCount ?? null,
-        contractAmount: deriveContractAmount(input.unitPrice, input.contractCount),
+        contractAmount: resolveContractAmount(input),
       },
     }),
   );
