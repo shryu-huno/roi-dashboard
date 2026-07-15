@@ -1,8 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth/session";
+import { requireRole, requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
+import { VAT_COOKIE } from "@/lib/vat";
 import { clientSchema, taskSchema } from "@/lib/validation/schemas";
 import { createClient, updateClient, updateClientPms, archiveClient, restoreClient } from "@/lib/data/clients";
 import { createTask, updateTask, deleteTask } from "@/lib/data/tasks";
@@ -118,4 +120,15 @@ export async function deleteTaskAction(_prev: ActionState, formData: FormData): 
   const result = await deleteTask(ctx, id);
   revalidatePath(`/settings/clients/${String(formData.get("clientId"))}`);
   return result.ok ? { ok: true, message: "삭제되었습니다." } : result;
+}
+
+// 부가세 포함 표시 여부(전체 대시보드·리포트에 적용). 쿠키로 저장, 기본 On.
+export async function setIncludeVatAction(on: boolean): Promise<void> {
+  await requireUser();
+  const store = await cookies();
+  if (on) {
+    store.delete(VAT_COOKIE); // 기본값이 On이므로 쿠키 삭제 = 포함
+  } else {
+    store.set(VAT_COOKIE, "0", { path: "/", maxAge: 60 * 60 * 24 * 365 });
+  }
 }

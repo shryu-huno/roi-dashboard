@@ -2,6 +2,7 @@ import type { ExpenseCategory } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { resolvePeriod } from "@/lib/period";
 import { prisma } from "@/lib/db";
+import { withVat } from "@/lib/vat";
 
 export type PeriodTotals = {
   performance: number;
@@ -14,6 +15,7 @@ export function getPeriodTotals(
   ctx: RlsContext,
   year: number,
   period: string,
+  includeVat = false,
 ): Promise<PeriodTotals> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
@@ -37,18 +39,18 @@ export function getPeriodTotals(
       _sum: { amount: true },
     });
     return {
-      performance: perf._sum.amount ?? 0,
-      billing: billing._sum.amount ?? 0,
-      deposit: deposit._sum.amount ?? 0,
-      expense: expense._sum.amount ?? 0,
+      performance: withVat(perf._sum.amount ?? 0, includeVat),
+      billing: withVat(billing._sum.amount ?? 0, includeVat),
+      deposit: withVat(deposit._sum.amount ?? 0, includeVat),
+      expense: withVat(expense._sum.amount ?? 0, includeVat),
     };
   });
 }
 
-export function getContractTotal(ctx: RlsContext): Promise<number> {
+export function getContractTotal(ctx: RlsContext, includeVat = false): Promise<number> {
   return withRLS(ctx, async (tx) => {
     const r = await tx.task.aggregate({ where: { client: { deletedAt: null } }, _sum: { contractAmount: true } });
-    return r._sum.contractAmount ?? 0;
+    return withVat(r._sum.contractAmount ?? 0, includeVat);
   });
 }
 
@@ -81,7 +83,7 @@ export function getClientYearProgress(
 
 export type TrendPoint = { month: number; performance: number; expense: number };
 
-export function getMonthlyTrend(ctx: RlsContext, year: number): Promise<TrendPoint[]> {
+export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = false): Promise<TrendPoint[]> {
   return withRLS(ctx, async (tx) => {
     const perf = await tx.monthlyPerformance.groupBy({
       by: ["month"],
@@ -99,8 +101,8 @@ export function getMonthlyTrend(ctx: RlsContext, year: number): Promise<TrendPoi
       const month = i + 1;
       return {
         month,
-        performance: perfByMonth.get(month) ?? 0,
-        expense: expByMonth.get(month) ?? 0,
+        performance: withVat(perfByMonth.get(month) ?? 0, includeVat),
+        expense: withVat(expByMonth.get(month) ?? 0, includeVat),
       };
     });
   });
@@ -112,6 +114,7 @@ export function getExpenseBreakdown(
   ctx: RlsContext,
   year: number,
   period: string,
+  includeVat = false,
 ): Promise<ExpenseSlice[]> {
   const { startMonth, endMonth } = resolvePeriod(period);
   return withRLS(ctx, async (tx) => {
@@ -120,7 +123,7 @@ export function getExpenseBreakdown(
       where: { year, month: { gte: startMonth, lte: endMonth }, client: { deletedAt: null } },
       _sum: { amount: true },
     });
-    return rows.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
+    return rows.map((r) => ({ category: r.category, amount: withVat(r._sum.amount ?? 0, includeVat) }));
   });
 }
 
@@ -139,6 +142,7 @@ export async function getClientSummaries(
   ctx: RlsContext,
   year: number,
   period: string,
+  includeVat = false,
 ): Promise<ClientSummary[]> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
@@ -171,9 +175,9 @@ export async function getClientSummaries(
       name: c.name,
       pmIds: c.managers.map((m) => m.userId),
       industry: c.industry,
-      performance: perfByClient.get(c.id) ?? 0,
-      expense: expByClient.get(c.id) ?? 0,
-      contract: contractByClient.get(c.id) ?? 0,
+      performance: withVat(perfByClient.get(c.id) ?? 0, includeVat),
+      expense: withVat(expByClient.get(c.id) ?? 0, includeVat),
+      contract: withVat(contractByClient.get(c.id) ?? 0, includeVat),
     }));
   });
 
@@ -267,6 +271,7 @@ export function getClientDetail(
   id: string,
   year: number,
   period: string,
+  includeVat = false,
 ): Promise<ClientDetail | null> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
@@ -275,7 +280,7 @@ export function getClientDetail(
     if (!client) return null; // 없거나 RLS로 은닉
 
     const tasks = await tx.task.findMany({ where: { clientId: id }, orderBy: { name: "asc" } });
-    const contract = tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
+    const contract = withVat(tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0), includeVat);
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange, task: { clientId: id } },
       select: { taskId: true, month: true, amount: true },
@@ -289,7 +294,7 @@ export function getClientDetail(
     const months = Array.from({ length: endMonth - startMonth + 1 }, (_, i) => startMonth + i);
     const taskRows: TaskPerf[] = tasks.map((t) => {
       const mm = byTaskMonth.get(t.id) ?? new Map<number, number>();
-      const monthly = months.map((month) => ({ month, amount: mm.get(month) ?? 0 }));
+      const monthly = months.map((month) => ({ month, amount: withVat(mm.get(month) ?? 0, includeVat) }));
       return { id: t.id, name: t.name, monthly, total: monthly.reduce((s, x) => s + x.amount, 0) };
     });
 
@@ -308,7 +313,7 @@ export function getClientDetail(
     const expCat = await tx.expense.groupBy({
       by: ["category"], where: { year, month: monthRange, clientId: id }, _sum: { amount: true },
     });
-    const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
+    const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: withVat(r._sum.amount ?? 0, includeVat) }));
     const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
       new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
     const p = map(perfM), b = map(billM), d = map(depM), e = map(expM);
@@ -316,10 +321,10 @@ export function getClientDetail(
       const month = i + 1;
       return {
         month,
-        performance: p.get(month) ?? 0,
-        billing: b.get(month) ?? 0,
-        deposit: d.get(month) ?? 0,
-        expense: e.get(month) ?? 0,
+        performance: withVat(p.get(month) ?? 0, includeVat),
+        billing: withVat(b.get(month) ?? 0, includeVat),
+        deposit: withVat(d.get(month) ?? 0, includeVat),
+        expense: withVat(e.get(month) ?? 0, includeVat),
       };
     });
 

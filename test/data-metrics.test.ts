@@ -66,6 +66,15 @@ describe("metrics: period totals & contract total", () => {
     expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(500000); // A만
   });
 
+  it("includeVat=true applies ×1.1 to displayed totals and contract", async () => {
+    const t = await getPeriodTotals(ADMIN, 2026, "h1", true);
+    expect(t.performance).toBe(66000); // 60000 × 1.1
+    expect(t.billing).toBe(33000); // 30000 × 1.1
+    expect(t.deposit).toBe(22000); // 20000 × 1.1
+    expect(t.expense).toBe(5500); // 5000 × 1.1
+    expect(await getContractTotal(ADMIN, true)).toBe(1430000); // 1300000 × 1.1
+  });
+
   it("archived client is excluded from company-wide totals and contract", async () => {
     await archiveClient(ADMIN, clientB); // B사 보관
     const t = await getPeriodTotals(ADMIN, 2026, "h1");

@@ -7,6 +7,7 @@ import {
   getExpenseBreakdown, getClientSummaries, rollupPmSummaries,
 } from "@/lib/data/metrics";
 import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
+import { getIncludeVat } from "@/lib/vat";
 import { formatWon, formatPercent } from "@/lib/format";
 import { expenseCategoryLabel } from "@/lib/labels";
 import { KpiCard } from "@/components/charts/KpiCard";
@@ -26,14 +27,15 @@ export default async function DashboardPage({
   const user = await requireUser();
   const ctx = getRlsContext(user);
   const { year, period } = parsePeriodParams(sp, new Date().getFullYear());
+  const includeVat = await getIncludeVat();
 
   // 각 조회는 독립 트랜잭션이므로 병렬 실행 가능.
   const [totals, contract, trend, breakdown, clients] = await Promise.all([
-    getPeriodTotals(ctx, year, period),
-    getContractTotal(ctx),
-    getMonthlyTrend(ctx, year),
-    getExpenseBreakdown(ctx, year, period),
-    getClientSummaries(ctx, year, period),
+    getPeriodTotals(ctx, year, period, includeVat),
+    getContractTotal(ctx, includeVat),
+    getMonthlyTrend(ctx, year, includeVat),
+    getExpenseBreakdown(ctx, year, period, includeVat),
+    getClientSummaries(ctx, year, period, includeVat),
   ]);
   const showPm = hasAtLeast(user.role, "SETTLEMENT");
   const pms = showPm ? rollupPmSummaries(clients) : [];

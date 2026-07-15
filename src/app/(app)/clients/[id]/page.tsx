@@ -5,6 +5,7 @@ import { getRlsContext } from "@/lib/context";
 import { parsePeriodParams, resolvePeriod } from "@/lib/period";
 import { getClientDetail } from "@/lib/data/metrics";
 import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
+import { getIncludeVat } from "@/lib/vat";
 import { formatWon, formatPercent } from "@/lib/format";
 import { expenseCategoryLabel } from "@/lib/labels";
 import { KpiCard } from "@/components/charts/KpiCard";
@@ -24,8 +25,9 @@ export default async function ClientDetailPage({
   const user = await requireUser();
   const ctx = getRlsContext(user);
   const { year, period } = parsePeriodParams(sp, new Date().getFullYear());
+  const includeVat = await getIncludeVat();
 
-  const detail = await getClientDetail(ctx, id, year, period);
+  const detail = await getClientDetail(ctx, id, year, period, includeVat);
   if (!detail) notFound();
 
   const { startMonth, endMonth } = resolvePeriod(period);

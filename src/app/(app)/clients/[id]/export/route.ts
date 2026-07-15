@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { parsePeriodParams } from "@/lib/period";
 import { getClientDetail } from "@/lib/data/metrics";
+import { getIncludeVat } from "@/lib/vat";
 import { csvFromRows } from "@/lib/csv";
 
 export async function GET(
@@ -17,7 +18,8 @@ export async function GET(
     new Date().getFullYear(),
   );
 
-  const detail = await getClientDetail(ctx, id, year, period);
+  const includeVat = await getIncludeVat();
+  const detail = await getClientDetail(ctx, id, year, period, includeVat);
   if (!detail) return new Response("Not found", { status: 404 });
 
   const rows: string[][] = [

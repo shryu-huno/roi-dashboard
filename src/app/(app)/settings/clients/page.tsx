@@ -3,24 +3,30 @@ import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients, listArchivedClients } from "@/lib/data/clients";
 import { prisma } from "@/lib/db";
+import { getIncludeVat } from "@/lib/vat";
 import { NewClientForm } from "./NewClientForm";
 import { ArchiveClientButton } from "./ArchiveClientButton";
 import { RestoreClientButton } from "./RestoreClientButton";
+import { VatToggle } from "./VatToggle";
 
 export default async function SettingsClientsPage() {
   const user = await requireRole("PM");
   const isAdmin = user.role === "ADMIN";
   const isPm = user.role === "PM";
   const ctx = getRlsContext(user);
-  const [clients, pms, archived] = await Promise.all([
+  const [clients, pms, archived, includeVat] = await Promise.all([
     listClients(ctx),
     prisma.user.findMany({ where: { role: "PM", status: "ACTIVE" }, orderBy: { name: "asc" } }),
     isAdmin ? listArchivedClients(ctx) : Promise.resolve([]),
+    getIncludeVat(),
   ]);
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">고객사·과업 설정</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">고객사·과업 설정</h1>
+        <VatToggle defaultOn={includeVat} />
+      </div>
 
       {/* 고객사 추가는 정산담당자/관리자만. PM은 배정받은 고객사 조회·상세 설정만 한다. */}
       {!isPm && (
