@@ -8,6 +8,7 @@ import {
 } from "@/lib/data/metrics";
 import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
+import { getEasywelOnly } from "@/lib/easywel";
 import { formatWon, formatPercent } from "@/lib/format";
 import { expenseCategoryLabel } from "@/lib/labels";
 import { KpiCard } from "@/components/charts/KpiCard";
@@ -17,6 +18,7 @@ import { TrendChart } from "@/components/charts/TrendChart";
 import { BarList } from "@/components/charts/BarList";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { ClientSummaryTable } from "@/components/dashboard/ClientSummaryTable";
+import { EasywelFilterToggle } from "@/components/dashboard/EasywelFilterToggle";
 
 export default async function DashboardPage({
   searchParams,
@@ -28,14 +30,15 @@ export default async function DashboardPage({
   const ctx = getRlsContext(user);
   const { year, period } = parsePeriodParams(sp, new Date().getFullYear());
   const includeVat = await getIncludeVat();
+  const easywelOnly = await getEasywelOnly();
 
   // 각 조회는 독립 트랜잭션이므로 병렬 실행 가능.
   const [totals, contract, trend, breakdown, clients] = await Promise.all([
-    getPeriodTotals(ctx, year, period, includeVat),
-    getContractTotal(ctx, includeVat),
-    getMonthlyTrend(ctx, year, includeVat),
-    getExpenseBreakdown(ctx, year, period, includeVat),
-    getClientSummaries(ctx, year, period, includeVat),
+    getPeriodTotals(ctx, year, period, includeVat, easywelOnly),
+    getContractTotal(ctx, includeVat, easywelOnly),
+    getMonthlyTrend(ctx, year, includeVat, easywelOnly),
+    getExpenseBreakdown(ctx, year, period, includeVat, easywelOnly),
+    getClientSummaries(ctx, year, period, includeVat, easywelOnly),
   ]);
   const showPm = hasAtLeast(user.role, "SETTLEMENT");
   const pms = showPm ? rollupPmSummaries(clients) : [];
@@ -45,7 +48,10 @@ export default async function DashboardPage({
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">전사 대시보드</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">전사 대시보드</h1>
+        <EasywelFilterToggle defaultOn={easywelOnly} />
+      </div>
       <PeriodFilter year={year} period={period} />
 
       <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-5">

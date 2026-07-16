@@ -6,7 +6,7 @@ import { requireRole, requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { VAT_COOKIE } from "@/lib/vat";
 import { clientSchema, taskSchema } from "@/lib/validation/schemas";
-import { createClient, updateClient, updateClientPms, archiveClient, restoreClient } from "@/lib/data/clients";
+import { createClient, updateClient, updateClientPms, archiveClient, restoreClient, setClientEasywel } from "@/lib/data/clients";
 import { createTask, updateTask, deleteTask } from "@/lib/data/tasks";
 import { type ActionState, SAVED } from "@/lib/action-state";
 
@@ -64,6 +64,14 @@ export async function updateClientPmsAction(_prev: ActionState, formData: FormDa
   const result = await updateClientPms(ctx, id, pmIds);
   revalidatePath(`/settings/clients/${id}`);
   return result.ok ? SAVED : result;
+}
+
+// 현대이지웰 여부 토글 — 목록 인라인 체크박스. PM도 본인 담당 고객사는 토글 가능(RLS로 범위 제한).
+export async function setClientEasywelAction(id: string, on: boolean): Promise<void> {
+  const user = await requireRole("PM");
+  const ctx = getRlsContext(user);
+  await setClientEasywel(ctx, id, on);
+  revalidatePath("/settings/clients");
 }
 
 // 고객사 소프트 삭제(보관) — 관리자(ADMIN) 전용. UI 버튼 노출과 별개로 서버에서 강제한다.

@@ -102,6 +102,16 @@ export async function updateClientPms(ctx: RlsContext, id: string, pmIds: string
   return { ok: true };
 }
 
+// 현대이지웰 여부 토글. 목록 인라인 체크박스가 즉시 저장한다.
+// RLS로 접근 불가면 count 0 → ok:false (PM은 본인 담당 고객사만 반영).
+export async function setClientEasywel(ctx: RlsContext, id: string, on: boolean): Promise<ActionState> {
+  const result = await withRLS(ctx, (tx) =>
+    tx.client.updateMany({ where: { id }, data: { hyundaiEasywel: on } }),
+  );
+  if (result.count === 0) return { ok: false, error: "고객사를 찾을 수 없거나 권한이 없습니다." };
+  return { ok: true };
+}
+
 // 소프트 삭제(보관): deletedAt만 찍는다. 연관 데이터는 보존하고 목록에서만 숨긴다.
 // 이미 보관됐거나(RLS로) 접근 불가면 count 0 → ok:false.
 export async function archiveClient(ctx: RlsContext, id: string): Promise<ActionState> {

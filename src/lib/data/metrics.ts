@@ -4,6 +4,11 @@ import { resolvePeriod } from "@/lib/period";
 import { prisma } from "@/lib/db";
 import { withVat } from "@/lib/vat";
 
+// 고객사 where 조각: 보관(소프트 삭제) 제외 + (옵션) 현대이지웰 고객사만.
+function clientWhere(easywelOnly: boolean) {
+  return { deletedAt: null, ...(easywelOnly ? { hyundaiEasywel: true } : {}) };
+}
+
 export type PeriodTotals = {
   performance: number;
   billing: number;
@@ -16,26 +21,28 @@ export function getPeriodTotals(
   year: number,
   period: string,
   includeVat = false,
+  easywelOnly = false,
 ): Promise<PeriodTotals> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
+  const cw = clientWhere(easywelOnly);
   return withRLS(ctx, async (tx) => {
     // 순차 await (같은 tx에서 병렬 쿼리 금지).
     // 보관(소프트 삭제)된 고객사의 실적·청구·입금·지출은 전사 집계에서 제외한다.
     const perf = await tx.monthlyPerformance.aggregate({
-      where: { year, month: monthRange, task: { client: { deletedAt: null } } },
+      where: { year, month: monthRange, task: { client: cw } },
       _sum: { amount: true },
     });
     const billing = await tx.monthlyBilling.aggregate({
-      where: { year, month: monthRange, client: { deletedAt: null } },
+      where: { year, month: monthRange, client: cw },
       _sum: { amount: true },
     });
     const deposit = await tx.monthlyDeposit.aggregate({
-      where: { year, month: monthRange, client: { deletedAt: null } },
+      where: { year, month: monthRange, client: cw },
       _sum: { amount: true },
     });
     const expense = await tx.expense.aggregate({
-      where: { year, month: monthRange, client: { deletedAt: null } },
+      where: { year, month: monthRange, client: cw },
       _sum: { amount: true },
     });
     return {
@@ -47,9 +54,9 @@ export function getPeriodTotals(
   });
 }
 
-export function getContractTotal(ctx: RlsContext, includeVat = false): Promise<number> {
+export function getContractTotal(ctx: RlsContext, includeVat = false, easywelOnly = false): Promise<number> {
   return withRLS(ctx, async (tx) => {
-    const r = await tx.task.aggregate({ where: { client: { deletedAt: null } }, _sum: { contractAmount: true } });
+    const r = await tx.task.aggregate({ where: { client: clientWhere(easywelOnly) }, _sum: { contractAmount: true } });
     return withVat(r._sum.contractAmount ?? 0, includeVat);
   });
 }
@@ -83,16 +90,17 @@ export function getClientYearProgress(
 
 export type TrendPoint = { month: number; performance: number; expense: number };
 
-export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = false): Promise<TrendPoint[]> {
+export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = false, easywelOnly = false): Promise<TrendPoint[]> {
+  const cw = clientWhere(easywelOnly);
   return withRLS(ctx, async (tx) => {
     const perf = await tx.monthlyPerformance.groupBy({
       by: ["month"],
-      where: { year, task: { client: { deletedAt: null } } },
+      where: { year, task: { client: cw } },
       _sum: { amount: true },
     });
     const exp = await tx.expense.groupBy({
       by: ["month"],
-      where: { year, client: { deletedAt: null } },
+      where: { year, client: cw },
       _sum: { amount: true },
     });
     const perfByMonth = new Map(perf.map((r) => [r.month, r._sum.amount ?? 0]));
@@ -115,12 +123,13 @@ export function getExpenseBreakdown(
   year: number,
   period: string,
   includeVat = false,
+  easywelOnly = false,
 ): Promise<ExpenseSlice[]> {
   const { startMonth, endMonth } = resolvePeriod(period);
   return withRLS(ctx, async (tx) => {
     const rows = await tx.expense.groupBy({
       by: ["category"],
-      where: { year, month: { gte: startMonth, lte: endMonth }, client: { deletedAt: null } },
+      where: { year, month: { gte: startMonth, lte: endMonth }, client: clientWhere(easywelOnly) },
       _sum: { amount: true },
     });
     return rows.map((r) => ({ category: r.category, amount: withVat(r._sum.amount ?? 0, includeVat) }));
@@ -143,11 +152,12 @@ export async function getClientSummaries(
   year: number,
   period: string,
   includeVat = false,
+  easywelOnly = false,
 ): Promise<ClientSummary[]> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
   const base = await withRLS(ctx, async (tx) => {
-    const clients = await tx.client.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" }, include: { managers: true } });
+    const clients = await tx.client.findMany({ where: clientWhere(easywelOnly), orderBy: { name: "asc" }, include: { managers: true } });
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange },
       select: { amount: true, task: { select: { clientId: true } } },

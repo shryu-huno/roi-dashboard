@@ -8,6 +8,7 @@ import { NewClientForm } from "./NewClientForm";
 import { ArchiveClientButton } from "./ArchiveClientButton";
 import { RestoreClientButton } from "./RestoreClientButton";
 import { VatToggle } from "./VatToggle";
+import { EasywelToggle } from "./EasywelToggle";
 
 export default async function SettingsClientsPage() {
   const user = await requireRole("PM");
@@ -44,6 +45,7 @@ export default async function SettingsClientsPage() {
             <th>상태</th>
             <th>사업자 구분</th>
             <th>작업</th>
+            <th>현대이지웰</th>
             {isAdmin && <th>삭제</th>}
           </tr>
         </thead>
@@ -55,6 +57,9 @@ export default async function SettingsClientsPage() {
               <td className="text-[var(--color-muted)]">{c.businessType ?? "—"}</td>
               <td>
                 <Link href={`/settings/clients/${c.id}`} className="text-[var(--color-primary)]">상세 설정</Link>
+              </td>
+              <td>
+                <EasywelToggle id={c.id} defaultOn={c.hyundaiEasywel} />
               </td>
               {isAdmin && (
                 <td>

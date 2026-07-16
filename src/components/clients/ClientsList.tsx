@@ -14,6 +14,7 @@ type ClientItem = {
   progress: number | null; // 올해 실적/계약. 계약 없음이면 null.
   billingCycle: string[];
   reportCycle: string[];
+  hyundaiEasywel: boolean;
 };
 
 const SORTS: { value: SortMode; label: string }[] = [
@@ -25,11 +26,15 @@ const SORTS: { value: SortMode; label: string }[] = [
 export function ClientsList({ clients, showPm }: { clients: ClientItem[]; showPm: boolean }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("name");
+  const [easywelOnly, setEasywelOnly] = useState(false);
 
   // PM 접속 시엔 담당 고객사만 보이므로 PM별 정렬은 의미가 없어 숨긴다.
   const sortOptions = showPm ? SORTS : SORTS.filter((s) => s.value !== "pm");
 
-  const filtered = useMemo(() => sortClients(filterClients(clients, query, sort), sort), [clients, query, sort]);
+  const filtered = useMemo(() => {
+    const base = easywelOnly ? clients.filter((c) => c.hyundaiEasywel) : clients;
+    return sortClients(filterClients(base, query, sort), sort);
+  }, [clients, query, sort, easywelOnly]);
 
   return (
     <div>
@@ -52,6 +57,14 @@ export function ClientsList({ clients, showPm }: { clients: ClientItem[]; showPm
             placeholder={sort === "pm" ? "PM 검색" : sort === "industry" ? "업종 검색" : "고객사 검색"}
             className="w-56 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]"
           />
+          <label className="flex items-center gap-2 text-sm text-[var(--color-fg)]">
+            <input
+              type="checkbox"
+              checked={easywelOnly}
+              onChange={(e) => setEasywelOnly(e.target.checked)}
+            />
+            현대이지웰만
+          </label>
         </div>
       </div>
       {clients.length === 0 ? (

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { listClients, getClient, createClient, updateClient, archiveClient, restoreClient, listArchivedClients } from "@/lib/data/clients";
+import { listClients, getClient, createClient, updateClient, archiveClient, restoreClient, listArchivedClients, setClientEasywel } from "@/lib/data/clients";
 import { createTask } from "@/lib/data/tasks";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
@@ -73,6 +73,22 @@ describe("clients data layer", () => {
     expect((await getClient(ADMIN, c.id))?.industry).toBe("IT");
     await updateClient(ADMIN, c.id, { name: "A사", industry: null });
     expect((await getClient(ADMIN, c.id))?.industry).toBeNull();
+  });
+
+  it("setClientEasywel toggles the flag (default false)", async () => {
+    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    expect((await getClient(ADMIN, c.id))?.hyundaiEasywel).toBe(false);
+    expect((await setClientEasywel(ADMIN, c.id, true)).ok).toBe(true);
+    expect((await getClient(ADMIN, c.id))?.hyundaiEasywel).toBe(true);
+    await setClientEasywel(ADMIN, c.id, false);
+    expect((await getClient(ADMIN, c.id))?.hyundaiEasywel).toBe(false);
+  });
+
+  it("PM cannot setClientEasywel on another PM's client (RLS → ok:false)", async () => {
+    const b = await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    const res = await setClientEasywel({ userId: pmA, role: "PM" }, b.id, true);
+    expect(res.ok).toBe(false);
+    expect((await getClient(ADMIN, b.id))?.hyundaiEasywel).toBe(false);
   });
 
   it("archiveClient hides client from list but preserves its data", async () => {

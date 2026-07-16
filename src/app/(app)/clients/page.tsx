@@ -37,6 +37,7 @@ export default async function ClientsPage() {
       progress: attainment(perf.get(c.id) ?? 0, contract.get(c.id) ?? 0),
       billingCycle: c.billingCycle,
       reportCycle: c.reportCycle,
+      hyundaiEasywel: c.hyundaiEasywel,
     };
   });
 

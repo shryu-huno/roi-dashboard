@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { createClient, updateClient, archiveClient } from "@/lib/data/clients";
+import { createClient, updateClient, archiveClient, setClientEasywel } from "@/lib/data/clients";
 import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
@@ -82,6 +82,17 @@ describe("metrics: period totals & contract total", () => {
     expect(await getContractTotal(ADMIN)).toBe(500000); // A사 계약금만
     const trend = await getMonthlyTrend(ADMIN, 2026);
     expect(trend[2]).toMatchObject({ month: 3, performance: 40000 }); // 3월도 A사만
+  });
+
+  it("easywelOnly=true limits totals, contract, trend, and summaries to 현대이지웰 clients", async () => {
+    await setClientEasywel(ADMIN, clientA, true); // A사만 현대이지웰
+    const t = await getPeriodTotals(ADMIN, 2026, "h1", false, true);
+    expect(t.performance).toBe(40000); // A사만 (B사 20000 제외)
+    expect(await getContractTotal(ADMIN, false, true)).toBe(500000); // A사 계약금만
+    const trend = await getMonthlyTrend(ADMIN, 2026, false, true);
+    expect(trend[2]).toMatchObject({ month: 3, performance: 40000 });
+    const rows = await getClientSummaries(ADMIN, 2026, "all", false, true);
+    expect(rows.map((r) => r.name)).toEqual(["A사"]);
   });
 });
 
