@@ -71,6 +71,9 @@ model Client {
   contractEnd   DateTime?
   businessType String?  // 사업자 구분: 휴노 | 휴노INC
   hyundaiEasywel Boolean @default(false) // 현대이지웰 소개로 계약한 고객사
+  contactName  String?  // 담당자명 (프로그램 대시보드의 협조요청·확정 메일 수신처)
+  contactEmail String?  // 담당자 이메일
+  contactPhone String?  // 담당자 전화
   billingCycle String[] @default([]) // 청구 주기(복수): 월/분기/중간/최종
   reportCycle  String[] @default([]) // 보고 주기(복수): 월/분기/중간/최종
   deletedAt    DateTime? // 소프트 삭제(보관). null=활성, 값=보관됨(목록에서 숨김).

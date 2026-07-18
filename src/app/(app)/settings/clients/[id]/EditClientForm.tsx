@@ -11,6 +11,9 @@ type ClientInit = {
   status: string;
   businessType: string | null;
   industry: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
   contractStart: string; // "yyyy-mm-dd" | ""
   contractEnd: string;
   billingCycle: string[];
@@ -44,6 +47,18 @@ export function EditClientForm({ client }: { client: ClientInit }) {
       <label className={labelCls}>
         업종
         <input name="industry" defaultValue={client.industry ?? ""} className={`${inputCls} w-40`} />
+      </label>
+      <label className={labelCls}>
+        담당자명
+        <input name="contactName" defaultValue={client.contactName ?? ""} className={`${inputCls} w-32`} />
+      </label>
+      <label className={labelCls}>
+        담당자 이메일
+        <input name="contactEmail" defaultValue={client.contactEmail ?? ""} className={`${inputCls} w-48`} />
+      </label>
+      <label className={labelCls}>
+        담당자 전화
+        <input name="contactPhone" defaultValue={client.contactPhone ?? ""} className={`${inputCls} w-36`} />
       </label>
       <label className={labelCls}>
         계약 시작

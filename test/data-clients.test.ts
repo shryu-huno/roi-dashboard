@@ -75,6 +75,21 @@ describe("clients data layer", () => {
     expect((await getClient(ADMIN, c.id))?.industry).toBeNull();
   });
 
+  it("creates and updates contact fields", async () => {
+    const c = await createClient(ADMIN, {
+      name: "A사", pmIds: [pmA],
+      contactName: "홍길동", contactEmail: "hong@acme.co.kr", contactPhone: "010-1234-5678",
+    });
+    const created = await getClient(ADMIN, c.id);
+    expect(created?.contactName).toBe("홍길동");
+    expect(created?.contactEmail).toBe("hong@acme.co.kr");
+    expect(created?.contactPhone).toBe("010-1234-5678");
+    await updateClient(ADMIN, c.id, { name: "A사", contactName: "김철수" });
+    expect((await getClient(ADMIN, c.id))?.contactName).toBe("김철수");
+    await updateClient(ADMIN, c.id, { name: "A사", contactName: null });
+    expect((await getClient(ADMIN, c.id))?.contactName).toBeNull();
+  });
+
   it("setClientEasywel toggles the flag (default false)", async () => {
     const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
     expect((await getClient(ADMIN, c.id))?.hyundaiEasywel).toBe(false);

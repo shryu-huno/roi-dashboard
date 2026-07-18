@@ -29,6 +29,18 @@ export function NewClientForm({ pms }: { pms: Pm[] }) {
         업종
         <input name="industry" className="mt-1 w-40 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
       </label>
+      <label className="flex flex-col text-xs text-[var(--color-muted)]">
+        담당자명
+        <input name="contactName" className="mt-1 w-32 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+      </label>
+      <label className="flex flex-col text-xs text-[var(--color-muted)]">
+        담당자 이메일
+        <input name="contactEmail" className="mt-1 w-48 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+      </label>
+      <label className="flex flex-col text-xs text-[var(--color-muted)]">
+        담당자 전화
+        <input name="contactPhone" className="mt-1 w-36 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+      </label>
       <div className="flex flex-col text-xs text-[var(--color-muted)]">
         <span>청구 주기 (복수 선택)</span>
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
