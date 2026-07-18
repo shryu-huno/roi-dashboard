@@ -61,6 +61,10 @@ export const clientSchema = z.object({
   status: z.string().optional(),
   businessType: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
   industry: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
+  // 담당자 연락처(선택). 빈칸→null(클리어), 미포함→undefined(스킵). industry와 동일 규칙.
+  contactName: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
+  contactEmail: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
+  contactPhone: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
   contractStart: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
   contractEnd: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
   // 담당 PM 여러 명. 빈 값은 걸러내고, 미포함이면 undefined(배정 유지).

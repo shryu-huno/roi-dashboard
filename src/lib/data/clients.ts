@@ -6,6 +6,9 @@ export type ClientInput = {
   status?: string;
   businessType?: string | null;
   industry?: string | null;
+  contactName?: string | null; // 담당자명. undefined면 건드리지 않음(스킵), null이면 클리어.
+  contactEmail?: string | null;
+  contactPhone?: string | null;
   contractStart?: Date | null;
   contractEnd?: Date | null;
   billingCycle?: string[]; // 청구 주기(복수). 미선택이면 []로 클리어.
@@ -41,6 +44,9 @@ export function createClient(ctx: RlsContext, input: ClientInput) {
         status: input.status ?? "진행중",
         businessType: input.businessType ?? null,
         industry: input.industry ?? null,
+        contactName: input.contactName ?? null,
+        contactEmail: input.contactEmail ?? null,
+        contactPhone: input.contactPhone ?? null,
         contractStart: input.contractStart ?? null,
         contractEnd: input.contractEnd ?? null,
         billingCycle: input.billingCycle ?? [],
@@ -65,6 +71,9 @@ export async function updateClient(ctx: RlsContext, id: string, input: ClientInp
         status: input.status,
         businessType: input.businessType,
         industry: input.industry,
+        contactName: input.contactName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone,
         contractStart: input.contractStart,
         contractEnd: input.contractEnd,
         billingCycle: input.billingCycle,
