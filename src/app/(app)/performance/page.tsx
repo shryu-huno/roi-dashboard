@@ -5,8 +5,6 @@ import { listTasks } from "@/lib/data/tasks";
 import { listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { PerformanceGrid } from "./PerformanceGrid";
 
-const now = { year: 2026, month: 1 }; // 기본 연월(전역 기간 필터는 Plan 3). 사용자가 선택기로 변경.
-
 export default async function PerformancePage({
   searchParams,
 }: {
@@ -17,9 +15,14 @@ export default async function PerformancePage({
   const ctx = getRlsContext(user);
   const clients = await listClients(ctx);
 
+  // 기본 연월: 사용자가 선택하지 않았을 때 '접속 시점의 한국 시간(Asia/Seoul)' 연·월을 쓴다.
+  // 서버(Node)는 UTC로 동작할 수 있어 en-CA 포맷("YYYY-MM-DD")으로 한국 날짜를 얻어 분해한다.
+  const kstToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  const [defaultYear, defaultMonth] = kstToday.split("-").map(Number);
+
   const clientId = sp.clientId ?? clients[0]?.id;
-  const year = Number(sp.year) || now.year;
-  const month = Number(sp.month) || now.month;
+  const year = Number(sp.year) || defaultYear;
+  const month = Number(sp.month) || defaultMonth;
 
   const [tasks, perf, totals] = clientId
     ? await Promise.all([
