@@ -16,6 +16,9 @@ export async function signInCallback(params: {
 
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
+  // 비표준 Next.js 16.x에서 Vercel 호스트 자동 감지가 되지 않아 명시적으로 신뢰 처리
+  // (프록시 뒤의 x-forwarded-host를 신뢰해 콜백 URL을 올바르게 구성)
+  trustHost: true,
   session: { strategy: "database" },
   providers: [
     Google({
