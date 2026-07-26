@@ -42,3 +42,6 @@ next-env.d.ts
 
 # subagent-driven-development controller scratch (progress ledger)
 /.superpowers/
+
+.vercel
+.env*
