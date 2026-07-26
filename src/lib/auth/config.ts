@@ -16,6 +16,7 @@ export async function signInCallback(params: {
 
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
+  trustHost: true,
   session: { strategy: "database" },
   providers: [
     Google({
