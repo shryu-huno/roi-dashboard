@@ -5,6 +5,7 @@ import {
   billingSchema,
   taskSchema,
   clientSchema,
+  payeeUploadRowSchema,
 } from "@/lib/validation/schemas";
 
 describe("performanceBatchSchema", () => {
@@ -135,5 +136,38 @@ describe("clientSchema industry", () => {
     const r = clientSchema.safeParse({ name: "A사", industry: "제조" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.industry).toBe("제조");
+  });
+});
+
+describe("payeeUploadRowSchema", () => {
+  const valid = {
+    bizName: "홍길동", bizNumber: "900101-1234567", phone: "010-1234-5678",
+    bankName: "국민", accountNumber: "110-123-456789", accountHolder: "홍길동", taxType: "사업소득",
+  };
+  it("유효 행은 번호를 숫자만 남겨 통과", () => {
+    const r = payeeUploadRowSchema.safeParse(valid);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.bizNumber).toBe("9001011234567");
+  });
+  it("번호 자릿수가 10/13이 아니면 실패", () => {
+    expect(payeeUploadRowSchema.safeParse({ ...valid, bizNumber: "123" }).success).toBe(false);
+  });
+  it("알 수 없는 청구방식은 실패", () => {
+    expect(payeeUploadRowSchema.safeParse({ ...valid, taxType: "카드" }).success).toBe(false);
+  });
+  it("필수 항목 누락은 실패", () => {
+    expect(payeeUploadRowSchema.safeParse({ ...valid, accountHolder: "" }).success).toBe(false);
+  });
+});
+
+describe("payeeUploadRowSchema 자릿수", () => {
+  const base = { bizName: "이름", bizNumber: "1234567890", bankName: "국민", accountHolder: "대표", taxType: "세금계산서" as const };
+  it("전화 8자리는 실패, 9자리는 통과", () => {
+    expect(payeeUploadRowSchema.safeParse({ ...base, phone: "02-123-45", accountNumber: "1101234567" }).success).toBe(false);
+    expect(payeeUploadRowSchema.safeParse({ ...base, phone: "021234567", accountNumber: "1101234567" }).success).toBe(true);
+  });
+  it("계좌 9자리는 실패, 10자리는 통과", () => {
+    expect(payeeUploadRowSchema.safeParse({ ...base, phone: "01012345678", accountNumber: "123456789" }).success).toBe(false);
+    expect(payeeUploadRowSchema.safeParse({ ...base, phone: "01012345678", accountNumber: "1234567890" }).success).toBe(true);
   });
 });

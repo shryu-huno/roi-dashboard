@@ -1,4 +1,5 @@
 import type { AppRole } from "@/lib/auth/rbac";
+import type { PayeeType, TaxType } from "@prisma/client";
 
 export function roleLabel(role: AppRole | null | undefined): string {
   switch (role) {
@@ -35,4 +36,32 @@ export function expenseCategoryLabel(
     case "TEST_MATERIAL": return "검사지 구매";
     case "GENERAL_ETC": return "일반관리(기타)";
   }
+}
+
+export const TAX_TYPE_LABELS = [
+  "세금계산서", "면세계산서", "현금영수증", "수기계산서", "사업소득", "기타소득",
+] as const;
+
+export function taxTypeLabel(t: TaxType): string {
+  switch (t) {
+    case "TAX_INVOICE": return "세금계산서";
+    case "TAX_FREE_INVOICE": return "면세계산서";
+    case "CASH_RECEIPT": return "현금영수증";
+    case "HANDWRITTEN_INVOICE": return "수기계산서";
+    case "BUSINESS_INCOME": return "사업소득";
+    case "OTHER_INCOME": return "기타소득";
+  }
+}
+
+export const TAX_TYPE_BY_LABEL: Record<(typeof TAX_TYPE_LABELS)[number], TaxType> = {
+  "세금계산서": "TAX_INVOICE",
+  "면세계산서": "TAX_FREE_INVOICE",
+  "현금영수증": "CASH_RECEIPT",
+  "수기계산서": "HANDWRITTEN_INVOICE",
+  "사업소득": "BUSINESS_INCOME",
+  "기타소득": "OTHER_INCOME",
+};
+
+export function payeeTypeLabel(t: PayeeType): string {
+  return t === "INSTRUCTOR" ? "강사" : "업체";
 }

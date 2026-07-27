@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CYCLE_VALUES } from "@/lib/clients/summary-view";
+import { TAX_TYPE_LABELS } from "@/lib/labels";
 
 export const EXPENSE_CATEGORIES = [
   "CORPORATE_CARD", "PERSONAL_CARD", "LABOR_COUNSELOR", "LABOR_INSTRUCTOR",
@@ -106,3 +107,30 @@ export const expenseSchema = z.object({
 
 export const billingSchema = z.object({ clientId: z.string().min(1), year, month, amount: nullableAmount });
 export const depositSchema = billingSchema;
+
+// 엑셀/CSV 한 행(문자열)을 검증. 번호는 숫자만 남겨 10/13자리인지 확인(업체/강사 판별 근거).
+const bizNumberDigits = z.preprocess(
+  (v) => (typeof v === "string" ? v.replace(/\D/g, "") : v),
+  z.string().refine((s) => s.length === 10 || s.length === 13,
+    "사업자번호(10자리) 또는 주민등록번호(13자리)여야 합니다."),
+);
+
+// 숫자만 남긴 길이로 자릿수 검증(하이픈·공백 허용).
+const phoneField = z.string().refine(
+  (s) => { const d = s.replace(/\D/g, ""); return d.length >= 9 && d.length <= 11; },
+  "연락처는 숫자 9~11자리여야 합니다.",
+);
+const accountField = z.string().refine(
+  (s) => { const d = s.replace(/\D/g, ""); return d.length >= 10 && d.length <= 16; },
+  "계좌번호는 숫자 10~16자리여야 합니다.",
+);
+
+export const payeeUploadRowSchema = z.object({
+  bizName: z.string().min(1, "이름은 필수입니다."),
+  bizNumber: bizNumberDigits,
+  phone: phoneField,
+  bankName: z.string().min(1, "은행명은 필수입니다."),
+  accountNumber: accountField,
+  accountHolder: z.string().min(1, "예금주는 필수입니다."),
+  taxType: z.enum(TAX_TYPE_LABELS),
+});
