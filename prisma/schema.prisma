@@ -43,6 +43,25 @@ enum ExpenseCategory {
   GENERAL_ETC
 }
 
+enum PayeeType {
+  INSTRUCTOR // 강사 (주민등록번호 13자리, keyId a###)
+  VENDOR     // 업체 (사업자등록번호 10자리, keyId b###)
+}
+
+enum TaxType {
+  TAX_INVOICE         // 세금계산서
+  TAX_FREE_INVOICE    // 면세계산서
+  CASH_RECEIPT        // 현금영수증
+  HANDWRITTEN_INVOICE // 수기계산서
+  BUSINESS_INCOME     // 사업소득
+  OTHER_INCOME        // 기타소득
+}
+
+enum PayeeFileType {
+  BIZ_CERT // 사업자등록증
+  BANKBOOK // 통장사본
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
@@ -172,6 +191,44 @@ model Expense {
 
   @@unique([clientId, year, month, category])
   @@index([clientId, year, month])
+}
+
+// 지급 대상 원장(공용). 정산담당자/관리자가 엑셀로 업로드. 민감정보는 앱 계층 암호화.
+model Payee {
+  id                  String    @id @default(cuid())
+  keyId               String    @unique // 표시 고유번호 a001/b001 (앱이 시퀀스로 채번)
+  payeeType           PayeeType          // 강사/업체 (번호 길이로 파생)
+  bizName             String             // 사업자명/이름
+  bizNumberEnc        String             // 사업자번호/주민번호 AES-GCM 암호문
+  bizNumberMasked     String             // 마스킹 표시값 (900101-1****** / 123-45-6****)
+  bizNumberBidx       String    @unique  // HMAC 블라인드 인덱스 (정확일치 검색 + 중복 방지)
+  phone               String             // 강사·업체 공통 연락처
+  phoneNormalized     String             // 하이픈 제거 검색용 (앱이 채움)
+  bankName            String
+  accountNumberEnc    String             // 계좌번호 AES-GCM 암호문
+  accountNumberMasked String             // ****1234
+  accountHolder       String             // 예금주
+  taxType             TaxType            // 청구방식
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  attachments         PayeeAttachment[]
+
+  @@index([phoneNormalized])
+  @@index([payeeType])
+}
+
+// 지급 대상 첨부(사업자등록증/통장사본). 실제 업로드 흐름은 추후 단계.
+model PayeeAttachment {
+  id         String        @id @default(cuid())
+  payeeId    String
+  payee      Payee         @relation(fields: [payeeId], references: [id], onDelete: Cascade)
+  fileType   PayeeFileType
+  fileUrl    String
+  fileName   String
+  uploadedAt DateTime      @default(now())
+
+  @@index([payeeId])
 }
 
 // --- Auth.js (NextAuth) 어댑터 모델 ---
