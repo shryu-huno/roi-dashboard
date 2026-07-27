@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { createPayeesBulk } from "@/lib/data/payees";
+import { PayeeKeyConfigError } from "@/lib/crypto/payee-secret";
 import { buildPayeeInputsFromCsv, buildPayeeInputsFromRows, type BuildResult } from "./build-inputs";
 import { parseXlsxToRows } from "./xlsx";
 import type { PayeeUploadState } from "./upload-state";
@@ -30,7 +31,12 @@ export async function uploadPayeesAction(
     } else {
       return { ok: false, error: "지원하지 않는 형식입니다 (.xlsx, .xls, .csv)." };
     }
-  } catch {
+  } catch (e) {
+    // 암호화 키 누락은 서버 설정 문제다. 파일 탓으로 안내하면 담당자가 멀쩡한 엑셀을 계속 고치게 된다.
+    if (e instanceof PayeeKeyConfigError) {
+      console.error("[payee upload] 암호화 키 설정 오류:", e.message);
+      return { ok: false, error: "서버 설정(암호화 키)이 누락되었습니다. 관리자에게 문의하세요." };
+    }
     return { ok: false, error: "파일을 읽을 수 없습니다. 양식을 확인하세요." };
   }
 
@@ -43,7 +49,15 @@ export async function uploadPayeesAction(
     };
   }
 
-  const { created, skipped } = await createPayeesBulk(ctx, inputs);
+  let result: { created: number; skipped: number };
+  try {
+    result = await createPayeesBulk(ctx, inputs);
+  } catch (e) {
+    // DB 오류로 서버액션이 통째로 throw되면 모달이 깨진다. 상태로 돌려 오류 문구를 띄운다.
+    console.error("[payee upload] 등록 실패:", e);
+    return { ok: false, error: "등록 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.", rowErrors: errors };
+  }
+  const { created, skipped } = result;
   revalidatePath("/expenses");
 
   const parts = [`${created}건 등록`];

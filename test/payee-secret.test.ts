@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   encrypt, decrypt, blindIndex, digitsOnly, derivePayeeType, maskBizNumber, maskAccountNumber,
+  PayeeKeyConfigError,
 } from "@/lib/crypto/payee-secret";
 
 describe("payee-secret", () => {
@@ -24,5 +25,14 @@ describe("payee-secret", () => {
     expect(maskBizNumber("1234567890", "VENDOR")).toBe("123-45-6****");
     expect(maskAccountNumber("110123456789")).toBe("****6789");
     expect(digitsOnly("010-1234-5678")).toBe("01012345678");
+  });
+  it("키 미설정은 PayeeKeyConfigError로 던져 파일 오류와 구분된다", () => {
+    const saved = process.env.PAYEE_ENC_KEY;
+    delete process.env.PAYEE_ENC_KEY;
+    try {
+      expect(() => encrypt("x")).toThrow(PayeeKeyConfigError);
+    } finally {
+      process.env.PAYEE_ENC_KEY = saved;
+    }
   });
 });

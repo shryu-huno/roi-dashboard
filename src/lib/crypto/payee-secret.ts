@@ -1,19 +1,22 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 import type { PayeeType } from "@prisma/client";
 
+// 키 환경변수 문제. 호출부가 "파일 형식 오류"와 구분해 안내하려면 타입으로 식별돼야 한다.
+export class PayeeKeyConfigError extends Error {}
+
 function encKey(): Buffer {
   const raw = process.env.PAYEE_ENC_KEY;
-  if (!raw) throw new Error("PAYEE_ENC_KEY 환경변수가 없습니다.");
+  if (!raw) throw new PayeeKeyConfigError("PAYEE_ENC_KEY 환경변수가 없습니다.");
   const key = Buffer.from(raw, "base64");
-  if (key.length !== 32) throw new Error("PAYEE_ENC_KEY는 base64 32바이트여야 합니다.");
+  if (key.length !== 32) throw new PayeeKeyConfigError("PAYEE_ENC_KEY는 base64 32바이트여야 합니다.");
   return key;
 }
 
 function bidxKey(): Buffer {
   const raw = process.env.PAYEE_BIDX_KEY;
-  if (!raw) throw new Error("PAYEE_BIDX_KEY 환경변수가 없습니다.");
+  if (!raw) throw new PayeeKeyConfigError("PAYEE_BIDX_KEY 환경변수가 없습니다.");
   const key = Buffer.from(raw, "base64");
-  if (key.length < 32) throw new Error("PAYEE_BIDX_KEY는 base64 32바이트 이상이어야 합니다.");
+  if (key.length < 32) throw new PayeeKeyConfigError("PAYEE_BIDX_KEY는 base64 32바이트 이상이어야 합니다.");
   return key;
 }
 

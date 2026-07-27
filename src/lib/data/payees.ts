@@ -18,13 +18,14 @@ export type PayeeCreateInput = {
   taxType: TaxType;
 };
 
-// 지급 리스트 화면용(ADMIN·SETTLEMENT 전용) — 원문 복호화 + 첨부 존재 배지.
+// 지급 리스트 화면용(ADMIN·SETTLEMENT 전용) — 첨부 존재 배지 + 화면이 실제로 그리는 값만.
+// 사업자번호/주민번호는 화면이 마스킹만 표시하므로 원문을 담지 않는다(클라이언트 컴포넌트로
+// 넘어가면 RSC 페이로드에 실려 브라우저까지 전송되므로, 쓰지 않는 원문은 내보내지 않는다).
 export type PayeeRow = {
   id: string;
   keyId: string;
   payeeType: PayeeType;
   bizName: string;
-  bizNumber: string; // 복호화 원문
   bizNumberMasked: string; // 목록 표시용 마스킹
   phone: string;
   bankName: string;
@@ -122,7 +123,6 @@ export function listPayees(ctx: RlsContext): Promise<PayeeRow[]> {
       keyId: r.keyId,
       payeeType: r.payeeType,
       bizName: r.bizName,
-      bizNumber: decrypt(r.bizNumberEnc),
       bizNumberMasked: r.bizNumberMasked,
       phone: r.phone,
       bankName: r.bankName,

@@ -4,7 +4,7 @@ import {
   createPayeesBulk, listPayees, findPayeeByBizNumber, type PayeeCreateInput,
 } from "@/lib/data/payees";
 import {
-  encrypt, blindIndex, maskBizNumber, maskAccountNumber,
+  encrypt, decrypt, blindIndex, maskBizNumber, maskAccountNumber,
 } from "@/lib/crypto/payee-secret";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
@@ -49,13 +49,16 @@ describe("payees 데이터 계층", () => {
     expect(rows.map((r) => r.keyId).sort()).toEqual(["a001", "a002", "b001"]);
   });
 
-  it("listPayees는 원문을 복호화해 반환", async () => {
+  it("listPayees는 계좌번호 원문만 복호화해 반환(사업자번호 원문은 내보내지 않음)", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
     const [row] = await listPayees(ADMIN);
-    expect(row.bizNumber).toBe("1234567890");
     expect(row.accountNumber).toBe("110123456789");
     expect(row.hasBizCert).toBe(false);
     expect(row.hasBankbook).toBe(false);
+    // 화면은 마스킹만 쓰므로 원문은 반환 타입에 없다. 암호문 자체가 제대로 복호화되는지는 직접 확인.
+    expect(Object.keys(row)).not.toContain("bizNumber");
+    const [raw] = await withRLS(ADMIN, (tx) => tx.payee.findMany());
+    expect(decrypt(raw.bizNumberEnc)).toBe("1234567890");
   });
 
   it("findPayeeByBizNumber는 블라인드 인덱스로 정확일치(하이픈 무관)", async () => {
