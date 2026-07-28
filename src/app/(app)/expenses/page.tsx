@@ -69,10 +69,9 @@ async function AllExpensesTab({
   );
 }
 
-// 알 수 없는 field 값(URL 조작 등)은 기본값으로 대체 — 별도 에러 UI 없음.
-function parsePayeeSearchField(value: string | undefined): PayeeSearchField {
-  const found = PAYEE_SEARCH_FIELDS.find((f) => f === value);
-  return found ?? "bizName";
+// 알 수 없는 field 값(URL 조작 등)은 필터를 무시하고 전체 목록을 표시한다.
+function parsePayeeSearchField(value: string | undefined): PayeeSearchField | undefined {
+  return PAYEE_SEARCH_FIELDS.find((f) => f === value);
 }
 
 // 지급 리스트 탭 본문 — 공용 원장. ADMIN·SETTLEMENT 전용이라 원문 그대로 표시.
@@ -84,9 +83,10 @@ async function PaymentListTab({
   user: SessionUser;
 }) {
   const ctx = getRlsContext(user);
-  const field = parsePayeeSearchField(sp.field);
+  const parsedField = parsePayeeSearchField(sp.field);
+  const field = parsedField ?? "bizName";
   const q = sp.q ?? "";
-  const rows = await listPayees(ctx, q.trim() ? { field, q } : undefined);
+  const rows = await listPayees(ctx, parsedField && q.trim() ? { field: parsedField, q } : undefined);
   return <PayeeListPanel rows={rows} field={field} q={q} />;
 }
 
