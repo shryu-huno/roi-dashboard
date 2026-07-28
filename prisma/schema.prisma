@@ -218,7 +218,7 @@ model Payee {
   @@index([payeeType])
 }
 
-// 지급 대상 첨부(사업자등록증/통장사본). 실제 업로드 흐름은 추후 단계.
+// 지급 대상 첨부(사업자등록증/통장사본).
 model PayeeAttachment {
   id         String        @id @default(cuid())
   payeeId    String
@@ -228,6 +228,7 @@ model PayeeAttachment {
   fileName   String
   uploadedAt DateTime      @default(now())
 
+  @@unique([payeeId, fileType])
   @@index([payeeId])
 }
 
