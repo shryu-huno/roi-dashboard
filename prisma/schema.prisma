@@ -205,7 +205,7 @@ model ConsultingExpense {
   consultType String?  // 상담유형(참고용)
   year        Int      // 지급월(연)
   month       Int      // 지급월(월)
-  amount      Int      // 지급비용(빈칸=0)
+  amount      Int?     // 지급비용(선택). 현재 적재분은 저장하지 않아 null.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
