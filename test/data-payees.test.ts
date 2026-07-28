@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { withRLS } from "@/lib/rls";
 import {
-  createPayeesBulk, listPayees, findPayeeByBizNumber, type PayeeCreateInput,
+  createPayeesBulk, listPayees, findPayeeByBizNumber, parsePayeeSearchField, type PayeeCreateInput,
 } from "@/lib/data/payees";
 import {
   encrypt, decrypt, blindIndex, maskBizNumber, maskAccountNumber,
@@ -18,11 +18,11 @@ async function reset() {
   });
 }
 
-function input(bizDigits: string, type: "INSTRUCTOR" | "VENDOR"): PayeeCreateInput {
+function input(bizDigits: string, type: "INSTRUCTOR" | "VENDOR", bizName = "이름"): PayeeCreateInput {
   const acct = "110123456789";
   return {
     payeeType: type,
-    bizName: "이름",
+    bizName,
     bizNumberEnc: encrypt(bizDigits),
     bizNumberMasked: maskBizNumber(bizDigits, type),
     bizNumberBidx: blindIndex(bizDigits),
@@ -95,5 +95,52 @@ describe("payees 데이터 계층", () => {
     await expect(
       withRLS(ADMIN, (tx) => tx.payee.create({ data: { keyId: "b999", ...input("1234567890", "VENDOR") } })),
     ).rejects.toThrow();
+  });
+
+  it("listPayees: 사업자명은 대소문자 무관 부분일치로 검색된다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Acme")]);
+    const hit = await listPayees(ADMIN, { field: "bizName", q: "acme" });
+    expect(hit).toHaveLength(1);
+    const miss = await listPayees(ADMIN, { field: "bizName", q: "없는이름" });
+    expect(miss).toHaveLength(0);
+  });
+
+  it("parsePayeeSearchField: 유효한 값은 그대로, 알 수 없는 값은 undefined 반환", () => {
+    expect(parsePayeeSearchField("bizNumber")).toBe("bizNumber");
+    expect(parsePayeeSearchField("xyz")).toBeUndefined();
+    expect(parsePayeeSearchField(undefined)).toBeUndefined();
+  });
+
+  it("listPayees: 고유번호는 부분일치로 검색된다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]); // keyId: b001
+    const hit = await listPayees(ADMIN, { field: "keyId", q: "b00" });
+    expect(hit).toHaveLength(1);
+    const miss = await listPayees(ADMIN, { field: "keyId", q: "a99" });
+    expect(miss).toHaveLength(0);
+  });
+
+  it("listPayees: 사업자번호는 하이픈 유무와 무관하게 부분일치로 검색된다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const withHyphen = await listPayees(ADMIN, { field: "bizNumber", q: "123-45" });
+    expect(withHyphen).toHaveLength(1);
+    const withoutHyphen = await listPayees(ADMIN, { field: "bizNumber", q: "34567890" });
+    expect(withoutHyphen).toHaveLength(1);
+    const miss = await listPayees(ADMIN, { field: "bizNumber", q: "99999" });
+    expect(miss).toHaveLength(0);
+  });
+
+  it("listPayees: 검색어가 빈 문자열이면 전체 반환", async () => {
+    await createPayeesBulk(ADMIN, [
+      input("1234567890", "VENDOR"),
+      input("9002022345678", "INSTRUCTOR"),
+    ]);
+    const rows = await listPayees(ADMIN, { field: "bizName", q: "   " });
+    expect(rows).toHaveLength(2);
+  });
+
+  it("listPayees: 사업자번호 검색어가 6자리를 넘으면 앞 6자리만 사용해 매칭한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234561111", "VENDOR")]);
+    const rows = await listPayees(ADMIN, { field: "bizNumber", q: "123456999999" });
+    expect(rows).toHaveLength(1);
   });
 });

@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { taxTypeLabel } from "@/lib/labels";
 import type { TaxType } from "@prisma/client";
-import type { PayeeRow } from "@/lib/data/payees";
+import type { PayeeRow, PayeeSearchField } from "@/lib/data/payees";
 import { PayeeUploadModal } from "./PayeeUploadModal";
 
-// 검색 드롭다운 옵션(다음 단계에서 검색 로직 연결).
-const SEARCH_FIELDS = ["사업자명(이름)", "사업자번호", "고유번호"] as const;
+const SEARCH_FIELD_OPTIONS: { value: PayeeSearchField; label: string }[] = [
+  { value: "bizName", label: "사업자명(이름)" },
+  { value: "bizNumber", label: "사업자번호" },
+  { value: "keyId", label: "고유번호" },
+];
 
 // 은행명 편집용 드롭다운 옵션.
 const BANKS = ["국민은행", "신한은행", "하나은행", "우리은행", "농협은행", "기업은행", "카카오뱅크", "토스뱅크"] as const;
@@ -50,12 +53,21 @@ const inputCls =
 // 모든 셀 공통: 가운데 정렬 + 세로 가운데 + 줄바꿈 방지(편집 시 글자가 아래로 내려가지 않게).
 const cellCls = "whitespace-nowrap px-3 py-2 text-center align-middle";
 
-export function PayeeListPanel({ rows }: { rows: PayeeRow[] }) {
+export function PayeeListPanel({
+  rows,
+  field,
+  q,
+}: {
+  rows: PayeeRow[];
+  field: PayeeSearchField;
+  q: string;
+}) {
   // 체크박스 선택 행(선택만 — 편집과 무관). 다음 단계에서 일괄 작업 연결.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // 편집 모드 행(관리 연필 아이콘으로 진입).
   const [editing, setEditing] = useState<Set<string>>(new Set());
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [searchField, setSearchField] = useState<PayeeSearchField>(field);
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
 
@@ -86,24 +98,33 @@ export function PayeeListPanel({ rows }: { rows: PayeeRow[] }) {
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      {/* 상단 바: 좌측 검색 / 우측 액션. 로직은 다음 단계. */}
+      {/* 상단 바: 좌측 검색 / 우측 액션. 우측 액션 로직은 다음 단계. */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <form method="get" className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="tab" value="payment-list" />
           <span className="text-sm text-[var(--color-muted)]">검색:</span>
-          <select className="rounded border border-[var(--color-border)] px-3 py-2 text-sm">
-            {SEARCH_FIELDS.map((f) => (
-              <option key={f} value={f}>{f}</option>
+          <select
+            name="field"
+            value={searchField}
+            onChange={(e) => setSearchField(e.target.value as PayeeSearchField)}
+            className="rounded border border-[var(--color-border)] px-3 py-2 text-sm"
+          >
+            {SEARCH_FIELD_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
           <input
             type="text"
+            name="q"
+            defaultValue={q}
+            maxLength={searchField === "bizNumber" ? 8 : undefined}
             placeholder="검색어 입력 (하이픈 제외 가능)"
             className="w-64 rounded border border-[var(--color-border)] px-3 py-2 text-sm"
           />
-          <button type="button" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">
+          <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">
             🔍 조회
           </button>
-        </div>
+        </form>
         <div className="flex items-center gap-2">
           <button type="button" className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
             📗 엑셀 다운로드
@@ -231,7 +252,9 @@ export function PayeeListPanel({ rows }: { rows: PayeeRow[] }) {
       </div>
 
       {rows.length === 0 && (
-        <p className="mt-4 text-center text-sm text-[var(--color-muted)]">등록된 지급 대상이 없습니다.</p>
+        <p className="mt-4 text-center text-sm text-[var(--color-muted)]">
+          {q.trim() ? "검색 결과가 없습니다." : "등록된 지급 대상이 없습니다."}
+        </p>
       )}
 
       {uploadOpen && <PayeeUploadModal open onClose={() => setUploadOpen(false)} />}
