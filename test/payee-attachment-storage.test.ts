@@ -78,8 +78,15 @@ describe("payee-attachments 저장소 헬퍼", () => {
 
   it("signedDownloadUrl: 60초 만료로 서명 URL 요청, 반환", async () => {
     const url = await signedDownloadUrl("pay1/BIZ_CERT/x-a.pdf");
-    expect(createSignedUrlMock).toHaveBeenCalledWith("pay1/BIZ_CERT/x-a.pdf", 60);
+    expect(createSignedUrlMock).toHaveBeenCalledWith("pay1/BIZ_CERT/x-a.pdf", 60, undefined);
     expect(url).toBe("https://signed.example/x");
+  });
+
+  it("signedDownloadUrl: downloadFileName을 주면 download 옵션으로 전달(브라우저가 그 이름으로 다운로드)", async () => {
+    await signedDownloadUrl("pay1/BIZ_CERT/x-a.pdf", "업체A_사업자등록증.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledWith(
+      "pay1/BIZ_CERT/x-a.pdf", 60, { download: "업체A_사업자등록증.pdf" },
+    );
   });
 
   it("환경변수 누락 시 StorageConfigError", async () => {

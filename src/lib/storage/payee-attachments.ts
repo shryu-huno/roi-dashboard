@@ -41,8 +41,12 @@ export async function deletePayeeFile(path: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function signedDownloadUrl(path: string): Promise<string> {
-  const { data, error } = await client().storage.from(BUCKET).createSignedUrl(path, 60);
+// downloadFileName을 주면 브라우저가 그 이름으로 실제 다운로드하도록 지시한다
+// (Supabase가 Content-Disposition: attachment 헤더를 붙여줌 — 없으면 브라우저가 새 탭에 그냥 렌더링함).
+export async function signedDownloadUrl(path: string, downloadFileName?: string): Promise<string> {
+  const { data, error } = await client().storage.from(BUCKET).createSignedUrl(
+    path, 60, downloadFileName ? { download: downloadFileName } : undefined,
+  );
   if (error || !data) throw new Error(error?.message ?? "서명 URL 발급 실패");
   return data.signedUrl;
 }

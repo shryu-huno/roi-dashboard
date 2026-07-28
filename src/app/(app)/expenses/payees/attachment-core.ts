@@ -83,13 +83,14 @@ export async function getDownloadUrlCore(
   ctx: RlsContext,
   payeeId: string,
   fileType: PayeeFileType,
+  downloadFileName?: string,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const pair = await getPayeeAttachments(ctx, payeeId);
   const record = fileType === "BIZ_CERT" ? pair.bizCert : pair.bankbook;
   if (!record) return { ok: false, error: "파일을 찾을 수 없습니다." };
 
   try {
-    const url = await signedDownloadUrl(record.fileUrl);
+    const url = await signedDownloadUrl(record.fileUrl, downloadFileName);
     return { ok: true, url };
   } catch (e) {
     if (e instanceof StorageConfigError) {

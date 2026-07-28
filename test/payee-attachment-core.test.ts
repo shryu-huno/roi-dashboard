@@ -167,6 +167,16 @@ describe("attachment-core", () => {
     expect(res).toEqual({ ok: false, error: "파일을 찾을 수 없습니다." });
   });
 
+  it("getDownloadUrlCore: downloadFileName을 주면 signedDownloadUrl에 그대로 전달", async () => {
+    const fd = new FormData();
+    fd.set("payeeId", payeeId);
+    fd.set("bizCertFile", pdfFile());
+    await saveAttachmentsCore(ADMIN, fd);
+
+    await getDownloadUrlCore(ADMIN, payeeId, "BIZ_CERT", "업체A_사업자등록증.pdf");
+    expect(signedDownloadUrl).toHaveBeenCalledWith(expect.any(String), "업체A_사업자등록증.pdf");
+  });
+
   it("saveAttachmentsCore: Storage 환경변수 누락(StorageConfigError)은 파일 오류가 아니라 서버 설정 오류로 안내", async () => {
     uploadPayeeFile.mockRejectedValueOnce(new StorageConfigError("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY 환경변수가 없습니다."));
 

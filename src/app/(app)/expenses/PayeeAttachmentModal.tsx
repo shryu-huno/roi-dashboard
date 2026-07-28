@@ -11,6 +11,16 @@ import { PAYEE_ATTACHMENT_SAVE_INIT } from "./payees/attachment-state";
 
 type SlotState = { fileName: string } | null;
 
+// 다운로드 파일명은 원본 업로드 파일명과 무관하게 "업체명(이름)_구분"으로 통일한다(확장자만 원본에서 가져옴).
+const DOWNLOAD_LABEL: Record<PayeeFileType, string> = { BIZ_CERT: "사업자등록증", BANKBOOK: "통장사본" };
+
+function buildDownloadFileName(bizName: string, fileType: PayeeFileType, originalFileName: string): string {
+  const dot = originalFileName.lastIndexOf(".");
+  const ext = dot >= 0 ? originalFileName.slice(dot) : "";
+  const safeBizName = bizName.replace(/[/\\]/g, "_");
+  return `${safeBizName}_${DOWNLOAD_LABEL[fileType]}${ext}`;
+}
+
 export function PayeeAttachmentModal({
   open, payeeId, keyId, bizName, onClose,
 }: {
@@ -54,9 +64,14 @@ export function PayeeAttachmentModal({
     }
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleDownload(fileType: PayeeFileType, setDownloadError: (msg: string | null) => void) {
+  async function handleDownload(
+    fileType: PayeeFileType,
+    originalFileName: string,
+    setDownloadError: (msg: string | null) => void,
+  ) {
     setDownloadError(null);
-    const res = await getAttachmentDownloadUrlAction(payeeId, fileType);
+    const downloadFileName = buildDownloadFileName(bizName, fileType, originalFileName);
+    const res = await getAttachmentDownloadUrlAction(payeeId, fileType, downloadFileName);
     if (res.ok) {
       window.open(res.url, "_blank");
     } else {
@@ -92,7 +107,7 @@ export function PayeeAttachmentModal({
               fieldName="bizCertFile"
               markedForDelete={bizCertDelete}
               onMarkDelete={setBizCertDelete}
-              onDownload={() => handleDownload("BIZ_CERT", setBizCertDownloadError)}
+              onDownload={() => handleDownload("BIZ_CERT", bizCert?.fileName ?? "", setBizCertDownloadError)}
               errorMessage={state.bizCertError}
               downloadError={bizCertDownloadError}
             />
@@ -106,7 +121,7 @@ export function PayeeAttachmentModal({
               fieldName="bankbookFile"
               markedForDelete={bankbookDelete}
               onMarkDelete={setBankbookDelete}
-              onDownload={() => handleDownload("BANKBOOK", setBankbookDownloadError)}
+              onDownload={() => handleDownload("BANKBOOK", bankbook?.fileName ?? "", setBankbookDownloadError)}
               errorMessage={state.bankbookError}
               downloadError={bankbookDownloadError}
             />

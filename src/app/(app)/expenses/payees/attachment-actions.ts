@@ -35,8 +35,9 @@ export async function saveAttachmentsAction(
 export async function getAttachmentDownloadUrlAction(
   payeeId: string,
   fileType: PayeeFileType,
+  downloadFileName?: string,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const user = await requireRole("SETTLEMENT");
   const ctx = getRlsContext(user);
-  return getDownloadUrlCore(ctx, payeeId, fileType);
+  return getDownloadUrlCore(ctx, payeeId, fileType, downloadFileName);
 }
