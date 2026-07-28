@@ -3,7 +3,7 @@ import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { listExpenses } from "@/lib/data/expenses";
-import { listPayees, PAYEE_SEARCH_FIELDS, type PayeeSearchField } from "@/lib/data/payees";
+import { listPayees, parsePayeeSearchField } from "@/lib/data/payees";
 import { EXPENSE_CATEGORIES } from "@/lib/validation/schemas";
 import { ExpenseForm } from "./ExpenseForm";
 import { ExpenseTabs } from "./ExpenseTabs";
@@ -67,11 +67,6 @@ async function AllExpensesTab({
       )}
     </>
   );
-}
-
-// 알 수 없는 field 값(URL 조작 등)은 필터를 무시하고 전체 목록을 표시한다.
-function parsePayeeSearchField(value: string | undefined): PayeeSearchField | undefined {
-  return PAYEE_SEARCH_FIELDS.find((f) => f === value);
 }
 
 // 지급 리스트 탭 본문 — 공용 원장. ADMIN·SETTLEMENT 전용이라 원문 그대로 표시.

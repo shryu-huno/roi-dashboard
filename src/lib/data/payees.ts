@@ -6,6 +6,11 @@ export const PAYEE_SEARCH_FIELDS = ["bizName", "bizNumber", "keyId"] as const;
 export type PayeeSearchField = (typeof PAYEE_SEARCH_FIELDS)[number];
 export type PayeeSearchFilter = { field: PayeeSearchField; q: string };
 
+// 알 수 없는 field 값(URL 조작 등)은 undefined 반환 — 호출부가 필터를 완전히 무시하도록.
+export function parsePayeeSearchField(value: string | undefined): PayeeSearchField | undefined {
+  return PAYEE_SEARCH_FIELDS.find((f) => f === value);
+}
+
 // 저장 직전 형태(keyId 제외 — 채번은 createPayeesBulk가 담당).
 export type PayeeCreateInput = {
   payeeType: PayeeType;
@@ -128,7 +133,10 @@ export function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise
       : rows.filter((r) => {
           if (filter.field === "bizName") return r.bizName.toLowerCase().includes(q.toLowerCase());
           if (filter.field === "keyId") return r.keyId.toLowerCase().includes(q.toLowerCase());
-          return digitsOnly(decrypt(r.bizNumberEnc)).includes(digitsOnly(q));
+          // 검색어가 URL 쿼리스트링에 그대로 남으므로(GET 폼), 원문 전체 노출 위험을 줄이기 위해
+          // 사업자번호 검색은 앞 6자리까지만 사용한다.
+          const qDigits = digitsOnly(q).slice(0, 6);
+          return digitsOnly(decrypt(r.bizNumberEnc)).includes(qDigits);
         });
     return matched.map((r) => ({
       id: r.id,

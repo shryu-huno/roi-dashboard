@@ -67,6 +67,7 @@ export function PayeeListPanel({
   // 편집 모드 행(관리 연필 아이콘으로 진입).
   const [editing, setEditing] = useState<Set<string>>(new Set());
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [searchField, setSearchField] = useState<PayeeSearchField>(field);
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
 
@@ -97,14 +98,15 @@ export function PayeeListPanel({
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      {/* 상단 바: 좌측 검색 / 우측 액션. 로직은 다음 단계. */}
+      {/* 상단 바: 좌측 검색 / 우측 액션. 우측 액션 로직은 다음 단계. */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <form method="get" className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="tab" value="payment-list" />
           <span className="text-sm text-[var(--color-muted)]">검색:</span>
           <select
             name="field"
-            defaultValue={field}
+            value={searchField}
+            onChange={(e) => setSearchField(e.target.value as PayeeSearchField)}
             className="rounded border border-[var(--color-border)] px-3 py-2 text-sm"
           >
             {SEARCH_FIELD_OPTIONS.map((opt) => (
@@ -115,6 +117,7 @@ export function PayeeListPanel({
             type="text"
             name="q"
             defaultValue={q}
+            maxLength={searchField === "bizNumber" ? 8 : undefined}
             placeholder="검색어 입력 (하이픈 제외 가능)"
             className="w-64 rounded border border-[var(--color-border)] px-3 py-2 text-sm"
           />
