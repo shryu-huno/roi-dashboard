@@ -41,15 +41,22 @@ export function getPeriodTotals(
       where: { year, month: monthRange, client: cw },
       _sum: { amount: true },
     });
+    // 지출 = Expense(법인/개인카드·홍보비 등 카테고리) + ConsultingExpense(상담비).
+    // 다른 지출원(지급요청·하이패스 등)은 데이터 모델이 생기면 여기에 더한다.
     const expense = await tx.expense.aggregate({
       where: { year, month: monthRange, client: cw },
       _sum: { amount: true },
     });
+    const consulting = await tx.consultingExpense.aggregate({
+      where: { year, month: monthRange, client: cw },
+      _sum: { amount: true },
+    });
+    const expenseTotal = (expense._sum.amount ?? 0) + (consulting._sum.amount ?? 0);
     return {
       performance: withVat(perf._sum.amount ?? 0, includeVat),
       billing: withVat(billing._sum.amount ?? 0, includeVat),
       deposit: withVat(deposit._sum.amount ?? 0, includeVat),
-      expense: withVat(expense._sum.amount ?? 0, includeVat),
+      expense: withVat(expenseTotal, includeVat),
     };
   });
 }
@@ -103,14 +110,20 @@ export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = fals
       where: { year, client: cw },
       _sum: { amount: true },
     });
+    const cons = await tx.consultingExpense.groupBy({
+      by: ["month"],
+      where: { year, client: cw },
+      _sum: { amount: true },
+    });
     const perfByMonth = new Map(perf.map((r) => [r.month, r._sum.amount ?? 0]));
     const expByMonth = new Map(exp.map((r) => [r.month, r._sum.amount ?? 0]));
+    const consByMonth = new Map(cons.map((r) => [r.month, r._sum.amount ?? 0]));
     return Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       return {
         month,
         performance: withVat(perfByMonth.get(month) ?? 0, includeVat),
-        expense: withVat(expByMonth.get(month) ?? 0, includeVat),
+        expense: withVat((expByMonth.get(month) ?? 0) + (consByMonth.get(month) ?? 0), includeVat),
       };
     });
   });
@@ -167,6 +180,11 @@ export async function getClientSummaries(
       where: { year, month: monthRange },
       _sum: { amount: true },
     });
+    const consRows = await tx.consultingExpense.groupBy({
+      by: ["clientId"],
+      where: { year, month: monthRange },
+      _sum: { amount: true },
+    });
     const contractRows = await tx.task.groupBy({
       by: ["clientId"],
       _sum: { contractAmount: true },
@@ -176,7 +194,10 @@ export async function getClientSummaries(
       const cid = r.task.clientId;
       perfByClient.set(cid, (perfByClient.get(cid) ?? 0) + r.amount);
     }
-    const expByClient = new Map(expRows.map((r) => [r.clientId, r._sum.amount ?? 0]));
+    // 고객사별 지출 = Expense + ConsultingExpense(상담비).
+    const expByClient = new Map<string, number>();
+    for (const r of expRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
+    for (const r of consRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
     const contractByClient = new Map(
       contractRows.map((r) => [r.clientId, r._sum.contractAmount ?? 0]),
     );
@@ -320,13 +341,16 @@ export function getClientDetail(
     const expM = await tx.expense.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
     });
+    const consM = await tx.consultingExpense.groupBy({
+      by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
+    });
     const expCat = await tx.expense.groupBy({
       by: ["category"], where: { year, month: monthRange, clientId: id }, _sum: { amount: true },
     });
     const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: withVat(r._sum.amount ?? 0, includeVat) }));
     const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
       new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
-    const p = map(perfM), b = map(billM), d = map(depM), e = map(expM);
+    const p = map(perfM), b = map(billM), d = map(depM), e = map(expM), ce = map(consM);
     const monthly: MonthlyRow[] = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       return {
@@ -334,7 +358,7 @@ export function getClientDetail(
         performance: withVat(p.get(month) ?? 0, includeVat),
         billing: withVat(b.get(month) ?? 0, includeVat),
         deposit: withVat(d.get(month) ?? 0, includeVat),
-        expense: withVat(e.get(month) ?? 0, includeVat),
+        expense: withVat((e.get(month) ?? 0) + (ce.get(month) ?? 0), includeVat),
       };
     });
 
