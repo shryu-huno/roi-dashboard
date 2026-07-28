@@ -3,7 +3,7 @@ import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { listExpenses } from "@/lib/data/expenses";
-import { listPayees } from "@/lib/data/payees";
+import { listPayees, parsePayeeSearchField } from "@/lib/data/payees";
 import { EXPENSE_CATEGORIES } from "@/lib/validation/schemas";
 import { ExpenseForm } from "./ExpenseForm";
 import { ExpenseTabs } from "./ExpenseTabs";
@@ -70,10 +70,19 @@ async function AllExpensesTab({
 }
 
 // 지급 리스트 탭 본문 — 공용 원장. ADMIN·SETTLEMENT 전용이라 원문 그대로 표시.
-async function PaymentListTab({ user }: { user: SessionUser }) {
+async function PaymentListTab({
+  sp,
+  user,
+}: {
+  sp: { field?: string; q?: string };
+  user: SessionUser;
+}) {
   const ctx = getRlsContext(user);
-  const rows = await listPayees(ctx);
-  return <PayeeListPanel rows={rows} />;
+  const parsedField = parsePayeeSearchField(sp.field);
+  const field = parsedField ?? "bizName";
+  const q = sp.q ?? "";
+  const rows = await listPayees(ctx, parsedField && q.trim() ? { field: parsedField, q } : undefined);
+  return <PayeeListPanel rows={rows} field={field} q={q} />;
 }
 
 // 아직 내용이 정해지지 않은 신규 탭용 자리표시자.
@@ -88,7 +97,7 @@ function PlaceholderTab({ label }: { label: string }) {
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; clientId?: string; year?: string; month?: string }>;
+  searchParams: Promise<{ tab?: string; clientId?: string; year?: string; month?: string; field?: string; q?: string }>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();
@@ -110,7 +119,7 @@ export default async function ExpensesPage({
       {currentTab === "all" ? (
         <AllExpensesTab sp={sp} user={user} />
       ) : currentTab === "payment-list" ? (
-        <PaymentListTab user={user} />
+        <PaymentListTab sp={sp} user={user} />
       ) : (
         <PlaceholderTab label={currentLabel} />
       )}
