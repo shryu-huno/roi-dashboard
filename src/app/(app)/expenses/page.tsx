@@ -76,6 +76,15 @@ async function PaymentListTab({ user }: { user: SessionUser }) {
   return <PayeeListPanel rows={rows} />;
 }
 
+// 아직 내용이 정해지지 않은 신규 탭용 자리표시자.
+function PlaceholderTab({ label }: { label: string }) {
+  return (
+    <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center text-[var(--color-muted)]">
+      {label} 화면은 준비 중입니다.
+    </div>
+  );
+}
+
 export default async function ExpensesPage({
   searchParams,
 }: {
@@ -92,6 +101,7 @@ export default async function ExpensesPage({
   const currentTab = tab as ExpenseTabKey;
 
   const tabs = visibleExpenseTabs(role);
+  const currentLabel = tabs.find((t) => t.key === currentTab)?.label ?? "";
 
   return (
     <div>
@@ -99,8 +109,10 @@ export default async function ExpensesPage({
       <ExpenseTabs tabs={tabs} current={currentTab} />
       {currentTab === "all" ? (
         <AllExpensesTab sp={sp} user={user} />
-      ) : (
+      ) : currentTab === "payment-list" ? (
         <PaymentListTab user={user} />
+      ) : (
+        <PlaceholderTab label={currentLabel} />
       )}
     </div>
   );
