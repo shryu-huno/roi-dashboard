@@ -2,10 +2,12 @@ import { redirect } from "next/navigation";
 import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
-import { listExpenses } from "@/lib/data/expenses";
+import { getExpenseSummaryTotals } from "@/lib/data/expenses";
 import { listPayees, parsePayeeSearchField } from "@/lib/data/payees";
-import { EXPENSE_CATEGORIES } from "@/lib/validation/schemas";
-import { ExpenseForm } from "./ExpenseForm";
+import { EXPENSE_SUMMARY_CATEGORIES } from "@/lib/expense-summary";
+import { orderRange, parseYm, ymValue } from "@/lib/month-range";
+import { ClientCombobox } from "./ClientCombobox";
+import { ExpenseSummaryTable } from "./ExpenseSummaryTable";
 import { ExpenseTabs } from "./ExpenseTabs";
 import { PayeeListPanel } from "./PayeeListPanel";
 import {
@@ -15,27 +17,28 @@ import {
   type ExpenseTabKey,
 } from "./tabs";
 
-// 전체 내역 탭 본문 — 기존 카테고리 그리드(+ 조회 필터 폼). 이 탭에서만 지출 DB 조회.
+// 전체 내역 탭 본문 — 분류별 합계 요약(+ 조회 필터 폼). 이 탭에서만 지출 DB 조회.
 async function AllExpensesTab({
   sp,
   user,
 }: {
-  sp: { clientId?: string; year?: string; month?: string };
+  sp: { clientId?: string; from?: string; to?: string };
   user: SessionUser;
 }) {
   const ctx = getRlsContext(user);
   const clients = await listClients(ctx);
 
-  const clientId = sp.clientId ?? clients[0]?.id;
-  const year = Number(sp.year) || 2026;
-  const month = Number(sp.month) || 1;
+  const clientId = sp.clientId || undefined; // 기본 선택 없음 — 사용자가 검색해서 고른다.
+  const [from, to] = orderRange(
+    parseYm(sp.from) ?? { year: 2026, month: 1 },
+    parseYm(sp.to) ?? parseYm(sp.from) ?? { year: 2026, month: 1 },
+  );
 
-  const existing = clientId ? await listExpenses(ctx, clientId, year, month) : [];
-  const byCat = new Map(existing.map((e) => [e.category, e]));
-  const rows = EXPENSE_CATEGORIES.map((category) => ({
-    category,
-    amount: (byCat.get(category)?.amount ?? "") as number | "",
-    memo: byCat.get(category)?.memo ?? "",
+  const totals = clientId ? await getExpenseSummaryTotals(ctx, clientId, from, to) : null;
+  const rows = EXPENSE_SUMMARY_CATEGORIES.map((c) => ({
+    key: c.key,
+    label: c.label,
+    amount: totals?.[c.key] ?? 0,
   }));
 
   return (
@@ -45,25 +48,25 @@ async function AllExpensesTab({
         <input type="hidden" name="tab" value="all" />
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           고객사
-          <select name="clientId" defaultValue={clientId ?? ""} className="mt-1 w-48 rounded border border-[var(--color-border)] px-3 py-2 text-sm">
-            {clients.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-          </select>
+          <ClientCombobox clients={clients} defaultClientId={clientId} />
         </label>
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          연도
-          <input type="number" name="year" defaultValue={year} className="mt-1 w-28 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+          시작
+          <input type="month" name="from" defaultValue={ymValue(from)} className="mt-1 w-40 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
         </label>
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          월
-          <input type="number" name="month" min="1" max="12" defaultValue={month} className="mt-1 w-24 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+          종료
+          <input type="month" name="to" defaultValue={ymValue(to)} className="mt-1 w-40 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
         </label>
         <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">조회</button>
       </form>
 
-      {!clientId ? (
+      {clients.length === 0 ? (
         <p className="text-[var(--color-muted)]">고객사가 없습니다.</p>
+      ) : !clientId ? (
+        <p className="text-[var(--color-muted)]">고객사를 선택하세요.</p>
       ) : (
-        <ExpenseForm clientId={clientId} year={year} month={month} rows={rows} />
+        <ExpenseSummaryTable clientId={clientId} from={from} to={to} rows={rows} />
       )}
     </>
   );
@@ -97,7 +100,7 @@ function PlaceholderTab({ label }: { label: string }) {
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; clientId?: string; year?: string; month?: string; field?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; clientId?: string; from?: string; to?: string; field?: string; q?: string }>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();
