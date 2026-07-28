@@ -23,19 +23,28 @@ export function PayeeAttachmentModal({
   const router = useRouter();
   const [state, formAction, pending] = useActionState(saveAttachmentsAction, PAYEE_ATTACHMENT_SAVE_INIT);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [bizCert, setBizCert] = useState<SlotState>(null);
   const [bankbook, setBankbook] = useState<SlotState>(null);
   const [bizCertDelete, setBizCertDelete] = useState(false);
   const [bankbookDelete, setBankbookDelete] = useState(false);
+  const [bizCertDownloadError, setBizCertDownloadError] = useState<string | null>(null);
+  const [bankbookDownloadError, setBankbookDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    getPayeeAttachmentsAction(payeeId).then((res) => {
-      setBizCert(res.bizCert);
-      setBankbook(res.bankbook);
-      setLoading(false);
-    });
+    setLoadError(null);
+    getPayeeAttachmentsAction(payeeId)
+      .then((res) => {
+        setBizCert(res.bizCert);
+        setBankbook(res.bankbook);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        setLoadError("첨부파일 정보를 불러오지 못했습니다.");
+      });
   }, [open, payeeId]);
 
   useEffect(() => {
@@ -45,9 +54,14 @@ export function PayeeAttachmentModal({
     }
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleDownload(fileType: PayeeFileType) {
+  async function handleDownload(fileType: PayeeFileType, setDownloadError: (msg: string | null) => void) {
+    setDownloadError(null);
     const res = await getAttachmentDownloadUrlAction(payeeId, fileType);
-    if (res.ok) window.open(res.url, "_blank");
+    if (res.ok) {
+      window.open(res.url, "_blank");
+    } else {
+      setDownloadError(res.error);
+    }
   }
 
   if (!open) return null;
@@ -66,6 +80,8 @@ export function PayeeAttachmentModal({
 
         {loading ? (
           <p className="py-8 text-center text-sm text-[var(--color-muted)]">불러오는 중...</p>
+        ) : loadError ? (
+          <p className="py-8 text-center text-sm text-[var(--color-danger)]">{loadError}</p>
         ) : (
           <form action={formAction}>
             <input type="hidden" name="payeeId" value={payeeId} />
@@ -76,8 +92,9 @@ export function PayeeAttachmentModal({
               fieldName="bizCertFile"
               markedForDelete={bizCertDelete}
               onMarkDelete={setBizCertDelete}
-              onDownload={() => handleDownload("BIZ_CERT")}
+              onDownload={() => handleDownload("BIZ_CERT", setBizCertDownloadError)}
               errorMessage={state.bizCertError}
+              downloadError={bizCertDownloadError}
             />
             {bizCertDelete && <input type="hidden" name="bizCertDelete" value="true" />}
 
@@ -89,8 +106,9 @@ export function PayeeAttachmentModal({
               fieldName="bankbookFile"
               markedForDelete={bankbookDelete}
               onMarkDelete={setBankbookDelete}
-              onDownload={() => handleDownload("BANKBOOK")}
+              onDownload={() => handleDownload("BANKBOOK", setBankbookDownloadError)}
               errorMessage={state.bankbookError}
+              downloadError={bankbookDownloadError}
             />
             {bankbookDelete && <input type="hidden" name="bankbookDelete" value="true" />}
 
@@ -114,7 +132,7 @@ export function PayeeAttachmentModal({
 }
 
 function AttachmentSlot({
-  label, existing, fieldName, markedForDelete, onMarkDelete, onDownload, errorMessage,
+  label, existing, fieldName, markedForDelete, onMarkDelete, onDownload, errorMessage, downloadError,
 }: {
   label: string;
   existing: SlotState;
@@ -123,6 +141,7 @@ function AttachmentSlot({
   onMarkDelete: (v: boolean) => void;
   onDownload: () => void;
   errorMessage?: string;
+  downloadError?: string | null;
 }) {
   const [replacing, setReplacing] = useState(false);
 
@@ -152,6 +171,7 @@ function AttachmentSlot({
             <button type="button" onClick={() => onMarkDelete(true)} className="text-[var(--color-danger)] hover:underline">삭제</button>
           </div>
         </div>
+        {downloadError && <p className="mt-1 text-xs text-[var(--color-danger)]">{downloadError}</p>}
       </div>
     );
   }
