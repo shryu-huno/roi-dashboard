@@ -167,8 +167,16 @@ function AttachmentSlot({
           <span className="truncate text-sm">{existing.fileName}</span>
           <div className="flex shrink-0 gap-2 text-sm">
             <button type="button" onClick={onDownload} className="text-[var(--color-primary)] hover:underline">다운로드</button>
-            <button type="button" onClick={() => setReplacing(true)} className="text-[var(--color-primary)] hover:underline">교체</button>
-            <button type="button" onClick={() => onMarkDelete(true)} className="text-[var(--color-danger)] hover:underline">삭제</button>
+            <button type="button" onClick={() => setReplacing(true)} className="text-[var(--color-primary)] hover:underline">변경</button>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`'${label}' 파일을 삭제하시겠습니까?`)) onMarkDelete(true);
+              }}
+              className="text-[var(--color-danger)] hover:underline"
+            >
+              삭제
+            </button>
           </div>
         </div>
         {downloadError && <p className="mt-1 text-xs text-[var(--color-danger)]">{downloadError}</p>}

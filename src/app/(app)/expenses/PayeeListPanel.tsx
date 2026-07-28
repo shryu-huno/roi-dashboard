@@ -38,7 +38,7 @@ function AttachmentCell({ hasAttachment, onClick }: { hasAttachment: boolean; on
   if (hasAttachment) {
     return (
       <button type="button" onClick={onClick} className="whitespace-nowrap text-sm text-[var(--color-primary)] hover:underline">
-        📎 첨부파일
+        📎 첨부완료
       </button>
     );
   }
