@@ -56,7 +56,7 @@ export function PayeeAttachmentModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-[14px] bg-[var(--color-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">📎 지출 입력 - 첨부파일 관리</h2>
+          <h2 className="text-lg font-semibold">첨부파일 관리</h2>
           <button type="button" onClick={onClose} className="text-[var(--color-muted)]" aria-label="닫기">✕</button>
         </div>
         <p className="mb-4 text-sm text-[var(--color-muted)]">
