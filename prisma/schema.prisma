@@ -104,6 +104,7 @@ model Client {
   billings     MonthlyBilling[]
   deposits     MonthlyDeposit[]
   expenses     Expense[]
+  consultingExpenses ConsultingExpense[]
 }
 
 // 고객사–담당PM 다대다 조인. 한 고객사에 여러 PM을 지정할 수 있다.
@@ -191,6 +192,25 @@ model Expense {
 
   @@unique([clientId, year, month, category])
   @@index([clientId, year, month])
+}
+
+// 상담비 라인아이템. 상담분야(field)를 세부 항목 구분 기준으로 삼는다.
+// 엑셀(상담료 지출내역) 적재용. 집계형 Expense와 별개의 상세 원장.
+model ConsultingExpense {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  companyName String   // 기업명 원문(엑셀 값). clientId는 공백 정규화 매칭 결과.
+  field       String   // 상담분야 — 세부 항목 구분 기준
+  consultType String?  // 상담유형(참고용)
+  year        Int      // 지급월(연)
+  month       Int      // 지급월(월)
+  amount      Int      // 지급비용(빈칸=0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId, year, month])
+  @@index([field])
 }
 
 // 지급 대상 원장(공용). 정산담당자/관리자가 엑셀로 업로드. 민감정보는 앱 계층 암호화.
