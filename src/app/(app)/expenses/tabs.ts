@@ -21,13 +21,14 @@ export type ExpenseTab = {
 
 export const EXPENSE_TABS: readonly ExpenseTab[] = [
   { key: "all", label: "전체 내역", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  // 지급 리스트는 고객사 구분이 없는 전사 공용 원장이라 PM에 열지 않는다(전 지급 대상 노출 방지).
   { key: "payment-list", label: "지급 리스트", roles: ["ADMIN", "SETTLEMENT"] },
-  { key: "payment-request", label: "지급 요청", roles: ["ADMIN", "SETTLEMENT"] },
-  { key: "consulting", label: "상담비", roles: ["ADMIN", "SETTLEMENT"] },
-  { key: "corporate-card", label: "법인카드", roles: ["ADMIN", "SETTLEMENT"] },
-  { key: "personal-card", label: "개인카드", roles: ["ADMIN", "SETTLEMENT"] },
-  { key: "promotion", label: "홍보비", roles: ["ADMIN", "SETTLEMENT"] },
-  { key: "hipass", label: "하이패스", roles: ["ADMIN", "SETTLEMENT"] },
+  { key: "payment-request", label: "지급 요청", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  { key: "consulting", label: "상담비", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  { key: "corporate-card", label: "법인카드", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  { key: "personal-card", label: "개인카드", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  { key: "promotion", label: "홍보비", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  { key: "hipass", label: "하이패스", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
 ];
 
 export const DEFAULT_EXPENSE_TAB: ExpenseTabKey = "all";
