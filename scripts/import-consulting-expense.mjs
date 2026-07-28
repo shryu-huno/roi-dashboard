@@ -1,6 +1,6 @@
 // 상담료 지출내역 엑셀 → ConsultingExpense 적재.
 // 저장 컬럼: 상담분야(field) / 고객사명(clientName=Client.name) + clientId(엑셀 고객사명 정규화 매칭)
-//           / 상담유형(consultType) / 지급월(year·month). 지급비용은 저장하지 않는다(amount=null).
+//           / 상담유형(consultType) / 지급월(year·month) / 지급비용(amount, 빈칸=0).
 // 컬럼은 헤더명으로 찾으므로 열 순서가 달라도 동작한다.
 // 실행: node scripts/import-consulting-expense.mjs "<xlsx 경로>"
 // 대상 DB는 로드된 .env의 DATABASE_URL을 따른다(로컬=.env / 프로덕션=.env.production 주입).
@@ -35,6 +35,7 @@ const cField = need('상담분야');
 const cCompany = need('고객사명', '기업명');
 const cType = need('상담유형');
 const cMonth = need('지급월');
+const cCost = need('지급비용');
 
 const rows = [];
 for (let r = 2; r <= ws.rowCount; r++) {
@@ -43,7 +44,11 @@ for (let r = 2; r <= ws.rowCount; r++) {
   const company = cell(row, cCompany);
   const type = cell(row, cType);
   const payMonth = cell(row, cMonth);
+  const costRaw = cell(row, cCost);
   if (field == null && company == null) continue; // 빈 행 스킵
+
+  const costNum = typeof costRaw === 'number' ? costRaw : Number(String(costRaw ?? '').replace(/,/g, ''));
+  const amount = Number.isFinite(costNum) ? Math.round(costNum) : 0; // 빈칸/비숫자 → 0
 
   if (!(payMonth instanceof Date)) throw new Error(`행 ${r}: 지급월이 날짜가 아님(${payMonth})`);
   rows.push({
@@ -52,6 +57,7 @@ for (let r = 2; r <= ws.rowCount; r++) {
     consultType: type == null ? null : String(type),
     year: payMonth.getFullYear(),
     month: payMonth.getMonth() + 1,
+    amount,
   });
 }
 console.log(`엑셀 데이터 행: ${rows.length}`);
@@ -79,7 +85,7 @@ if (unmatched.size) {
 }
 console.log(`고객사명 매핑 완료: 전 행 clientId 연결 (고객사 ${new Set(rows.map(r=>r.clientId)).size}개사)`);
 
-// 3) 적재 (기존 전량 삭제 후 재적재 = 멱등). ADMIN 컨텍스트 트랜잭션. amount는 저장하지 않음(null).
+// 3) 적재 (기존 전량 삭제 후 재적재 = 멱등). ADMIN 컨텍스트 트랜잭션.
 const now = new Date();
 const inserted = await prisma.$transaction(async (tx) => {
   await tx.$executeRaw`SELECT set_config('app.user_role','ADMIN',true), set_config('app.user_id','import',true)`;
@@ -89,9 +95,9 @@ const inserted = await prisma.$transaction(async (tx) => {
   const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const slice = rows.slice(i, i + CHUNK);
-    const tuples = slice.map((r) => Prisma.sql`(${crypto.randomUUID()}, ${r.clientId}, ${r.clientName}, ${r.field}, ${r.consultType}, ${r.year}, ${r.month}, ${now})`);
+    const tuples = slice.map((r) => Prisma.sql`(${crypto.randomUUID()}, ${r.clientId}, ${r.clientName}, ${r.field}, ${r.consultType}, ${r.year}, ${r.month}, ${r.amount}, ${now})`);
     count += await tx.$executeRaw`
-      INSERT INTO "ConsultingExpense" ("id","clientId","clientName","field","consultType","year","month","updatedAt")
+      INSERT INTO "ConsultingExpense" ("id","clientId","clientName","field","consultType","year","month","amount","updatedAt")
       VALUES ${Prisma.join(tuples)}`;
   }
   return count;
