@@ -19,6 +19,7 @@ vi.mock("@/lib/storage/payee-attachments", async (importOriginal) => {
 
 import { saveAttachmentsCore, getDownloadUrlCore } from "@/app/(app)/expenses/payees/attachment-core";
 import { PAYEE_ATTACHMENT_SAVE_INIT } from "@/app/(app)/expenses/payees/attachment-state";
+import { StorageConfigError } from "@/lib/storage/payee-attachments";
 
 function pdfFile(name = "a.pdf", size = 1024): File {
   return new File([new Uint8Array(size)], name, { type: "application/pdf" });
@@ -164,5 +165,27 @@ describe("attachment-core", () => {
   it("getDownloadUrlCore: 파일 없으면 에러", async () => {
     const res = await getDownloadUrlCore(ADMIN, payeeId, "BANKBOOK");
     expect(res).toEqual({ ok: false, error: "파일을 찾을 수 없습니다." });
+  });
+
+  it("saveAttachmentsCore: Storage 환경변수 누락(StorageConfigError)은 파일 오류가 아니라 서버 설정 오류로 안내", async () => {
+    uploadPayeeFile.mockRejectedValueOnce(new StorageConfigError("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY 환경변수가 없습니다."));
+
+    const fd = new FormData();
+    fd.set("payeeId", payeeId);
+    fd.set("bizCertFile", pdfFile());
+    const result = await saveAttachmentsCore(ADMIN, fd);
+
+    expect(result).toEqual({ ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." });
+  });
+
+  it("getDownloadUrlCore: Storage 환경변수 누락(StorageConfigError)은 서버 설정 오류로 안내", async () => {
+    const fd = new FormData();
+    fd.set("payeeId", payeeId);
+    fd.set("bizCertFile", pdfFile());
+    await saveAttachmentsCore(ADMIN, fd);
+
+    signedDownloadUrl.mockRejectedValueOnce(new StorageConfigError("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY 환경변수가 없습니다."));
+    const res = await getDownloadUrlCore(ADMIN, payeeId, "BIZ_CERT");
+    expect(res).toEqual({ ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." });
   });
 });

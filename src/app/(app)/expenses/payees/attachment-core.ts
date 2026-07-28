@@ -2,7 +2,7 @@ import type { PayeeFileType } from "@prisma/client";
 import type { RlsContext } from "@/lib/rls";
 import { getPayeeAttachments, upsertPayeeAttachment, deletePayeeAttachment } from "@/lib/data/payee-attachments";
 import {
-  validateAttachmentFile, attachmentPath, uploadPayeeFile, deletePayeeFile, signedDownloadUrl,
+  validateAttachmentFile, attachmentPath, uploadPayeeFile, deletePayeeFile, signedDownloadUrl, StorageConfigError,
 } from "@/lib/storage/payee-attachments";
 import type { PayeeAttachmentSaveState } from "./attachment-state";
 
@@ -52,6 +52,12 @@ export async function saveAttachmentsCore(ctx: RlsContext, formData: FormData): 
   try {
     bizCertError = await processSlot(ctx, payeeId, "BIZ_CERT", formData.get("bizCertFile"), formData.get("bizCertDelete") === "true");
   } catch (e) {
+    // Storage 환경변수 누락은 파일 문제가 아니라 서버 설정 문제다. 관리자가 멀쩡한 파일을
+    // 계속 다시 올리게 하지 않도록 구분해서 안내한다(payee-secret.ts의 PayeeKeyConfigError와 동일한 이유).
+    if (e instanceof StorageConfigError) {
+      console.error("[attachment save] Storage 설정 오류:", e.message);
+      return { ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." };
+    }
     console.error("[attachment save] 사업자등록증 처리 실패:", e);
     bizCertError = "사업자등록증 처리 중 오류가 발생했습니다.";
   }
@@ -59,6 +65,10 @@ export async function saveAttachmentsCore(ctx: RlsContext, formData: FormData): 
   try {
     bankbookError = await processSlot(ctx, payeeId, "BANKBOOK", formData.get("bankbookFile"), formData.get("bankbookDelete") === "true");
   } catch (e) {
+    if (e instanceof StorageConfigError) {
+      console.error("[attachment save] Storage 설정 오류:", e.message);
+      return { ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." };
+    }
     console.error("[attachment save] 통장사본 처리 실패:", e);
     bankbookError = "통장사본 처리 중 오류가 발생했습니다.";
   }
@@ -82,6 +92,10 @@ export async function getDownloadUrlCore(
     const url = await signedDownloadUrl(record.fileUrl);
     return { ok: true, url };
   } catch (e) {
+    if (e instanceof StorageConfigError) {
+      console.error("[attachment download] Storage 설정 오류:", e.message);
+      return { ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." };
+    }
     console.error("[attachment download] URL 발급 실패:", e);
     return { ok: false, error: "다운로드 URL 발급에 실패했습니다." };
   }
