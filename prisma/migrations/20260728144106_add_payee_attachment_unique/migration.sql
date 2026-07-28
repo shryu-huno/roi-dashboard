@@ -1,2 +1,2 @@
--- AlterTable
-ALTER TABLE "PayeeAttachment" ADD CONSTRAINT "PayeeAttachment_payeeId_fileType_key" UNIQUE ("payeeId", "fileType");
+-- CreateIndex
+CREATE UNIQUE INDEX "PayeeAttachment_payeeId_fileType_key" ON "PayeeAttachment"("payeeId", "fileType");
