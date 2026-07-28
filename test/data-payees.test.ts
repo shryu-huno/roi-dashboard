@@ -96,4 +96,36 @@ describe("payees 데이터 계층", () => {
       withRLS(ADMIN, (tx) => tx.payee.create({ data: { keyId: "b999", ...input("1234567890", "VENDOR") } })),
     ).rejects.toThrow();
   });
+
+  it("listPayees: 사업자명은 대소문자 무관 부분일치로 검색된다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]); // bizName: "이름"
+    const hit = await listPayees(ADMIN, { field: "bizName", q: "이름" });
+    expect(hit).toHaveLength(1);
+    const miss = await listPayees(ADMIN, { field: "bizName", q: "없는이름" });
+    expect(miss).toHaveLength(0);
+  });
+
+  it("listPayees: 고유번호는 부분일치로 검색된다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]); // keyId: b001
+    const hit = await listPayees(ADMIN, { field: "keyId", q: "b00" });
+    expect(hit).toHaveLength(1);
+    const miss = await listPayees(ADMIN, { field: "keyId", q: "a99" });
+    expect(miss).toHaveLength(0);
+  });
+
+  it("listPayees: 사업자번호는 하이픈 유무와 무관하게 부분일치로 검색된다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const withHyphen = await listPayees(ADMIN, { field: "bizNumber", q: "123-45" });
+    expect(withHyphen).toHaveLength(1);
+    const withoutHyphen = await listPayees(ADMIN, { field: "bizNumber", q: "34567890" });
+    expect(withoutHyphen).toHaveLength(1);
+    const miss = await listPayees(ADMIN, { field: "bizNumber", q: "99999" });
+    expect(miss).toHaveLength(0);
+  });
+
+  it("listPayees: 검색어가 빈 문자열이면 전체 반환", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const rows = await listPayees(ADMIN, { field: "bizName", q: "   " });
+    expect(rows).toHaveLength(1);
+  });
 });
