@@ -41,12 +41,11 @@ export async function deletePayeeFile(path: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-// downloadFileName을 주면 브라우저가 그 이름으로 실제 다운로드하도록 지시한다
-// (Supabase가 Content-Disposition: attachment 헤더를 붙여줌 — 없으면 브라우저가 새 탭에 그냥 렌더링함).
-export async function signedDownloadUrl(path: string, downloadFileName?: string): Promise<string> {
-  const { data, error } = await client().storage.from(BUCKET).createSignedUrl(
-    path, 60, downloadFileName ? { download: downloadFileName } : undefined,
-  );
-  if (error || !data) throw new Error(error?.message ?? "서명 URL 발급 실패");
-  return data.signedUrl;
+// 서명 URL의 download 옵션은 한글 등 비ASCII 파일명을 이중 인코딩해 깨뜨리는 문제가 있어
+// (createSignedUrl이 URLSearchParams로 이미 퍼센트 인코딩한 값을 encodeURI로 한 번 더 감싼다),
+// 파일을 직접 받아 우리 서버에서 Content-Disposition을 정확히 붙여 내려준다.
+export async function downloadPayeeFile(path: string): Promise<Blob> {
+  const { data, error } = await client().storage.from(BUCKET).download(path);
+  if (error || !data) throw new Error(error?.message ?? "파일 다운로드 실패");
+  return data;
 }

@@ -1,15 +1,28 @@
 import type { PayeeFileType } from "@prisma/client";
 import type { RlsContext } from "@/lib/rls";
+import { getPayeeKeyAndName } from "@/lib/data/payees";
 import { getPayeeAttachments, upsertPayeeAttachment, deletePayeeAttachment } from "@/lib/data/payee-attachments";
 import {
-  validateAttachmentFile, attachmentPath, uploadPayeeFile, deletePayeeFile, signedDownloadUrl, StorageConfigError,
+  validateAttachmentFile, attachmentPath, uploadPayeeFile, deletePayeeFile, StorageConfigError,
 } from "@/lib/storage/payee-attachments";
 import type { PayeeAttachmentSaveState } from "./attachment-state";
+
+const FILE_LABEL: Record<PayeeFileType, string> = { BIZ_CERT: "사업자등록증", BANKBOOK: "통장사본" };
+
+// 화면 표시/다운로드 파일명은 원본 업로드 파일명과 무관하게 "고유번호_업체명_구분"으로 고정한다
+// (확장자만 원본에서 가져옴). 이렇게 저장해두면 다운로드도 이 이름을 그대로 쓰면 된다.
+function buildStoredFileName(keyId: string, bizName: string, fileType: PayeeFileType, originalFileName: string): string {
+  const dot = originalFileName.lastIndexOf(".");
+  const ext = dot >= 0 ? originalFileName.slice(dot) : "";
+  const safeBizName = bizName.replace(/[/\\]/g, "_");
+  return `${keyId}_${safeBizName}_${FILE_LABEL[fileType]}${ext}`;
+}
 
 // 슬롯 하나(BIZ_CERT 또는 BANKBOOK) 처리. 성공/변경없음이면 undefined, 실패면 에러 메시지.
 async function processSlot(
   ctx: RlsContext,
   payeeId: string,
+  payee: { keyId: string; bizName: string },
   fileType: PayeeFileType,
   fileField: FormDataEntryValue | null,
   shouldDelete: boolean,
@@ -30,8 +43,9 @@ async function processSlot(
   if (validationError) return validationError;
 
   const path = attachmentPath(payeeId, fileType, fileField.name);
+  const storedFileName = buildStoredFileName(payee.keyId, payee.bizName, fileType, fileField.name);
   await uploadPayeeFile(path, fileField); // 업로드 먼저
-  await upsertPayeeAttachment(ctx, payeeId, fileType, { fileUrl: path, fileName: fileField.name });
+  await upsertPayeeAttachment(ctx, payeeId, fileType, { fileUrl: path, fileName: storedFileName });
   if (existing) {
     try {
       await deletePayeeFile(existing.fileUrl); // 성공 후 이전 파일 정리
@@ -46,11 +60,14 @@ export async function saveAttachmentsCore(ctx: RlsContext, formData: FormData): 
   const payeeId = String(formData.get("payeeId") ?? "");
   if (!payeeId) return { ok: false, error: "잘못된 요청입니다." };
 
+  const payee = await getPayeeKeyAndName(ctx, payeeId);
+  if (!payee) return { ok: false, error: "잘못된 요청입니다." };
+
   let bizCertError: string | undefined;
   let bankbookError: string | undefined;
 
   try {
-    bizCertError = await processSlot(ctx, payeeId, "BIZ_CERT", formData.get("bizCertFile"), formData.get("bizCertDelete") === "true");
+    bizCertError = await processSlot(ctx, payeeId, payee, "BIZ_CERT", formData.get("bizCertFile"), formData.get("bizCertDelete") === "true");
   } catch (e) {
     // Storage 환경변수 누락은 파일 문제가 아니라 서버 설정 문제다. 관리자가 멀쩡한 파일을
     // 계속 다시 올리게 하지 않도록 구분해서 안내한다(payee-secret.ts의 PayeeKeyConfigError와 동일한 이유).
@@ -63,7 +80,7 @@ export async function saveAttachmentsCore(ctx: RlsContext, formData: FormData): 
   }
 
   try {
-    bankbookError = await processSlot(ctx, payeeId, "BANKBOOK", formData.get("bankbookFile"), formData.get("bankbookDelete") === "true");
+    bankbookError = await processSlot(ctx, payeeId, payee, "BANKBOOK", formData.get("bankbookFile"), formData.get("bankbookDelete") === "true");
   } catch (e) {
     if (e instanceof StorageConfigError) {
       console.error("[attachment save] Storage 설정 오류:", e.message);
@@ -79,25 +96,18 @@ export async function saveAttachmentsCore(ctx: RlsContext, formData: FormData): 
   return { ok: true, message: "저장되었습니다." };
 }
 
+// 다운로드는 Supabase 서명 URL의 download 옵션이 비ASCII 파일명을 깨뜨리는 문제가 있어
+// 쓰지 않는다(payee-attachments.ts의 downloadPayeeFile 주석 참고). 실제 파일은
+// attachment-download 라우트 핸들러가 내려주고, 여기서는 존재 여부만 확인해 그 URL을 반환한다.
 export async function getDownloadUrlCore(
   ctx: RlsContext,
   payeeId: string,
   fileType: PayeeFileType,
-  downloadFileName?: string,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const pair = await getPayeeAttachments(ctx, payeeId);
   const record = fileType === "BIZ_CERT" ? pair.bizCert : pair.bankbook;
   if (!record) return { ok: false, error: "파일을 찾을 수 없습니다." };
 
-  try {
-    const url = await signedDownloadUrl(record.fileUrl, downloadFileName);
-    return { ok: true, url };
-  } catch (e) {
-    if (e instanceof StorageConfigError) {
-      console.error("[attachment download] Storage 설정 오류:", e.message);
-      return { ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." };
-    }
-    console.error("[attachment download] URL 발급 실패:", e);
-    return { ok: false, error: "다운로드 URL 발급에 실패했습니다." };
-  }
+  const url = `/expenses/payees/attachment-download?payeeId=${encodeURIComponent(payeeId)}&fileType=${fileType}`;
+  return { ok: true, url };
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const uploadMock = vi.fn();
 const removeMock = vi.fn();
-const createSignedUrlMock = vi.fn();
+const downloadMock = vi.fn();
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
@@ -10,7 +10,7 @@ vi.mock("@supabase/supabase-js", () => ({
       from: () => ({
         upload: uploadMock,
         remove: removeMock,
-        createSignedUrl: createSignedUrlMock,
+        download: downloadMock,
       }),
     },
   })),
@@ -24,7 +24,7 @@ import {
   attachmentPath,
   uploadPayeeFile,
   deletePayeeFile,
-  signedDownloadUrl,
+  downloadPayeeFile,
 } from "@/lib/storage/payee-attachments";
 
 function pdfFile(name = "biz.pdf", size = 1024): File {
@@ -36,7 +36,7 @@ describe("payee-attachments 저장소 헬퍼", () => {
     process.env = { ...ENV_BACKUP, SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "svc-key" };
     uploadMock.mockReset().mockResolvedValue({ error: null });
     removeMock.mockReset().mockResolvedValue({ error: null });
-    createSignedUrlMock.mockReset().mockResolvedValue({ data: { signedUrl: "https://signed.example/x" }, error: null });
+    downloadMock.mockReset().mockResolvedValue({ data: new Blob(["x"], { type: "application/pdf" }), error: null });
   });
 
   it("validateAttachmentFile: PDF/JPG/PNG·10MB 이하는 통과", () => {
@@ -76,17 +76,15 @@ describe("payee-attachments 저장소 헬퍼", () => {
     await expect(deletePayeeFile("pay1/BIZ_CERT/x-a.pdf")).rejects.toThrow("boom");
   });
 
-  it("signedDownloadUrl: 60초 만료로 서명 URL 요청, 반환", async () => {
-    const url = await signedDownloadUrl("pay1/BIZ_CERT/x-a.pdf");
-    expect(createSignedUrlMock).toHaveBeenCalledWith("pay1/BIZ_CERT/x-a.pdf", 60, undefined);
-    expect(url).toBe("https://signed.example/x");
+  it("downloadPayeeFile: 스토리지 download 호출, Blob 반환", async () => {
+    const blob = await downloadPayeeFile("pay1/BIZ_CERT/x-a.pdf");
+    expect(downloadMock).toHaveBeenCalledWith("pay1/BIZ_CERT/x-a.pdf");
+    expect(blob.type).toBe("application/pdf");
   });
 
-  it("signedDownloadUrl: downloadFileName을 주면 download 옵션으로 전달(브라우저가 그 이름으로 다운로드)", async () => {
-    await signedDownloadUrl("pay1/BIZ_CERT/x-a.pdf", "업체A_사업자등록증.pdf");
-    expect(createSignedUrlMock).toHaveBeenCalledWith(
-      "pay1/BIZ_CERT/x-a.pdf", 60, { download: "업체A_사업자등록증.pdf" },
-    );
+  it("downloadPayeeFile: 실패 시 에러 던짐", async () => {
+    downloadMock.mockResolvedValueOnce({ data: null, error: { message: "boom" } });
+    await expect(downloadPayeeFile("pay1/BIZ_CERT/x-a.pdf")).rejects.toThrow("boom");
   });
 
   it("환경변수 누락 시 StorageConfigError", async () => {

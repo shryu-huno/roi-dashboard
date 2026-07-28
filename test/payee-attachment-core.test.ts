@@ -6,19 +6,17 @@ import { encrypt, blindIndex, maskBizNumber, maskAccountNumber } from "@/lib/cry
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
-const { uploadPayeeFile, deletePayeeFile, signedDownloadUrl } = vi.hoisted(() => ({
+const { uploadPayeeFile, deletePayeeFile } = vi.hoisted(() => ({
   uploadPayeeFile: vi.fn(async () => undefined),
   deletePayeeFile: vi.fn(async () => undefined),
-  signedDownloadUrl: vi.fn(async () => "https://signed.example/x"),
 }));
 
 vi.mock("@/lib/storage/payee-attachments", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/storage/payee-attachments")>();
-  return { ...actual, uploadPayeeFile, deletePayeeFile, signedDownloadUrl };
+  return { ...actual, uploadPayeeFile, deletePayeeFile };
 });
 
 import { saveAttachmentsCore, getDownloadUrlCore } from "@/app/(app)/expenses/payees/attachment-core";
-import { PAYEE_ATTACHMENT_SAVE_INIT } from "@/app/(app)/expenses/payees/attachment-state";
 import { StorageConfigError } from "@/lib/storage/payee-attachments";
 
 function pdfFile(name = "a.pdf", size = 1024): File {
@@ -34,6 +32,7 @@ async function reset() {
   });
 }
 
+// 업체A는 VENDOR 첫 등록이라 keyId는 항상 b001 — 저장 파일명("b001_업체A_...") 단언에 사용.
 async function seedPayee(): Promise<string> {
   const bizDigits = "1234567890";
   await createPayeesBulk(ADMIN, [{
@@ -62,20 +61,31 @@ describe("attachment-core", () => {
     payeeId = await seedPayee();
   });
 
-  it("saveAttachmentsCore: 신규 업로드 성공 시 storage.upload 호출 + DB 반영 + 성공 상태", async () => {
+  it("saveAttachmentsCore: 신규 업로드 성공 시 storage.upload 호출 + DB 반영(고유번호_업체명_구분 이름으로 저장) + 성공 상태", async () => {
     const fd = new FormData();
     fd.set("payeeId", payeeId);
-    fd.set("bizCertFile", pdfFile("biz.pdf"));
+    fd.set("bizCertFile", pdfFile("Gemini_Generated_Image_xyz.pdf"));
 
     const result = await saveAttachmentsCore(ADMIN, fd);
 
     expect(result.ok).toBe(true);
     expect(uploadPayeeFile).toHaveBeenCalledTimes(1);
     const after = await getPayeeAttachments(ADMIN, payeeId);
-    expect(after.bizCert?.fileName).toBe("biz.pdf");
+    expect(after.bizCert?.fileName).toBe("b001_업체A_사업자등록증.pdf");
   });
 
-  it("saveAttachmentsCore: 교체 시 새 파일 업로드 후 이전 오브젝트 삭제", async () => {
+  it("saveAttachmentsCore: 통장사본은 '_통장사본' 접미사로 저장", async () => {
+    const fd = new FormData();
+    fd.set("payeeId", payeeId);
+    fd.set("bankbookFile", pdfFile("random-name.pdf"));
+
+    await saveAttachmentsCore(ADMIN, fd);
+
+    const after = await getPayeeAttachments(ADMIN, payeeId);
+    expect(after.bankbook?.fileName).toBe("b001_업체A_통장사본.pdf");
+  });
+
+  it("saveAttachmentsCore: 교체 시 새 파일 업로드 후 이전 오브젝트 삭제(저장명은 그대로 고유번호_업체명_구분)", async () => {
     const fd1 = new FormData();
     fd1.set("payeeId", payeeId);
     fd1.set("bizCertFile", pdfFile("first.pdf"));
@@ -83,13 +93,13 @@ describe("attachment-core", () => {
 
     const fd2 = new FormData();
     fd2.set("payeeId", payeeId);
-    fd2.set("bizCertFile", pdfFile("second.pdf"));
+    fd2.set("bizCertFile", pdfFile("second.png"));
     const result = await saveAttachmentsCore(ADMIN, fd2);
 
     expect(result.ok).toBe(true);
     expect(deletePayeeFile).toHaveBeenCalledTimes(1);
     const after = await getPayeeAttachments(ADMIN, payeeId);
-    expect(after.bizCert?.fileName).toBe("second.pdf");
+    expect(after.bizCert?.fileName).toBe("b001_업체A_사업자등록증.png"); // 확장자만 새 원본을 따라감
   });
 
   it("saveAttachmentsCore: 교체 시 이전 파일 정리 실패해도 교체 자체는 성공 처리", async () => {
@@ -107,7 +117,7 @@ describe("attachment-core", () => {
 
     expect(result).toMatchObject({ ok: true });
     const after = await getPayeeAttachments(ADMIN, payeeId);
-    expect(after.bizCert?.fileName).toBe("second.pdf");
+    expect(after.bizCert?.fileName).toBe("b001_업체A_사업자등록증.pdf");
   });
 
   it("saveAttachmentsCore: 삭제 플래그 시 storage 삭제 + DB row 제거", async () => {
@@ -149,32 +159,35 @@ describe("attachment-core", () => {
     expect(result.bizCertError).toBeTruthy();
     expect(result.bankbookError).toBeUndefined();
     const after = await getPayeeAttachments(ADMIN, payeeId);
-    expect(after.bankbook?.fileName).toBe("bank.pdf");
+    expect(after.bankbook?.fileName).toBe("b001_업체A_통장사본.pdf");
   });
 
-  it("getDownloadUrlCore: 파일 있으면 서명 URL 반환", async () => {
+  it("saveAttachmentsCore: 존재하지 않는 payeeId는 에러", async () => {
+    const fd = new FormData();
+    fd.set("payeeId", "no-such-payee");
+    fd.set("bizCertFile", pdfFile());
+    const result = await saveAttachmentsCore(ADMIN, fd);
+
+    expect(result).toEqual({ ok: false, error: "잘못된 요청입니다." });
+    expect(uploadPayeeFile).not.toHaveBeenCalled();
+  });
+
+  it("getDownloadUrlCore: 파일 있으면 attachment-download 라우트 URL 반환", async () => {
     const fd = new FormData();
     fd.set("payeeId", payeeId);
     fd.set("bizCertFile", pdfFile());
     await saveAttachmentsCore(ADMIN, fd);
 
     const res = await getDownloadUrlCore(ADMIN, payeeId, "BIZ_CERT");
-    expect(res).toEqual({ ok: true, url: "https://signed.example/x" });
+    expect(res).toEqual({
+      ok: true,
+      url: `/expenses/payees/attachment-download?payeeId=${payeeId}&fileType=BIZ_CERT`,
+    });
   });
 
   it("getDownloadUrlCore: 파일 없으면 에러", async () => {
     const res = await getDownloadUrlCore(ADMIN, payeeId, "BANKBOOK");
     expect(res).toEqual({ ok: false, error: "파일을 찾을 수 없습니다." });
-  });
-
-  it("getDownloadUrlCore: downloadFileName을 주면 signedDownloadUrl에 그대로 전달", async () => {
-    const fd = new FormData();
-    fd.set("payeeId", payeeId);
-    fd.set("bizCertFile", pdfFile());
-    await saveAttachmentsCore(ADMIN, fd);
-
-    await getDownloadUrlCore(ADMIN, payeeId, "BIZ_CERT", "업체A_사업자등록증.pdf");
-    expect(signedDownloadUrl).toHaveBeenCalledWith(expect.any(String), "업체A_사업자등록증.pdf");
   });
 
   it("saveAttachmentsCore: Storage 환경변수 누락(StorageConfigError)은 파일 오류가 아니라 서버 설정 오류로 안내", async () => {
@@ -186,16 +199,5 @@ describe("attachment-core", () => {
     const result = await saveAttachmentsCore(ADMIN, fd);
 
     expect(result).toEqual({ ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." });
-  });
-
-  it("getDownloadUrlCore: Storage 환경변수 누락(StorageConfigError)은 서버 설정 오류로 안내", async () => {
-    const fd = new FormData();
-    fd.set("payeeId", payeeId);
-    fd.set("bizCertFile", pdfFile());
-    await saveAttachmentsCore(ADMIN, fd);
-
-    signedDownloadUrl.mockRejectedValueOnce(new StorageConfigError("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY 환경변수가 없습니다."));
-    const res = await getDownloadUrlCore(ADMIN, payeeId, "BIZ_CERT");
-    expect(res).toEqual({ ok: false, error: "서버 설정(파일 저장소)이 누락되었습니다. 관리자에게 문의하세요." });
   });
 });
