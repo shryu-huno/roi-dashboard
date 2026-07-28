@@ -160,3 +160,8 @@ export function findPayeeByBizNumber(ctx: RlsContext, bizNumberPlain: string): P
     tx.payee.findMany({ where: { bizNumberBidx: blindIndex(digitsOnly(bizNumberPlain)) } }),
   );
 }
+
+// 첨부파일 표시/다운로드 이름("고유번호_업체명_구분")을 만들 때만 필요한 최소 조회.
+export function getPayeeKeyAndName(ctx: RlsContext, payeeId: string): Promise<{ keyId: string; bizName: string } | null> {
+  return withRLS(ctx, (tx) => tx.payee.findUnique({ where: { id: payeeId }, select: { keyId: true, bizName: true } }));
+}

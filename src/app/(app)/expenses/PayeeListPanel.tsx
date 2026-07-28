@@ -5,6 +5,7 @@ import { taxTypeLabel } from "@/lib/labels";
 import type { TaxType } from "@prisma/client";
 import type { PayeeRow, PayeeSearchField } from "@/lib/data/payees";
 import { PayeeUploadModal } from "./PayeeUploadModal";
+import { PayeeAttachmentModal } from "./PayeeAttachmentModal";
 
 const SEARCH_FIELD_OPTIONS: { value: PayeeSearchField; label: string }[] = [
   { value: "bizName", label: "사업자명(이름)" },
@@ -33,18 +34,22 @@ function TaxBadge({ taxType }: { taxType: TaxType }) {
   );
 }
 
-function AttachmentCell({ hasAttachment }: { hasAttachment: boolean }) {
+function AttachmentCell({ hasAttachment, onClick }: { hasAttachment: boolean; onClick: () => void }) {
   if (hasAttachment) {
     return (
-      <button type="button" className="whitespace-nowrap text-sm text-[var(--color-primary)] hover:underline">
-        📎 첨부파일
+      <button type="button" onClick={onClick} className="whitespace-nowrap text-sm text-[var(--color-primary)] hover:underline">
+        📎 첨부완료
       </button>
     );
   }
   return (
-    <span className="inline-block whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-[var(--color-danger)]">
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-block whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-[var(--color-danger)] hover:underline"
+    >
       ⚠ 미첨부
-    </span>
+    </button>
   );
 }
 
@@ -67,6 +72,7 @@ export function PayeeListPanel({
   // 편집 모드 행(관리 연필 아이콘으로 진입).
   const [editing, setEditing] = useState<Set<string>>(new Set());
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [attachmentTarget, setAttachmentTarget] = useState<{ id: string; keyId: string; bizName: string } | null>(null);
   const [searchField, setSearchField] = useState<PayeeSearchField>(field);
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
@@ -212,7 +218,12 @@ export function PayeeListPanel({
                   <td className={cellCls}><TaxBadge taxType={r.taxType} /></td>
 
                   {/* 첨부파일 */}
-                  <td className={cellCls}><AttachmentCell hasAttachment={r.hasBizCert || r.hasBankbook} /></td>
+                  <td className={cellCls}>
+                    <AttachmentCell
+                      hasAttachment={r.hasBizCert || r.hasBankbook}
+                      onClick={() => setAttachmentTarget({ id: r.id, keyId: r.keyId, bizName: r.bizName })}
+                    />
+                  </td>
 
                   {/* 관리: 연필 아이콘으로 편집 진입, 편집 중엔 저장/취소 */}
                   <td className={cellCls}>
@@ -258,6 +269,15 @@ export function PayeeListPanel({
       )}
 
       {uploadOpen && <PayeeUploadModal open onClose={() => setUploadOpen(false)} />}
+      {attachmentTarget && (
+        <PayeeAttachmentModal
+          open
+          payeeId={attachmentTarget.id}
+          keyId={attachmentTarget.keyId}
+          bizName={attachmentTarget.bizName}
+          onClose={() => setAttachmentTarget(null)}
+        />
+      )}
     </div>
   );
 }
