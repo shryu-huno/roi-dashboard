@@ -91,6 +91,24 @@ describe("attachment-core", () => {
     expect(after.bizCert?.fileName).toBe("second.pdf");
   });
 
+  it("saveAttachmentsCore: 교체 시 이전 파일 정리 실패해도 교체 자체는 성공 처리", async () => {
+    const fd1 = new FormData();
+    fd1.set("payeeId", payeeId);
+    fd1.set("bizCertFile", pdfFile("first.pdf"));
+    await saveAttachmentsCore(ADMIN, fd1);
+
+    deletePayeeFile.mockRejectedValueOnce(new Error("cleanup boom"));
+
+    const fd2 = new FormData();
+    fd2.set("payeeId", payeeId);
+    fd2.set("bizCertFile", pdfFile("second.pdf"));
+    const result = await saveAttachmentsCore(ADMIN, fd2);
+
+    expect(result).toMatchObject({ ok: true });
+    const after = await getPayeeAttachments(ADMIN, payeeId);
+    expect(after.bizCert?.fileName).toBe("second.pdf");
+  });
+
   it("saveAttachmentsCore: 삭제 플래그 시 storage 삭제 + DB row 제거", async () => {
     const fd1 = new FormData();
     fd1.set("payeeId", payeeId);

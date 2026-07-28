@@ -32,7 +32,13 @@ async function processSlot(
   const path = attachmentPath(payeeId, fileType, fileField.name);
   await uploadPayeeFile(path, fileField); // 업로드 먼저
   await upsertPayeeAttachment(ctx, payeeId, fileType, { fileUrl: path, fileName: fileField.name });
-  if (existing) await deletePayeeFile(existing.fileUrl); // 성공 후 이전 파일 정리
+  if (existing) {
+    try {
+      await deletePayeeFile(existing.fileUrl); // 성공 후 이전 파일 정리
+    } catch (e) {
+      console.error("[attachment save] 이전 파일 정리 실패 (교체는 완료됨):", existing.fileUrl, e);
+    }
+  }
   return undefined;
 }
 
