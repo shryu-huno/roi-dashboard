@@ -200,7 +200,7 @@ model ConsultingExpense {
   id          String   @id @default(cuid())
   clientId    String
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  companyName String   // 기업명 원문(엑셀 값). clientId는 공백 정규화 매칭 결과.
+  clientName  String   // 고객사명(Client.name와 동일값). 엑셀 기업명은 매칭에만 쓰고 저장은 정식 고객사명으로.
   field       String   // 상담분야 — 세부 항목 구분 기준
   consultType String?  // 상담유형(참고용)
   year        Int      // 지급월(연)

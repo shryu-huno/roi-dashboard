@@ -1,5 +1,5 @@
 // 상담료 지출내역 엑셀 → ConsultingExpense 적재.
-// 저장 컬럼: 상담분야(field) / 기업명(companyName, 원문) + clientId(정규화 매칭) / 지급비용(amount, 빈칸=0)
+// 저장 컬럼: 상담분야(field) / 고객사명(clientName=Client.name) + clientId(엑셀 기업명 정규화 매칭) / 지급비용(amount, 빈칸=0)
 //           / 지급월(year·month) / 상담유형(consultType, 참고용)
 // 실행: node scripts/import-consulting-expense.mjs "<xlsx 경로>"
 // 대상 DB는 로드된 .env의 DATABASE_URL을 따른다(로컬=.env / 프로덕션=.env.production 주입).
@@ -45,25 +45,27 @@ for (let r = 2; r <= ws.rowCount; r++) {
 
   rows.push({
     field: String(field),
-    companyName: String(company),
+    excelCompany: String(company), // 매칭용 엑셀 원문(저장하지 않음)
     consultType: type == null ? null : String(type),
     amount, year, month,
   });
 }
 console.log(`엑셀 데이터 행: ${rows.length}`);
 
-// 2) Client 매핑 (ADMIN 컨텍스트로 RLS 우회)
+// 2) Client 매핑 (ADMIN 컨텍스트로 RLS 우회). 엑셀 기업명(공백 정규화)으로 매칭하고,
+//    저장은 정식 고객사명(Client.name)으로 한다.
 const clients = await prisma.$transaction(async (tx) => {
   await tx.$executeRaw`SELECT set_config('app.user_role','ADMIN',true), set_config('app.user_id','import',true)`;
   return tx.$queryRaw`SELECT id, name FROM "Client" WHERE "deletedAt" IS NULL`;
 });
-const byNorm = new Map(clients.map((c) => [norm(c.name), c.id]));
+const byNorm = new Map(clients.map((c) => [norm(c.name), c]));
 
 const unmatched = new Map();
 for (const row of rows) {
-  const id = byNorm.get(norm(row.companyName));
-  if (!id) { unmatched.set(row.companyName, (unmatched.get(row.companyName) ?? 0) + 1); continue; }
-  row.clientId = id;
+  const client = byNorm.get(norm(row.excelCompany));
+  if (!client) { unmatched.set(row.excelCompany, (unmatched.get(row.excelCompany) ?? 0) + 1); continue; }
+  row.clientId = client.id;
+  row.clientName = client.name; // 정식 고객사명
 }
 if (unmatched.size) {
   console.error('✗ Client 미매칭 기업명 발견 — 적재 중단:');
@@ -71,7 +73,7 @@ if (unmatched.size) {
   await prisma.$disconnect();
   process.exit(1);
 }
-console.log(`기업명 매핑 완료: 전 행 clientId 연결 (고객사 ${new Set(rows.map(r=>r.clientId)).size}개사)`);
+console.log(`고객사명 매핑 완료: 전 행 clientId 연결 (고객사 ${new Set(rows.map(r=>r.clientId)).size}개사)`);
 
 // 3) 적재 (기존 전량 삭제 후 재적재 = 멱등). ADMIN 컨텍스트 트랜잭션.
 const now = new Date();
@@ -83,9 +85,9 @@ const inserted = await prisma.$transaction(async (tx) => {
   const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const slice = rows.slice(i, i + CHUNK);
-    const tuples = slice.map((r) => Prisma.sql`(${crypto.randomUUID()}, ${r.clientId}, ${r.companyName}, ${r.field}, ${r.consultType}, ${r.year}, ${r.month}, ${r.amount}, ${now})`);
+    const tuples = slice.map((r) => Prisma.sql`(${crypto.randomUUID()}, ${r.clientId}, ${r.clientName}, ${r.field}, ${r.consultType}, ${r.year}, ${r.month}, ${r.amount}, ${now})`);
     count += await tx.$executeRaw`
-      INSERT INTO "ConsultingExpense" ("id","clientId","companyName","field","consultType","year","month","amount","updatedAt")
+      INSERT INTO "ConsultingExpense" ("id","clientId","clientName","field","consultType","year","month","amount","updatedAt")
       VALUES ${Prisma.join(tuples)}`;
   }
   return count;
