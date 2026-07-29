@@ -132,9 +132,23 @@ export function PayeeListPanel({
           </button>
         </form>
         <div className="flex items-center gap-2">
-          <button type="button" className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
-            📗 엑셀 다운로드
-          </button>
+          {rows.length > 0 ? (
+            <a
+              href={`/expenses/payees/export?field=${field}&q=${encodeURIComponent(q)}`}
+              className="rounded border border-[var(--color-border)] px-4 py-2 text-sm"
+            >
+              📗 엑셀 다운로드
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title="다운로드할 데이터가 없습니다"
+              className="cursor-not-allowed rounded border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-muted)] opacity-50"
+            >
+              📗 엑셀 다운로드
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setUploadOpen(true)}
