@@ -65,4 +65,16 @@ describe("payee export xlsx", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual([...EXPORT_HEADERS]);
   });
+
+  it('사업자번호 헤더는 "(주민등록번호)"를 포함하고, 열 너비가 늘어난 헤더 전체 길이를 수용한다', async () => {
+    expect(EXPORT_HEADERS).toContain("사업자번호(주민등록번호)");
+    const buf = await buildExportXlsxBuffer([row]);
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const ws = wb.worksheets[0];
+    const bizNumberCol = EXPORT_HEADERS.indexOf("사업자번호(주민등록번호)") + 1;
+    // "사업자번호(주민등록번호)" 표시폭 24(한글 11자×2 + 괄호 2) + 패딩 4 = 28.
+    expect(ws.getColumn(bizNumberCol).width).toBe(28);
+  });
 });

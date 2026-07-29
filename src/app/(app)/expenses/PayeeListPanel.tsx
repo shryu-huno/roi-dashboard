@@ -76,6 +76,11 @@ export function PayeeListPanel({
   const [searchField, setSearchField] = useState<PayeeSearchField>(field);
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
+  // 체크된 행이 있으면 그 항목만, 없으면 현재 검색/필터 결과 전체를 다운로드 대상으로 삼는다.
+  const selectedKeyIds = rows.filter((r) => selected.has(r.id)).map((r) => r.keyId);
+  const exportHref = selectedKeyIds.length > 0
+    ? `/expenses/payees/export?keyIds=${encodeURIComponent(selectedKeyIds.join(","))}`
+    : `/expenses/payees/export?field=${field}&q=${encodeURIComponent(q)}`;
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -134,10 +139,10 @@ export function PayeeListPanel({
         <div className="flex items-center gap-2">
           {rows.length > 0 ? (
             <a
-              href={`/expenses/payees/export?field=${field}&q=${encodeURIComponent(q)}`}
+              href={exportHref}
               className="rounded border border-[var(--color-border)] px-4 py-2 text-sm"
             >
-              📗 엑셀 다운로드
+              📗 엑셀 다운로드{selectedKeyIds.length > 0 ? ` (${selectedKeyIds.length}건 선택)` : ""}
             </a>
           ) : (
             <button

@@ -139,7 +139,7 @@ export async function buildTemplateXlsxBuffer(): Promise<Buffer> {
 
 // 검색/필터 적용된 지급 리스트 다운로드용 컬럼 순서. 화면 테이블 헤더와 동일한 순서로 맞춘다.
 export const EXPORT_HEADERS = [
-  "고유번호", "사업자명(이름)", "사업자번호", "연락처", "은행명",
+  "고유번호", "사업자명(이름)", "사업자번호(주민등록번호)", "연락처", "은행명",
   "계좌번호", "예금주", "청구방식", "사업자등록증 첨부", "통장사본 첨부",
 ] as const;
 
@@ -165,7 +165,7 @@ export async function buildExportXlsxBuffer(rows: PayeeExportRow[]): Promise<Buf
   dataRows.forEach((row) => ws.addRow(row));
 
   // 사업자번호·계좌번호는 텍스트 서식으로 — 선행 0/자릿수 손실 방지.
-  const TEXT_COLUMNS = ["사업자번호", "계좌번호"] as const;
+  const TEXT_COLUMNS = ["사업자번호(주민등록번호)", "계좌번호"] as const;
   TEXT_COLUMNS.forEach((header) => {
     ws.getColumn(EXPORT_HEADERS.indexOf(header) + 1).numFmt = "@";
   });
