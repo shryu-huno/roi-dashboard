@@ -12,12 +12,14 @@ import { PAYEE_ATTACHMENT_SAVE_INIT } from "./payees/attachment-state";
 type SlotState = { fileName: string } | null;
 
 export function PayeeAttachmentModal({
-  open, payeeId, keyId, bizName, onClose,
+  open, payeeId, keyId, bizName, canDownload = true, canDelete = true, onClose,
 }: {
   open: boolean;
   payeeId: string;
   keyId: string;
   bizName: string;
+  canDownload?: boolean;
+  canDelete?: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -90,6 +92,8 @@ export function PayeeAttachmentModal({
               label="사업자등록증(신분증 사본)"
               existing={bizCert}
               fieldName="bizCertFile"
+              canDownload={canDownload}
+              canDelete={canDelete}
               markedForDelete={bizCertDelete}
               onMarkDelete={setBizCertDelete}
               onDownload={() => handleDownload("BIZ_CERT", setBizCertDownloadError)}
@@ -104,6 +108,8 @@ export function PayeeAttachmentModal({
               label="통장사본"
               existing={bankbook}
               fieldName="bankbookFile"
+              canDownload={canDownload}
+              canDelete={canDelete}
               markedForDelete={bankbookDelete}
               onMarkDelete={setBankbookDelete}
               onDownload={() => handleDownload("BANKBOOK", setBankbookDownloadError)}
@@ -132,11 +138,13 @@ export function PayeeAttachmentModal({
 }
 
 function AttachmentSlot({
-  label, existing, fieldName, markedForDelete, onMarkDelete, onDownload, errorMessage, downloadError,
+  label, existing, fieldName, canDownload, canDelete, markedForDelete, onMarkDelete, onDownload, errorMessage, downloadError,
 }: {
   label: string;
   existing: SlotState;
   fieldName: string;
+  canDownload: boolean;
+  canDelete: boolean;
   markedForDelete: boolean;
   onMarkDelete: (v: boolean) => void;
   onDownload: () => void;
@@ -166,9 +174,13 @@ function AttachmentSlot({
         <div className="flex items-center justify-between rounded border border-[var(--color-border)] px-3 py-2">
           <span className="truncate text-sm">{existing.fileName}</span>
           <div className="flex shrink-0 gap-2 text-sm">
-            <button type="button" onClick={onDownload} className="text-[var(--color-primary)] hover:underline">다운로드</button>
+            {canDownload && (
+              <button type="button" onClick={onDownload} className="text-[var(--color-primary)] hover:underline">다운로드</button>
+            )}
             <button type="button" onClick={() => setReplacing(true)} className="text-[var(--color-primary)] hover:underline">변경</button>
-            <button type="button" onClick={() => onMarkDelete(true)} className="text-[var(--color-danger)] hover:underline">삭제</button>
+            {canDelete && (
+              <button type="button" onClick={() => onMarkDelete(true)} className="text-[var(--color-danger)] hover:underline">삭제</button>
+            )}
           </div>
         </div>
         {downloadError && <p className="mt-1 text-xs text-[var(--color-danger)]">{downloadError}</p>}
