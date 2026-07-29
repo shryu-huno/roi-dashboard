@@ -75,7 +75,7 @@ export function PayeeAttachmentModal({
         </div>
         <p className="mb-4 text-sm text-[var(--color-muted)]">
           고유번호 바인딩<br />
-          고유번호: {keyId} [업체/강사명: {bizName}]
+          고유번호: {keyId.toUpperCase()} [업체/강사명: {bizName}]
         </p>
 
         {loading ? (

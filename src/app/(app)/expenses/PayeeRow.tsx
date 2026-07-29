@@ -120,7 +120,7 @@ export function PayeeRow({
       <td className={cellCls}>
         <input type="checkbox" checked={isSelected} onChange={onToggleSelect} aria-label={`${row.bizName} 선택`} />
       </td>
-      <td className={`${cellCls} font-medium text-[var(--color-primary)]`}>{row.keyId}</td>
+      <td className={`${cellCls} font-medium text-[var(--color-primary)]`}>{row.keyId.toUpperCase()}</td>
 
       <td className={cellCls}>
         {isEditing ? <input ref={bizNameRef} className={inputCls} defaultValue={row.bizName} /> : row.bizName}
