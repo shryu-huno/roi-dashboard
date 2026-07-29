@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { createPayeesBulk, updatePayee, softDeletePayees } from "@/lib/data/payees";
+import { createPayeesBulk, updatePayee, updatePayeePmFields, softDeletePayees } from "@/lib/data/payees";
 import { PayeeKeyConfigError } from "@/lib/crypto/payee-secret";
 import { TAX_TYPE_BY_LABEL } from "@/lib/labels";
-import { payeeUpdateSchema } from "@/lib/validation/schemas";
+import { payeeUpdateSchema, payeeUpdatePmSchema } from "@/lib/validation/schemas";
 import { SAVED, type ActionState } from "@/lib/action-state";
 import { buildPayeeInputsFromCsv, buildPayeeInputsFromRows, type BuildResult } from "./build-inputs";
 import { parseXlsxToRows } from "./xlsx";
@@ -94,6 +94,30 @@ export async function updatePayeeAction(id: string, formData: FormData): Promise
     });
   } catch (e) {
     console.error("[payee update] 수정 실패:", e);
+    return { ok: false, error: "수정 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
+  }
+
+  revalidatePath("/expenses");
+  return SAVED;
+}
+
+export async function updatePayeePmAction(id: string, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("PM");
+  const ctx = getRlsContext(user);
+
+  const parsed = payeeUpdatePmSchema.safeParse({
+    bizName: formData.get("bizName"),
+    taxType: formData.get("taxType"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "입력값을 확인하세요." };
+  }
+  const d = parsed.data;
+
+  try {
+    await updatePayeePmFields(ctx, id, { bizName: d.bizName, taxType: TAX_TYPE_BY_LABEL[d.taxType] });
+  } catch (e) {
+    console.error("[payee update-pm] 수정 실패:", e);
     return { ok: false, error: "수정 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
   }
 

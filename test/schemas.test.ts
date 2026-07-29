@@ -7,6 +7,7 @@ import {
   clientSchema,
   payeeUploadRowSchema,
   payeeUpdateSchema,
+  payeeUpdatePmSchema,
 } from "@/lib/validation/schemas";
 
 describe("performanceBatchSchema", () => {
@@ -198,5 +199,17 @@ describe("payeeUpdateSchema", () => {
   });
   it("예금주가 공백만 있으면 실패", () => {
     expect(payeeUpdateSchema.safeParse({ ...valid, accountHolder: "   " }).success).toBe(false);
+  });
+});
+
+describe("payeeUpdatePmSchema", () => {
+  it("사업자명/청구방식만으로 통과", () => {
+    expect(payeeUpdatePmSchema.safeParse({ bizName: "홍길동", taxType: "사업소득" }).success).toBe(true);
+  });
+  it("이름이 비어있으면 실패", () => {
+    expect(payeeUpdatePmSchema.safeParse({ bizName: "", taxType: "사업소득" }).success).toBe(false);
+  });
+  it("알 수 없는 청구방식은 실패", () => {
+    expect(payeeUpdatePmSchema.safeParse({ bizName: "홍길동", taxType: "카드" }).success).toBe(false);
   });
 });

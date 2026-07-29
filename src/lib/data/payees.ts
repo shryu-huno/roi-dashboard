@@ -320,6 +320,18 @@ export function updatePayee(ctx: RlsContext, id: string, input: PayeeUpdateInput
   });
 }
 
+// PM 전용 부분 수정 — 사업자명/청구방식만 바꾼다. 은행명/계좌번호/예금주는 data에 넣지 않으므로 그대로 유지된다.
+export type PayeeUpdatePmInput = { bizName: string; taxType: TaxType };
+
+export function updatePayeePmFields(ctx: RlsContext, id: string, input: PayeeUpdatePmInput): Promise<void> {
+  return withRLS(ctx, async (tx) => {
+    if (ctx.role !== "PM") {
+      throw new Error("PM 지급 리스트 수정 권한이 없습니다.");
+    }
+    await tx.payee.update({ where: { id }, data: { bizName: input.bizName, taxType: input.taxType } });
+  });
+}
+
 // 지급 리스트 소프트 삭제 — 개별/일괄 모두 이 함수 하나로 처리(ids 길이 1 또는 N).
 // 이미 삭제됐거나 존재하지 않는 id가 섞여도 나머지는 정상 삭제되고, count가 0일 때만 실패로 본다.
 export function softDeletePayees(ctx: RlsContext, ids: string[]): Promise<ActionState> {

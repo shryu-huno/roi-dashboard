@@ -3,7 +3,7 @@ import { withRLS } from "@/lib/rls";
 import {
   createPayeesBulk, listPayees, listPayeesForExport, listPayeesForPm, findPayeeByBizNumber,
   parsePayeeSearchField, parsePayeePmSearchField,
-  updatePayee, softDeletePayees,
+  updatePayee, updatePayeePmFields, softDeletePayees,
   type PayeeCreateInput,
 } from "@/lib/data/payees";
 import {
@@ -276,6 +276,30 @@ describe("payees 데이터 계층", () => {
         taxType: "OTHER_INCOME",
       }),
     ).rejects.toThrow("지급 리스트 수정 권한이 없습니다.");
+  });
+
+  it("updatePayeePmFields: 사업자명/청구방식만 바뀌고 은행명/계좌번호/예금주는 그대로다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
+    const PM = { userId: "pm1", role: "PM" as const };
+    const [row] = await listPayeesForPm(PM);
+
+    await updatePayeePmFields(PM, row.id, { bizName: "New Name", taxType: "OTHER_INCOME" });
+
+    const [after] = await listPayeesForPm(PM);
+    expect(after.bizName).toBe("New Name");
+    expect(after.taxType).toBe("OTHER_INCOME");
+    // 마스킹 값이 그대로인지(=은행명/계좌번호/예금주 원문이 안 바뀌었는지) 확인.
+    expect(after.bankNameMasked).toBe(row.bankNameMasked);
+    expect(after.accountNumberMasked).toBe(row.accountNumberMasked);
+    expect(after.accountHolderMasked).toBe(row.accountHolderMasked);
+  });
+
+  it("updatePayeePmFields는 PM 외 역할은 거부한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const [row] = await listPayees(ADMIN);
+    await expect(
+      updatePayeePmFields(ADMIN, row.id, { bizName: "x", taxType: "OTHER_INCOME" }),
+    ).rejects.toThrow("PM 지급 리스트 수정 권한이 없습니다.");
   });
 
   it("listPayees와 listPayeesForExport는 소프트 삭제된 행을 제외한다", async () => {

@@ -143,3 +143,9 @@ export const payeeUpdateSchema = z.object({
   accountHolder: z.string().trim().min(1, "예금주는 필수입니다."),
   taxType: z.enum(TAX_TYPE_LABELS),
 });
+
+// PM 인라인 수정용 — 사업자명/청구방식만 다룬다.
+export const payeeUpdatePmSchema = z.object({
+  bizName: z.string().trim().min(1, "이름은 필수입니다."),
+  taxType: z.enum(TAX_TYPE_LABELS),
+});
