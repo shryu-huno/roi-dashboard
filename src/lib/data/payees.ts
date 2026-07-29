@@ -45,6 +45,22 @@ export type PayeeRow = {
   hasBankbook: boolean;
 };
 
+// 엑셀 다운로드 전용(ADMIN·SETTLEMENT 전용) — 사업자번호 원문을 포함한다.
+// 이 화면에 도달 가능한 역할이 이미 ADMIN/SETTLEMENT뿐이므로 별도 역할 분기 없이
+// listPayees와 동일한 role 체크(fetchMatchedPayees 내부)에 얹는다.
+export type PayeeExportRow = {
+  keyId: string;
+  bizName: string;
+  bizNumber: string; // 복호화 원문
+  phone: string;
+  bankName: string;
+  accountNumber: string; // 복호화 원문
+  accountHolder: string;
+  taxType: TaxType;
+  hasBizCert: boolean;
+  hasBankbook: boolean;
+};
+
 const SEQ: Record<PayeeType, string> = {
   INSTRUCTOR: "payee_key_seq_instructor",
   VENDOR: "payee_key_seq_vendor",
@@ -118,7 +134,12 @@ export function createPayeesBulk(
   });
 }
 
-export function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeRow[]> {
+type MatchedPayee = Prisma.PayeeGetPayload<{
+  include: { attachments: { select: { fileType: true } } };
+}>;
+
+// listPayees/listPayeesForExport 공통: role 체크 + 조회 + 인메모리 검색 필터링.
+function fetchMatchedPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<MatchedPayee[]> {
   if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
     throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
   }
@@ -128,31 +149,50 @@ export function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise
       include: { attachments: { select: { fileType: true } } },
     });
     const q = filter?.q.trim();
-    const matched = !filter || !q
-      ? rows
-      : rows.filter((r) => {
-          if (filter.field === "bizName") return r.bizName.toLowerCase().includes(q.toLowerCase());
-          if (filter.field === "keyId") return r.keyId.toLowerCase().includes(q.toLowerCase());
-          // 검색어가 URL 쿼리스트링에 그대로 남으므로(GET 폼), 원문 전체 노출 위험을 줄이기 위해
-          // 사업자번호 검색은 앞 6자리까지만 사용한다.
-          const qDigits = digitsOnly(q).slice(0, 6);
-          return digitsOnly(decrypt(r.bizNumberEnc)).includes(qDigits);
-        });
-    return matched.map((r) => ({
-      id: r.id,
-      keyId: r.keyId,
-      payeeType: r.payeeType,
-      bizName: r.bizName,
-      bizNumberMasked: r.bizNumberMasked,
-      phone: r.phone,
-      bankName: r.bankName,
-      accountNumber: decrypt(r.accountNumberEnc),
-      accountHolder: r.accountHolder,
-      taxType: r.taxType,
-      hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
-      hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
-    }));
+    if (!filter || !q) return rows;
+    return rows.filter((r) => {
+      if (filter.field === "bizName") return r.bizName.toLowerCase().includes(q.toLowerCase());
+      if (filter.field === "keyId") return r.keyId.toLowerCase().includes(q.toLowerCase());
+      // 검색어가 URL 쿼리스트링에 그대로 남으므로(GET 폼), 원문 전체 노출 위험을 줄이기 위해
+      // 사업자번호 검색은 앞 6자리까지만 사용한다.
+      const qDigits = digitsOnly(q).slice(0, 6);
+      return digitsOnly(decrypt(r.bizNumberEnc)).includes(qDigits);
+    });
   });
+}
+
+export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeRow[]> {
+  const rows = await fetchMatchedPayees(ctx, filter);
+  return rows.map((r) => ({
+    id: r.id,
+    keyId: r.keyId,
+    payeeType: r.payeeType,
+    bizName: r.bizName,
+    bizNumberMasked: r.bizNumberMasked,
+    phone: r.phone,
+    bankName: r.bankName,
+    accountNumber: decrypt(r.accountNumberEnc),
+    accountHolder: r.accountHolder,
+    taxType: r.taxType,
+    hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
+    hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
+  }));
+}
+
+export async function listPayeesForExport(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeExportRow[]> {
+  const rows = await fetchMatchedPayees(ctx, filter);
+  return rows.map((r) => ({
+    keyId: r.keyId,
+    bizName: r.bizName,
+    bizNumber: decrypt(r.bizNumberEnc),
+    phone: r.phone,
+    bankName: r.bankName,
+    accountNumber: decrypt(r.accountNumberEnc),
+    accountHolder: r.accountHolder,
+    taxType: r.taxType,
+    hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
+    hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
+  }));
 }
 
 export function findPayeeByBizNumber(ctx: RlsContext, bizNumberPlain: string): Promise<Payee[]> {

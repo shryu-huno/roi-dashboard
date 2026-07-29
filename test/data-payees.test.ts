@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { withRLS } from "@/lib/rls";
 import {
-  createPayeesBulk, listPayees, findPayeeByBizNumber, parsePayeeSearchField, type PayeeCreateInput,
+  createPayeesBulk, listPayees, listPayeesForExport, findPayeeByBizNumber, parsePayeeSearchField,
+  type PayeeCreateInput,
 } from "@/lib/data/payees";
 import {
   encrypt, decrypt, blindIndex, maskBizNumber, maskAccountNumber,
@@ -142,5 +143,31 @@ describe("payees 데이터 계층", () => {
     await createPayeesBulk(ADMIN, [input("1234561111", "VENDOR")]);
     const rows = await listPayees(ADMIN, { field: "bizNumber", q: "123456999999" });
     expect(rows).toHaveLength(1);
+  });
+
+  it("listPayeesForExport는 사업자번호 원문을 포함해 반환한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Acme")]);
+    const [row] = await listPayeesForExport(ADMIN);
+    expect(row.bizNumber).toBe("1234567890");
+    expect(row.accountNumber).toBe("110123456789");
+    expect(row.keyId).toBe("b001");
+    expect(row.bizName).toBe("Acme");
+  });
+
+  it("listPayeesForExport도 listPayees와 동일한 검색 필터를 적용한다", async () => {
+    await createPayeesBulk(ADMIN, [
+      input("1234567890", "VENDOR", "Acme"),
+      input("9002022345678", "INSTRUCTOR", "다른이름"),
+    ]);
+    const hit = await listPayeesForExport(ADMIN, { field: "bizName", q: "acme" });
+    expect(hit).toHaveLength(1);
+    expect(hit[0].bizName).toBe("Acme");
+  });
+
+  it("listPayeesForExport는 SETTLEMENT/ADMIN 외 역할은 거부한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    await expect(
+      listPayeesForExport({ userId: "pm1", role: "PM" }),
+    ).rejects.toThrow("지급 리스트 원문 조회 권한이 없습니다.");
   });
 });
