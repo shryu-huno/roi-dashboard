@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PayeeRow as PayeeRowData, PayeeSearchField } from "@/lib/data/payees";
+import { deletePayeesAction } from "./payees/actions";
 import { PayeeUploadModal } from "./PayeeUploadModal";
 import { PayeeAttachmentModal } from "./PayeeAttachmentModal";
+import { PayeeDeleteConfirmModal } from "./PayeeDeleteConfirmModal";
 import { PayeeRow } from "./PayeeRow";
 
 const SEARCH_FIELD_OPTIONS: { value: PayeeSearchField; label: string }[] = [
@@ -21,6 +24,7 @@ export function PayeeListPanel({
   field: PayeeSearchField;
   q: string;
 }) {
+  const router = useRouter();
   // 체크박스 선택 행(선택만 — 편집과 무관). 다음 단계에서 일괄 작업 연결.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // 편집 모드 행(관리 연필 아이콘으로 진입).
@@ -28,6 +32,10 @@ export function PayeeListPanel({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [attachmentTarget, setAttachmentTarget] = useState<{ id: string; keyId: string; bizName: string } | null>(null);
   const [searchField, setSearchField] = useState<PayeeSearchField>(field);
+  // 삭제 확인 대상 id 목록. null=모달 닫힘. 개별 삭제는 [id] 하나, 일괄 삭제는 selected 전체.
+  const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
   // 체크된 행이 있으면 그 항목만, 없으면 현재 검색/필터 결과 전체를 다운로드 대상으로 삼는다.
@@ -47,6 +55,26 @@ export function PayeeListPanel({
 
   function toggleSelectAll() {
     setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteError(null);
+    setDeletePending(true);
+    const result = await deletePayeesAction(deleteTarget);
+    setDeletePending(false);
+    if (result.ok) {
+      setSelected(new Set());
+      setDeleteTarget(null);
+      router.refresh();
+    } else {
+      setDeleteError(result.error ?? "삭제 중 오류가 발생했습니다.");
+    }
+  }
+
+  function handleCancelDelete() {
+    setDeleteTarget(null);
+    setDeleteError(null);
   }
 
   function startEditing(id: string) {
@@ -148,6 +176,7 @@ export function PayeeListPanel({
                 onStartEdit={() => startEditing(r.id)}
                 onStopEdit={() => stopEditing(r.id)}
                 onOpenAttachment={() => setAttachmentTarget({ id: r.id, keyId: r.keyId, bizName: r.bizName })}
+                onRequestDelete={() => setDeleteTarget([r.id])}
               />
             ))}
           </tbody>
@@ -170,6 +199,14 @@ export function PayeeListPanel({
           onClose={() => setAttachmentTarget(null)}
         />
       )}
+      <PayeeDeleteConfirmModal
+        open={deleteTarget !== null}
+        count={deleteTarget?.length ?? 0}
+        pending={deletePending}
+        error={deleteError}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   );
 }

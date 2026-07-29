@@ -55,6 +55,7 @@ export function PayeeRow({
   onStartEdit,
   onStopEdit,
   onOpenAttachment,
+  onRequestDelete,
 }: {
   row: PayeeRowData;
   isEditing: boolean;
@@ -63,6 +64,7 @@ export function PayeeRow({
   onStartEdit: () => void;
   onStopEdit: () => void;
   onOpenAttachment: () => void;
+  onRequestDelete: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -198,14 +200,24 @@ export function PayeeRow({
             {error && <p className="whitespace-normal text-xs text-[var(--color-danger)]">{error}</p>}
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={onStartEdit}
-            className="text-[var(--color-muted)] hover:text-[var(--color-primary)]"
-            aria-label="편집"
-          >
-            ✏️
-          </button>
+          <div className="flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={onStartEdit}
+              className="text-[var(--color-muted)] hover:text-[var(--color-primary)]"
+              aria-label="편집"
+            >
+              ✏️
+            </button>
+            <button
+              type="button"
+              onClick={onRequestDelete}
+              className="text-[var(--color-muted)] hover:text-[var(--color-danger)]"
+              aria-label="삭제"
+            >
+              🗑️
+            </button>
+          </div>
         )}
       </td>
     </tr>
