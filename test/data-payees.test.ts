@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { withRLS } from "@/lib/rls";
 import {
   createPayeesBulk, listPayees, listPayeesForExport, findPayeeByBizNumber, parsePayeeSearchField,
+  updatePayee,
   type PayeeCreateInput,
 } from "@/lib/data/payees";
 import {
@@ -169,5 +170,58 @@ describe("payees 데이터 계층", () => {
     await expect(
       listPayeesForExport({ userId: "pm1", role: "PM" }),
     ).rejects.toThrow("지급 리스트 원문 조회 권한이 없습니다.");
+  });
+
+  it("updatePayee: 이름/은행명/계좌번호/예금주/청구방식을 갱신한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
+    const [row] = await listPayees(ADMIN);
+
+    await updatePayee(ADMIN, row.id, {
+      bizName: "New Name",
+      bankName: "신한은행",
+      accountNumber: "999-88-777666",
+      accountHolder: "새예금주",
+      taxType: "OTHER_INCOME",
+    });
+
+    const [after] = await listPayees(ADMIN);
+    expect(after.bizName).toBe("New Name");
+    expect(after.bankName).toBe("신한은행");
+    expect(after.accountNumber).toBe("99988777666");
+    expect(after.accountHolder).toBe("새예금주");
+    expect(after.taxType).toBe("OTHER_INCOME");
+  });
+
+  it("updatePayee는 고유번호·유형·사업자번호(마스킹)를 변경하지 않는다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
+    const [before] = await listPayees(ADMIN);
+
+    await updatePayee(ADMIN, before.id, {
+      bizName: "New Name",
+      bankName: "신한은행",
+      accountNumber: "1101234567890",
+      accountHolder: "새예금주",
+      taxType: "OTHER_INCOME",
+    });
+
+    const [after] = await listPayees(ADMIN);
+    expect(after.keyId).toBe(before.keyId);
+    expect(after.payeeType).toBe(before.payeeType);
+    expect(after.bizNumberMasked).toBe(before.bizNumberMasked);
+  });
+
+  it("updatePayee는 SETTLEMENT/ADMIN 외 역할은 거부한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const [row] = await listPayees(ADMIN);
+
+    await expect(
+      updatePayee({ userId: "pm1", role: "PM" }, row.id, {
+        bizName: "x",
+        bankName: "신한은행",
+        accountNumber: "1101234567890",
+        accountHolder: "y",
+        taxType: "OTHER_INCOME",
+      }),
+    ).rejects.toThrow("지급 리스트 수정 권한이 없습니다.");
   });
 });

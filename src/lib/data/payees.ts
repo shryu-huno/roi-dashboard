@@ -1,6 +1,6 @@
 import type { Payee, PayeeType, TaxType, Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
-import { decrypt, blindIndex, digitsOnly } from "@/lib/crypto/payee-secret";
+import { decrypt, encrypt, blindIndex, digitsOnly, maskAccountNumber } from "@/lib/crypto/payee-secret";
 
 export const PAYEE_SEARCH_FIELDS = ["bizName", "bizNumber", "keyId"] as const;
 export type PayeeSearchField = (typeof PAYEE_SEARCH_FIELDS)[number];
@@ -204,4 +204,33 @@ export function findPayeeByBizNumber(ctx: RlsContext, bizNumberPlain: string): P
 // 첨부파일 표시/다운로드 이름("고유번호_업체명_구분")을 만들 때만 필요한 최소 조회.
 export function getPayeeKeyAndName(ctx: RlsContext, payeeId: string): Promise<{ keyId: string; bizName: string } | null> {
   return withRLS(ctx, (tx) => tx.payee.findUnique({ where: { id: payeeId }, select: { keyId: true, bizName: true } }));
+}
+
+// 지급 리스트 인라인 수정 — 사업자번호(민감정보)와 고유번호/유형은 절대 변경하지 않는다.
+export type PayeeUpdateInput = {
+  bizName: string;
+  bankName: string;
+  accountNumber: string; // 평문(하이픈 등 포함 가능)
+  accountHolder: string;
+  taxType: TaxType;
+};
+
+export function updatePayee(ctx: RlsContext, id: string, input: PayeeUpdateInput): Promise<void> {
+  const acctDigits = digitsOnly(input.accountNumber);
+  return withRLS(ctx, async (tx) => {
+    if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
+      throw new Error("지급 리스트 수정 권한이 없습니다.");
+    }
+    await tx.payee.update({
+      where: { id },
+      data: {
+        bizName: input.bizName,
+        bankName: input.bankName,
+        accountNumberEnc: encrypt(acctDigits),
+        accountNumberMasked: maskAccountNumber(acctDigits),
+        accountHolder: input.accountHolder,
+        taxType: input.taxType,
+      },
+    });
+  });
 }
