@@ -348,13 +348,13 @@ describe("payees 데이터 계층", () => {
     expect(res2.error).toBe("삭제할 항목을 찾을 수 없습니다.");
   });
 
-  it("softDeletePayees는 SETTLEMENT/ADMIN 외 역할은 거부한다", async () => {
+  it("softDeletePayees는 PM도 삭제할 수 있다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
     const [row] = await listPayees(ADMIN);
 
-    await expect(
-      softDeletePayees({ userId: "pm1", role: "PM" }, [row.id]),
-    ).rejects.toThrow("지급 리스트 삭제 권한이 없습니다.");
+    const res = await softDeletePayees({ userId: "pm1", role: "PM" }, [row.id]);
+    expect(res.ok).toBe(true);
+    expect(await listPayees(ADMIN)).toHaveLength(0);
   });
 
   it("createPayeesBulk: 소프트 삭제된 기존 행과 bizNumberBidx가 같으면 스킵 대신 자동 복원(revive)한다", async () => {

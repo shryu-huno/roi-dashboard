@@ -334,11 +334,9 @@ export function updatePayeePmFields(ctx: RlsContext, id: string, input: PayeeUpd
 
 // 지급 리스트 소프트 삭제 — 개별/일괄 모두 이 함수 하나로 처리(ids 길이 1 또는 N).
 // 이미 삭제됐거나 존재하지 않는 id가 섞여도 나머지는 정상 삭제되고, count가 0일 때만 실패로 본다.
+// role 가드 없음 — ADMIN/SETTLEMENT/PM 모두 삭제 가능(서버 액션의 requireRole("PM")이 인가를 맡는다).
 export function softDeletePayees(ctx: RlsContext, ids: string[]): Promise<ActionState> {
   return withRLS(ctx, async (tx) => {
-    if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
-      throw new Error("지급 리스트 삭제 권한이 없습니다.");
-    }
     const result = await tx.payee.updateMany({
       where: { id: { in: ids }, deletedAt: null },
       data: { deletedAt: new Date() },

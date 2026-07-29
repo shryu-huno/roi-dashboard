@@ -16,7 +16,7 @@ export async function uploadPayeesAction(
   _prev: PayeeUploadState,
   formData: FormData,
 ): Promise<PayeeUploadState> {
-  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const user = await requireRole("PM"); // ADMIN/SETTLEMENT도 랭크상 통과
   const ctx = getRlsContext(user);
 
   const file = formData.get("file");
@@ -126,7 +126,7 @@ export async function updatePayeePmAction(id: string, formData: FormData): Promi
 }
 
 export async function deletePayeesAction(ids: string[]): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const user = await requireRole("PM"); // ADMIN/SETTLEMENT도 랭크상 통과
   const ctx = getRlsContext(user);
 
   let result: ActionState;
