@@ -3,7 +3,7 @@ import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { getConsultingFieldSummary, getExpenseSummaryTotals } from "@/lib/data/expenses";
-import { listPayees, parsePayeeSearchField } from "@/lib/data/payees";
+import { listPayees, listPayeesForPm, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
 import { EXPENSE_SUMMARY_CATEGORIES } from "@/lib/expense-summary";
 import { orderRange, parseYm, rangeLabel, ymValue } from "@/lib/month-range";
 import { ClientCombobox } from "./ClientCombobox";
@@ -11,6 +11,7 @@ import { ConsultingSummaryTable } from "./ConsultingSummaryTable";
 import { ExpenseSummaryTable } from "./ExpenseSummaryTable";
 import { ExpenseTabs } from "./ExpenseTabs";
 import { PayeeListPanel } from "./PayeeListPanel";
+import { PayeePmListPanel } from "./PayeePmListPanel";
 import {
   DEFAULT_EXPENSE_TAB,
   canAccessExpenseTab,
@@ -136,6 +137,15 @@ async function PaymentListTab({
   user: SessionUser;
 }) {
   const ctx = getRlsContext(user);
+
+  if (user.role === "PM") {
+    const parsedField = parsePayeePmSearchField(sp.field);
+    const field = parsedField ?? "bizName";
+    const q = parsedField ? (sp.q ?? "") : "";
+    const rows = await listPayeesForPm(ctx, parsedField && q.trim() ? { field: parsedField, q } : undefined);
+    return <PayeePmListPanel rows={rows} field={field} q={q} />;
+  }
+
   const parsedField = parsePayeeSearchField(sp.field);
   const field = parsedField ?? "bizName";
   const q = parsedField ? (sp.q ?? "") : "";
