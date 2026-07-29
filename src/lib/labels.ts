@@ -65,3 +65,6 @@ export const TAX_TYPE_BY_LABEL: Record<(typeof TAX_TYPE_LABELS)[number], TaxType
 export function payeeTypeLabel(t: PayeeType): string {
   return t === "INSTRUCTOR" ? "강사" : "업체";
 }
+
+// 은행명 편집용 드롭다운 옵션.
+export const BANKS = ["국민은행", "신한은행", "하나은행", "우리은행", "농협은행", "기업은행", "카카오뱅크", "토스뱅크"] as const;
