@@ -15,6 +15,7 @@
 - PM의 인라인 편집은 사업자명·청구방식만 가능하다. 은행명/계좌번호/예금주 수정은 PM에게 열지 않는다.
 - PM은 첨부파일을 업로드·교체할 수 있지만 다운로드·삭제는 할 수 없다.
 - 기존 ADMIN/SETTLEMENT 화면(`PayeeRow`, `PayeeListPanel`, `listPayees`, `updatePayee`)의 동작은 변경하지 않는다.
+- DB에는 애플리케이션 role 체크와 별개로 Postgres RLS 정책이 걸려 있다(`Payee`/`PayeeAttachment`의 쓰기 정책은 원래 ADMIN/SETTLEMENT만 허용). PM에게 등록/부분수정/첨부 업로드를 열려면 Task 5에서 이 DB 정책도 함께 넓혀야 한다 — 애플리케이션 코드만 바꾸면 DB가 조용히 0 rows로 실패한다.
 
 ---
 
@@ -331,7 +332,7 @@ git commit -m "refactor(payees): role 가드를 공개 함수 단위로 재배�
 
 **Interfaces:**
 - Consumes: `maskPhone`, `maskFully`(Task 1), `PAYEE_SEARCH_FIELDS_PM`/`PayeePmSearchField`(Task 3), `digitsOnly`, `decrypt`(기존 import).
-- Produces: `PayeePmRow` 타입, `listPayeesForPm(ctx, filter?): Promise<PayeePmRow[]>` — Task 9(`PayeePmListPanel`)가 사용.
+- Produces: `PayeePmRow` 타입, `listPayeesForPm(ctx, filter?): Promise<PayeePmRow[]>` — Task 10(`PayeePmListPanel`)가 사용.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -452,7 +453,128 @@ git commit -m "feat(payees): PM용 마스킹 조회(listPayeesForPm) 추가"
 
 ---
 
-### Task 5: PM 부분 수정 (사업자명·청구방식만)
+### Task 5: DB RLS 정책에 PM 쓰기 권한 추가
+
+**배경(구현 중 발견된 계획 결함):** `prisma/migrations/20260727063812_add_payee_models/migration.sql`이 만든 Postgres RLS 정책 `payee_write`/`payee_attachment_write`는 `Payee`/`PayeeAttachment`의 INSERT/UPDATE/DELETE를 전부 ADMIN/SETTLEMENT로만 제한한다(SELECT는 `payee_select`/`payee_attachment_select`로 이미 전 역할에 열려 있다). 이후 태스크(원래 Task 5~7, 아래에서 Task 6~8로 재번호됨)는 애플리케이션 레이어(`requireRole`)만 PM에게 열어주는데, DB가 그 아래에서 여전히 PM의 쓰기를 막고 있으면 에러 없이 "0 rows affected"로 조용히 실패한다. 이 태스크에서 DB 정책부터 넓혀 이후 태스크들이 실제로 동작하게 만든다.
+
+**범위:** PM에게는 `Payee`/`PayeeAttachment` 양쪽 다 **INSERT + UPDATE만** 준다(DELETE는 계속 ADMIN/SETTLEMENT 전용). 소프트 삭제(`softDeletePayees`)는 `deletedAt`을 세팅하는 UPDATE이지 SQL DELETE가 아니므로 PM에게 DELETE 권한이 필요 없다. 첨부파일 업로드/교체(`upsertPayeeAttachment`)는 Prisma `upsert`라 INSERT+UPDATE가 필요하지만, 실제 삭제(`deletePayeeAttachment`)는 SQL DELETE이고 PM에게는 애플리케이션 레이어(Task 8)에서부터 막혀 있으므로 DB 정책에서도 PM에게 DELETE를 주지 않는다.
+
+**Files:**
+- Create: `prisma/migrations/20260729100000_payee_pm_write_rls/migration.sql`
+- Modify: `test/payee-rls.test.ts`
+
+**Interfaces:**
+- Consumes: 없음(순수 DB 정책 변경).
+- Produces: 없음(스키마 산출물 없음) — Task 6(PM 부분수정), Task 7(등록/삭제), Task 8(첨부파일 업로드)이 이 정책 위에서 동작한다.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`test/payee-rls.test.ts`의 마지막 테스트(`it("PM은 등록할 수 없다(WITH CHECK)", ...)`)를 **아래 내용으로 교체**한다(더는 PM의 등록을 막지 않으므로):
+
+```ts
+  it("PM도 등록할 수 있다(INSERT 정책 확장)", async () => {
+    const created = await withRLS({ userId: "pm1", role: "PM" }, (tx) =>
+      tx.payee.create({ data: samplePayee("b003") }),
+    );
+    expect(created.keyId).toBe("b003");
+  });
+
+  it("PM은 수정할 수 있다(UPDATE 정책 확장)", async () => {
+    const created = await withRLS(ADMIN, (tx) => tx.payee.create({ data: samplePayee("b004") }));
+    const updated = await withRLS({ userId: "pm1", role: "PM" }, (tx) =>
+      tx.payee.update({ where: { id: created.id }, data: { bizName: "PM이 수정" } }),
+    );
+    expect(updated.bizName).toBe("PM이 수정");
+  });
+
+  it("PM은 여전히 삭제(SQL DELETE)할 수 없다", async () => {
+    const created = await withRLS(ADMIN, (tx) => tx.payee.create({ data: samplePayee("b005") }));
+    await withRLS({ userId: "pm1", role: "PM" }, (tx) => tx.payee.delete({ where: { id: created.id } }));
+    // RLS가 DELETE를 막으면 대상 row가 0개로 매치돼 조용히 아무 것도 안 지워진다(에러 대신 no-op).
+    const stillThere = await withRLS(ADMIN, (tx) => tx.payee.findUnique({ where: { id: created.id } }));
+    expect(stillThere).not.toBeNull();
+  });
+
+  it("PM은 첨부파일을 업로드/교체할 수 있지만(INSERT/UPDATE) 삭제는 할 수 없다(DELETE)", async () => {
+    const payee = await withRLS(ADMIN, (tx) => tx.payee.create({ data: samplePayee("b006") }));
+    const attachment = {
+      payeeId: payee.id,
+      fileType: "BIZ_CERT" as const,
+      fileUrl: "path/to/file.pdf",
+      fileName: "b006_테스트업체_사업자등록증.pdf",
+    };
+
+    const created = await withRLS({ userId: "pm1", role: "PM" }, (tx) => tx.payeeAttachment.create({ data: attachment }));
+    expect(created.fileName).toBe(attachment.fileName);
+
+    const updated = await withRLS({ userId: "pm1", role: "PM" }, (tx) =>
+      tx.payeeAttachment.update({ where: { id: created.id }, data: { fileName: "변경됨.pdf" } }),
+    );
+    expect(updated.fileName).toBe("변경됨.pdf");
+
+    await withRLS({ userId: "pm1", role: "PM" }, (tx) => tx.payeeAttachment.delete({ where: { id: created.id } }));
+    const stillThere = await withRLS(ADMIN, (tx) => tx.payeeAttachment.findUnique({ where: { id: created.id } }));
+    expect(stillThere).not.toBeNull();
+  });
+```
+
+- [ ] **Step 2: 테스트 실패 확인**
+
+Run: `npx vitest run test/payee-rls.test.ts`
+Expected: FAIL — 현재 정책은 PM의 INSERT/UPDATE를 막으므로 "PM도 등록할 수 있다"/"PM은 수정할 수 있다"/첨부파일 업로드 관련 테스트가 RLS 위반 에러(`로우 단위 보안 정책|row-level security`)로 실패한다.
+
+- [ ] **Step 3: 마이그레이션 작성 및 적용**
+
+`prisma/migrations/20260729100000_payee_pm_write_rls/migration.sql` 신규 생성:
+
+```sql
+-- PM은 지급 리스트 등록(INSERT)과 부분수정/소프트삭제(UPDATE)가 가능해야 하지만
+-- 실제 SQL DELETE는 여전히 ADMIN/SETTLEMENT 전용이다(소프트 삭제는 deletedAt을 세팅하는
+-- UPDATE라 별도 DELETE 권한이 필요 없음). 기존 payee_write/payee_attachment_write(ADMIN/
+-- SETTLEMENT, FOR ALL)는 그대로 두고 PM 전용 정책을 추가한다 — 여러 permissive 정책은 OR로 합쳐진다.
+CREATE POLICY payee_write_pm ON "Payee"
+  FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) = 'PM');
+CREATE POLICY payee_update_pm ON "Payee"
+  FOR UPDATE
+  USING (current_setting('app.user_role', true) = 'PM')
+  WITH CHECK (current_setting('app.user_role', true) = 'PM');
+
+-- 첨부파일도 동일: PM은 업로드/교체(Prisma upsert = INSERT 또는 UPDATE)만 가능, 삭제는 불가.
+CREATE POLICY payee_attachment_write_pm ON "PayeeAttachment"
+  FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) = 'PM');
+CREATE POLICY payee_attachment_update_pm ON "PayeeAttachment"
+  FOR UPDATE
+  USING (current_setting('app.user_role', true) = 'PM')
+  WITH CHECK (current_setting('app.user_role', true) = 'PM');
+```
+
+로컬 개발 DB에 적용:
+
+Run: `npx prisma migrate deploy`
+Expected: `20260729100000_payee_pm_write_rls` 마이그레이션이 적용됐다는 출력(Already in sync가 아니라 1개 마이그레이션이 새로 적용됨).
+
+- [ ] **Step 4: 테스트 통과 확인**
+
+Run: `npx vitest run test/payee-rls.test.ts`
+Expected: PASS(기존 "SETTLEMENT은 등록할 수 있다"/"PM은 전체 원장을 읽을 수 있다" 포함 전체).
+
+추가로 전체 회귀 확인:
+
+Run: `npx vitest run`
+Expected: 전체 PASS(다른 테스트 파일이 이 RLS 정책 변경으로 깨지지 않는지 확인).
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add prisma/migrations/20260729100000_payee_pm_write_rls/migration.sql test/payee-rls.test.ts
+git commit -m "feat(payees): RLS 정책에 PM용 INSERT/UPDATE 허용(DELETE는 계속 차단)"
+```
+
+---
+
+### Task 6: PM 부분 수정 (사업자명·청구방식만)
 
 **Files:**
 - Modify: `src/lib/data/payees.ts` (`updatePayee` 함수 뒤, Task 4에서 추가한 부분 이어서)
@@ -462,7 +584,8 @@ git commit -m "feat(payees): PM용 마스킹 조회(listPayeesForPm) 추가"
 
 **Interfaces:**
 - Consumes: `TaxType`(Prisma), `withRLS`, `RlsContext`(기존 import).
-- Produces: `PayeeUpdatePmInput` 타입, `updatePayeePmFields(ctx, id, input): Promise<void>`(데이터 계층) / `updatePayeePmAction(id, formData): Promise<ActionState>`(서버 액션) — Task 9(`PayeePmRow.tsx`)가 액션을 사용.
+- Produces: `PayeeUpdatePmInput` 타입, `updatePayeePmFields(ctx, id, input): Promise<void>`(데이터 계층) / `updatePayeePmAction(id, formData): Promise<ActionState>`(서버 액션) — Task 10(`PayeePmRow.tsx`)가 액션을 사용.
+- 이 태스크는 Task 5에서 넓힌 DB RLS 정책(PM의 `Payee` UPDATE 허용) 위에서 동작한다 — Task 5가 먼저 끝나 있어야 한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성 (데이터 계층 + 스키마)**
 
@@ -609,7 +732,7 @@ git commit -m "feat(payees): PM 인라인 수정(사업자명/청구방식) 추�
 
 ---
 
-### Task 6: 등록/삭제 권한을 PM까지 완화
+### Task 7: 등록/삭제 권한을 PM까지 완화
 
 **Files:**
 - Modify: `src/app/(app)/expenses/payees/actions.ts` (`uploadPayeesAction`, `deletePayeesAction`)
@@ -620,7 +743,7 @@ git commit -m "feat(payees): PM 인라인 수정(사업자명/청구방식) 추�
 - Consumes: 없음(기존 시그니처 유지).
 - Produces: 없음(동작 변경만).
 
-**배경:** `softDeletePayees`의 role 가드를 ADMIN/SETTLEMENT/PM 전부 허용하도록 넓히면 `AppRole`의 모든 값이 통과하게 되어 가드 자체가 무의미해진다. 가드를 지워 "삭제는 로그인한 어떤 역할이든 가능"함을 명확히 하고, 실제 인가는 서버 액션의 `requireRole("PM")`(=랭크 무관 통과)에 맡긴다. 반면 `updatePayee`(전체 필드 수정)는 PM을 계속 막아야 하므로 그 가드는 그대로 둔다.
+**배경:** `softDeletePayees`의 role 가드를 ADMIN/SETTLEMENT/PM 전부 허용하도록 넓히면 `AppRole`의 모든 값이 통과하게 되어 가드 자체가 무의미해진다. 가드를 지워 "삭제는 로그인한 어떤 역할이든 가능"함을 명확히 하고, 실제 인가는 서버 액션의 `requireRole("PM")`(=랭크 무관 통과)에 맡긴다. 반면 `updatePayee`(전체 필드 수정)는 PM을 계속 막아야 하므로 그 가드는 그대로 둔다. (이 태스크는 Task 5에서 넓힌 DB RLS 정책 위에서 동작한다 — `softDeletePayees`는 내부적으로 UPDATE이므로 Task 5의 `payee_update_pm` 정책이 필요하다.)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -686,14 +809,15 @@ git commit -m "feat(payees): 지급 리스트 등록/삭제 권한을 PM까지 �
 
 ---
 
-### Task 7: 첨부파일 액션 — PM 업로드/교체 허용, 다운로드/삭제는 차단
+### Task 8: 첨부파일 액션 — PM 업로드/교체 허용, 다운로드/삭제는 차단
 
 **Files:**
 - Modify: `src/app/(app)/expenses/payees/attachment-actions.ts`
 
 **Interfaces:**
 - Consumes: 없음(기존 `saveAttachmentsCore`/`getDownloadUrlCore` 시그니처 유지).
-- Produces: 없음(동작 변경만). 이 파일의 함수들은 기존에도 단위 테스트가 없다(핵심 로직은 `attachment-core.ts`의 `saveAttachmentsCore`/`getDownloadUrlCore`에서 이미 커버됨) — 이번 변경은 `requireRole` 대상만 바꾸는 얇은 래퍼 수정이라 새 테스트를 추가하지 않고 Task 11(수동 검증)에서 확인한다.
+- Produces: 없음(동작 변경만). 이 파일의 함수들은 기존에도 단위 테스트가 없다(핵심 로직은 `attachment-core.ts`의 `saveAttachmentsCore`/`getDownloadUrlCore`에서 이미 커버됨) — 이번 변경은 `requireRole` 대상만 바꾸는 얇은 래퍼 수정이라 새 테스트를 추가하지 않고 Task 12(수동 검증)에서 확인한다.
+- 이 태스크는 Task 5에서 넓힌 DB RLS 정책(PM의 `PayeeAttachment` INSERT/UPDATE 허용) 위에서 동작한다.
 
 - [ ] **Step 1: 변경 적용**
 
@@ -763,13 +887,13 @@ git commit -m "feat(payees): 첨부파일 업로드/교체를 PM까지 허용, �
 
 ---
 
-### Task 8: `PayeeAttachmentModal`에 `canDownload`/`canDelete` prop 추가
+### Task 9: `PayeeAttachmentModal`에 `canDownload`/`canDelete` prop 추가
 
 **Files:**
 - Modify: `src/app/(app)/expenses/PayeeAttachmentModal.tsx`
 
 **Interfaces:**
-- Produces: `PayeeAttachmentModal` props에 `canDownload?: boolean`(기본 `true`), `canDelete?: boolean`(기본 `true`) 추가 — Task 9(`PayeePmListPanel`)가 `false`로 넘겨 사용.
+- Produces: `PayeeAttachmentModal` props에 `canDownload?: boolean`(기본 `true`), `canDelete?: boolean`(기본 `true`) 추가 — Task 10(`PayeePmListPanel`)가 `false`로 넘겨 사용.
 - 기존 호출부(`PayeeListPanel.tsx`)는 prop을 넘기지 않으므로 기본값(`true`/`true`)으로 지금과 동일하게 동작한다.
 
 - [ ] **Step 1: 변경 적용**
@@ -880,15 +1004,15 @@ git commit -m "feat(payees): 첨부파일 모달에 canDownload/canDelete prop �
 
 ---
 
-### Task 9: PM 전용 UI — `PayeePmRow.tsx` / `PayeePmListPanel.tsx`
+### Task 10: PM 전용 UI — `PayeePmRow.tsx` / `PayeePmListPanel.tsx`
 
 **Files:**
 - Create: `src/app/(app)/expenses/PayeePmRow.tsx`
 - Create: `src/app/(app)/expenses/PayeePmListPanel.tsx`
 
 **Interfaces:**
-- Consumes: `PayeePmRow`/`PayeePmSearchField` 타입(Task 3, 4), `updatePayeePmAction`(Task 5), `deletePayeesAction`(기존, Task 6에서 권한만 완화), `PayeeUploadModal`/`PayeeDeleteConfirmModal`(기존, 변경 없음), `PayeeAttachmentModal`의 `canDownload`/`canDelete` prop(Task 8).
-- Produces: `PayeePmListPanel` 컴포넌트 — Task 10(`page.tsx`)이 사용.
+- Consumes: `PayeePmRow`/`PayeePmSearchField` 타입(Task 3, 4), `updatePayeePmAction`(Task 6), `deletePayeesAction`(기존, Task 7에서 권한만 완화), `PayeeUploadModal`/`PayeeDeleteConfirmModal`(기존, 변경 없음), `PayeeAttachmentModal`의 `canDownload`/`canDelete` prop(Task 9).
+- Produces: `PayeePmListPanel` 컴포넌트 — Task 11(`page.tsx`)이 사용.
 
 - [ ] **Step 1: `PayeePmRow.tsx` 작성**
 
@@ -1284,13 +1408,13 @@ git commit -m "feat(payees): PM 전용 지급 리스트 UI(PayeePmRow/PayeePmLis
 
 ---
 
-### Task 10: `page.tsx` — 역할별 분기 연결
+### Task 11: `page.tsx` — 역할별 분기 연결
 
 **Files:**
 - Modify: `src/app/(app)/expenses/page.tsx:1-19` (import), `:130-144`(`PaymentListTab`)
 
 **Interfaces:**
-- Consumes: `listPayeesForPm`, `parsePayeePmSearchField`(Task 4, 3), `PayeePmListPanel`(Task 9).
+- Consumes: `listPayeesForPm`, `parsePayeePmSearchField`(Task 4, 3), `PayeePmListPanel`(Task 10).
 
 - [ ] **Step 1: 변경 적용**
 
@@ -1354,7 +1478,7 @@ git commit -m "feat(payees): 지급 리스트 탭을 PM/ADMIN·SETTLEMENT로 분
 
 ---
 
-### Task 11: 수동 검증
+### Task 12: 수동 검증
 
 **Files:** 없음(코드 변경 없음).
 
@@ -1386,6 +1510,7 @@ Run: `npm run dev`
 
 ## 셀프 리뷰 메모 (계획 작성자용, 실행 불필요)
 
-- 스펙 커버리지: 설계 문서(`docs/superpowers/specs/2026-07-29-payee-list-pm-access-design.md`)의 7개 섹션 모두 Task 1~10에 매핑됨. 문서 작성 중 발견한 `fetchMatchedPayees` 가드 이슈는 Task 3에서 반영.
-- `softDeletePayees` 가드를 완전히 제거하는 결정은 설계 문서에 명시되지 않았던 추가 판단(모든 `AppRole` 값이 통과하게 되어 가드가 무의미해지는 문제) — Task 6에 배경 설명 포함.
+- 스펙 커버리지: 설계 문서(`docs/superpowers/specs/2026-07-29-payee-list-pm-access-design.md`)의 7개 섹션 모두 Task 1~4, 6~11에 매핑됨. 문서 작성 중 발견한 `fetchMatchedPayees` 가드 이슈는 Task 3에서 반영.
+- `softDeletePayees` 가드를 완전히 제거하는 결정은 설계 문서에 명시되지 않았던 추가 판단(모든 `AppRole` 값이 통과하게 되어 가드가 무의미해지는 문제) — Task 7에 배경 설명 포함.
 - 타입/함수명 일관성: `PayeePmRow`(데이터 타입) vs `PayeePmRow`(컴포넌트)는 이름이 같지만 import 시 `PayeePmRow as PayeePmRowData`로 별칭 처리해 충돌 없음(기존 `PayeeRow`/`PayeeRow.tsx` 패턴과 동일).
+- **추가(구현 중 발견, 사용자 승인 완료):** Task 5(DB RLS 정책에 PM 쓰기 권한 추가)는 원래 설계 문서/최초 계획에는 없었다. Task 5(구 번호) 구현을 시작한 서브에이전트가 애플리케이션 role 체크만으로는 부족하다는 것을 발견해 BLOCKED로 보고했고, DB 마이그레이션이 필요하다는 사실과 정확한 범위(INSERT+UPDATE만, DELETE는 제외)를 사용자에게 확인받은 뒤 계획에 새 Task 5로 삽입, 이후 태스크를 6~12로 재번호했다.
