@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { createPayeesBulk, updatePayee } from "@/lib/data/payees";
+import { createPayeesBulk, updatePayee, softDeletePayees } from "@/lib/data/payees";
 import { PayeeKeyConfigError } from "@/lib/crypto/payee-secret";
 import { TAX_TYPE_BY_LABEL } from "@/lib/labels";
 import { payeeUpdateSchema } from "@/lib/validation/schemas";
@@ -99,4 +99,21 @@ export async function updatePayeeAction(id: string, formData: FormData): Promise
 
   revalidatePath("/expenses");
   return SAVED;
+}
+
+export async function deletePayeesAction(ids: string[]): Promise<ActionState> {
+  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const ctx = getRlsContext(user);
+
+  let result: ActionState;
+  try {
+    result = await softDeletePayees(ctx, ids);
+  } catch (e) {
+    console.error("[payee delete] 삭제 실패:", e);
+    return { ok: false, error: "삭제 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
+  }
+  if (!result.ok) return result;
+
+  revalidatePath("/expenses");
+  return result;
 }
