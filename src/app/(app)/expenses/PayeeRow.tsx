@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition, type FocusEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { TaxType } from "@prisma/client";
 import type { PayeeRow as PayeeRowData } from "@/lib/data/payees";
@@ -69,16 +69,26 @@ export function PayeeRow({
   const [error, setError] = useState<string | null>(null);
 
   const bizNameRef = useRef<HTMLInputElement>(null);
-  const bankNameRef = useRef<HTMLSelectElement>(null);
+  const bankNameRef = useRef<HTMLInputElement>(null);
   const accountNumberRef = useRef<HTMLInputElement>(null);
   const accountHolderRef = useRef<HTMLInputElement>(null);
   const taxTypeRef = useRef<HTMLSelectElement>(null);
 
-  // DB 값이 BANKS 목록 밖이면(과거 데이터 등) select가 첫 옵션으로 조용히 바뀌는 것을 막기 위해
-  // 현재 값을 옵션 맨 앞에 추가한다.
-  const bankOptions: readonly string[] = BANKS.includes(row.bankName as (typeof BANKS)[number])
-    ? BANKS
-    : [row.bankName, ...BANKS];
+  const bankListId = `bank-options-${row.id}`;
+
+  // datalist는 현재 입력값으로 시작하는 항목만 후보로 보여준다. 기존 값이 BANKS 항목과
+  // 완전히 일치하면 그 항목 하나만 남아 사실상 후보가 안 보이므로, 포커스 시 값을 비워
+  // 전체 후보가 뜨게 하고 아무것도 고르지 않고 벗어나면 원래 값으로 되돌린다.
+  function handleBankFocus(e: FocusEvent<HTMLInputElement>) {
+    e.currentTarget.dataset.prevValue = e.currentTarget.value;
+    e.currentTarget.value = "";
+  }
+
+  function handleBankBlur(e: FocusEvent<HTMLInputElement>) {
+    if (e.currentTarget.value === "") {
+      e.currentTarget.value = e.currentTarget.dataset.prevValue ?? "";
+    }
+  }
 
   function handleCancel() {
     setError(null);
@@ -120,11 +130,21 @@ export function PayeeRow({
 
       <td className={cellCls}>
         {isEditing ? (
-          <select ref={bankNameRef} className={inputCls} defaultValue={row.bankName}>
-            {bankOptions.map((b) => (
-              <option key={b} value={b}>{b}</option>
-            ))}
-          </select>
+          <>
+            <input
+              ref={bankNameRef}
+              list={bankListId}
+              className={inputCls}
+              defaultValue={row.bankName}
+              onFocus={handleBankFocus}
+              onBlur={handleBankBlur}
+            />
+            <datalist id={bankListId}>
+              {BANKS.map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
+          </>
         ) : (
           row.bankName
         )}
