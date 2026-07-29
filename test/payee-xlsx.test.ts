@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parseXlsxToRows, buildTemplateXlsxBuffer, TEMPLATE_HEADERS } from "@/app/(app)/expenses/payees/xlsx";
+import { parseXlsxToRows, buildTemplateXlsxBuffer, buildExportXlsxBuffer, TEMPLATE_HEADERS, EXPORT_HEADERS } from "@/app/(app)/expenses/payees/xlsx";
+import type { PayeeExportRow } from "@/lib/data/payees";
 
 describe("payee xlsx 유틸", () => {
   it("서식 버퍼는 헤더 행 + 서식 적용된 빈 데이터 행(총 1001행)으로 라운드트립된다", async () => {
@@ -31,5 +32,37 @@ describe("payee xlsx 유틸", () => {
     const rows = await parseXlsxToRows(ab);
     expect(rows[0]).toEqual([...TEMPLATE_HEADERS]);
     expect(rows).toHaveLength(1001);
+  });
+});
+
+describe("payee export xlsx", () => {
+  const row: PayeeExportRow = {
+    keyId: "b001",
+    bizName: "테스트업체",
+    bizNumber: "1234567890",
+    phone: "010-1234-5678",
+    bankName: "국민은행",
+    accountNumber: "110123456789",
+    accountHolder: "홍길동",
+    taxType: "TAX_INVOICE",
+    hasBizCert: true,
+    hasBankbook: false,
+  };
+
+  it("헤더와 데이터 행이 화면 컬럼 순서와 일치한다", async () => {
+    const buf = await buildExportXlsxBuffer([row]);
+    const rows = await parseXlsxToRows(buf);
+    expect(rows[0]).toEqual([...EXPORT_HEADERS]);
+    expect(rows[1]).toEqual([
+      "b001", "테스트업체", "1234567890", "010-1234-5678", "국민은행",
+      "110123456789", "홍길동", "세금계산서", "O", "X",
+    ]);
+  });
+
+  it("행이 없으면 헤더만 있는 파일이 생성된다", async () => {
+    const buf = await buildExportXlsxBuffer([]);
+    const rows = await parseXlsxToRows(buf);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual([...EXPORT_HEADERS]);
   });
 });

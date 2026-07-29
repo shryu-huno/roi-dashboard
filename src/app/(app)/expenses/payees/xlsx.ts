@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
-import { TAX_TYPE_LABELS } from "@/lib/labels";
+import { TAX_TYPE_LABELS, taxTypeLabel } from "@/lib/labels";
+import type { PayeeExportRow } from "@/lib/data/payees";
 
 // 서식·업로드 공통 컬럼 순서. keyId는 자동 채번이라 서식에 없음.
 export const TEMPLATE_HEADERS = [
@@ -133,5 +134,66 @@ export async function buildTemplateXlsxBuffer(): Promise<Buffer> {
   });
   // 헤더 행만 잠긴 채로 시트 보호 — 데이터 행은 값 입력·삭제 가능.
   await ws.protect("", {});
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+// 검색/필터 적용된 지급 리스트 다운로드용 컬럼 순서. 화면 테이블 헤더와 동일한 순서로 맞춘다.
+export const EXPORT_HEADERS = [
+  "고유번호", "사업자명(이름)", "사업자번호", "연락처", "은행명",
+  "계좌번호", "예금주", "청구방식", "사업자등록증 첨부", "통장사본 첨부",
+] as const;
+
+// 검색 결과를 그대로 내려받는 다운로드용 워크북. 등록 서식과 달리 읽기 전용 결과물이라
+// 드롭다운·유효성검사·메모·시트보호는 넣지 않는다.
+export async function buildExportXlsxBuffer(rows: PayeeExportRow[]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("지급리스트");
+
+  const dataRows = rows.map((r) => [
+    r.keyId,
+    r.bizName,
+    r.bizNumber,
+    r.phone,
+    r.bankName,
+    r.accountNumber,
+    r.accountHolder,
+    taxTypeLabel(r.taxType),
+    r.hasBizCert ? "O" : "X",
+    r.hasBankbook ? "O" : "X",
+  ]);
+  ws.addRow([...EXPORT_HEADERS]);
+  dataRows.forEach((row) => ws.addRow(row));
+
+  // 사업자번호·계좌번호는 텍스트 서식으로 — 선행 0/자릿수 손실 방지.
+  const TEXT_COLUMNS = ["사업자번호", "계좌번호"] as const;
+  TEXT_COLUMNS.forEach((header) => {
+    ws.getColumn(EXPORT_HEADERS.indexOf(header) + 1).numFmt = "@";
+  });
+
+  // 열 너비 — 헤더와 실제 데이터 중 가장 넓은 값 기준.
+  const COLUMN_WIDTH_PADDING = 4;
+  EXPORT_HEADERS.forEach((header, i) => {
+    const candidates = [header, ...dataRows.map((row) => row[i])];
+    ws.getColumn(i + 1).width = Math.max(...candidates.map(displayWidth)) + COLUMN_WIDTH_PADDING;
+  });
+
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+
+  const thinBorder: Partial<ExcelJS.Borders> = {
+    top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
+  };
+  for (let r = 1; r <= dataRows.length + 1; r++) {
+    const isHeader = r === 1;
+    for (let c = 1; c <= EXPORT_HEADERS.length; c++) {
+      const cell = ws.getCell(r, c);
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = thinBorder;
+      if (isHeader) {
+        cell.font = { bold: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E1F2" } };
+      }
+    }
+  }
+
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
