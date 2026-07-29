@@ -6,7 +6,7 @@ import { getConsultingFieldSummary, getCorporateCardSummary, getExpenseSummaryTo
 import { listPayees, parsePayeeSearchField } from "@/lib/data/payees";
 import { EXPENSE_SUMMARY_CATEGORIES } from "@/lib/expense-summary";
 import { orderRange, parseYm, rangeLabel, ymValue } from "@/lib/month-range";
-import { ClientCombobox } from "./ClientCombobox";
+import { ClientCombobox } from "@/components/ClientCombobox";
 import { ConsultingSummaryTable } from "./ConsultingSummaryTable";
 import { CorporateCardSummaryTable } from "./CorporateCardSummaryTable";
 import { ExpenseSummaryTable } from "./ExpenseSummaryTable";
