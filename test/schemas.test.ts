@@ -193,4 +193,10 @@ describe("payeeUpdateSchema", () => {
   it("알 수 없는 청구방식은 실패", () => {
     expect(payeeUpdateSchema.safeParse({ ...valid, taxType: "카드" }).success).toBe(false);
   });
+  it("이름이 공백만 있으면 실패", () => {
+    expect(payeeUpdateSchema.safeParse({ ...valid, bizName: "   " }).success).toBe(false);
+  });
+  it("예금주가 공백만 있으면 실패", () => {
+    expect(payeeUpdateSchema.safeParse({ ...valid, accountHolder: "   " }).success).toBe(false);
+  });
 });

@@ -190,6 +190,9 @@ describe("payees 데이터 계층", () => {
     expect(after.accountNumber).toBe("99988777666");
     expect(after.accountHolder).toBe("새예금주");
     expect(after.taxType).toBe("OTHER_INCOME");
+
+    const raw = await withRLS(ADMIN, (tx) => tx.payee.findUnique({ where: { id: row.id } }));
+    expect(raw?.accountNumberMasked).toBe("****7666");
   });
 
   it("updatePayee는 고유번호·유형·사업자번호(마스킹)를 변경하지 않는다", async () => {
@@ -208,6 +211,7 @@ describe("payees 데이터 계층", () => {
     expect(after.keyId).toBe(before.keyId);
     expect(after.payeeType).toBe(before.payeeType);
     expect(after.bizNumberMasked).toBe(before.bizNumberMasked);
+    expect(after.phone).toBe(before.phone);
   });
 
   it("updatePayee는 SETTLEMENT/ADMIN 외 역할은 거부한다", async () => {

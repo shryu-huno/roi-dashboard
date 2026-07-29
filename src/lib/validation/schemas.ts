@@ -137,9 +137,9 @@ export const payeeUploadRowSchema = z.object({
 
 // 지급 리스트 인라인 수정용 — 업로드와 달리 사업자번호/연락처는 다루지 않는다.
 export const payeeUpdateSchema = z.object({
-  bizName: z.string().min(1, "이름은 필수입니다."),
+  bizName: z.string().trim().min(1, "이름은 필수입니다."),
   bankName: z.string().min(1, "은행명은 필수입니다."),
   accountNumber: accountField,
-  accountHolder: z.string().min(1, "예금주는 필수입니다."),
+  accountHolder: z.string().trim().min(1, "예금주는 필수입니다."),
   taxType: z.enum(TAX_TYPE_LABELS),
 });
