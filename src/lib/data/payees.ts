@@ -5,11 +5,20 @@ import type { ActionState } from "@/lib/action-state";
 
 export const PAYEE_SEARCH_FIELDS = ["bizName", "bizNumber", "keyId"] as const;
 export type PayeeSearchField = (typeof PAYEE_SEARCH_FIELDS)[number];
-export type PayeeSearchFilter = { field: PayeeSearchField; q: string };
+
+// PM 화면 전용 검색 필드 — 사업자번호 대신 연락처를 검색할 수 있다.
+export const PAYEE_SEARCH_FIELDS_PM = ["bizName", "keyId", "phone"] as const;
+export type PayeePmSearchField = (typeof PAYEE_SEARCH_FIELDS_PM)[number];
+
+export type PayeeSearchFilter = { field: PayeeSearchField | PayeePmSearchField; q: string };
 
 // 알 수 없는 field 값(URL 조작 등)은 undefined 반환 — 호출부가 필터를 완전히 무시하도록.
 export function parsePayeeSearchField(value: string | undefined): PayeeSearchField | undefined {
   return PAYEE_SEARCH_FIELDS.find((f) => f === value);
+}
+
+export function parsePayeePmSearchField(value: string | undefined): PayeePmSearchField | undefined {
+  return PAYEE_SEARCH_FIELDS_PM.find((f) => f === value);
 }
 
 // 저장 직전 형태(keyId 제외 — 채번은 createPayeesBulk가 담당).
@@ -168,11 +177,9 @@ type MatchedPayee = Prisma.PayeeGetPayload<{
   include: { attachments: { select: { fileType: true } } };
 }>;
 
-// listPayees/listPayeesForExport 공통: role 체크 + 조회 + 인메모리 검색 필터링.
+// listPayees/listPayeesForExport/listPayeesForPm 공통: 조회 + 인메모리 검색 필터링.
+// role 가드는 두지 않는다(모듈 내부 전용 함수) — 각 공개 함수가 자기 role을 직접 검증한다.
 function fetchMatchedPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<MatchedPayee[]> {
-  if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
-    throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
-  }
   return withRLS(ctx, async (tx) => {
     const rows = await tx.payee.findMany({
       where: { deletedAt: null },
@@ -184,6 +191,11 @@ function fetchMatchedPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promis
     return rows.filter((r) => {
       if (filter.field === "bizName") return r.bizName.toLowerCase().includes(q.toLowerCase());
       if (filter.field === "keyId") return r.keyId.toLowerCase().includes(q.toLowerCase());
+      if (filter.field === "phone") {
+        // 검색어가 URL 쿼리스트링에 그대로 남으므로, 사업자번호 검색과 동일한 이유로 앞 6자리까지만 사용한다.
+        const qDigits = digitsOnly(q).slice(0, 6);
+        return r.phoneNormalized.includes(qDigits);
+      }
       // 검색어가 URL 쿼리스트링에 그대로 남으므로(GET 폼), 원문 전체 노출 위험을 줄이기 위해
       // 사업자번호 검색은 앞 6자리까지만 사용한다.
       const qDigits = digitsOnly(q).slice(0, 6);
@@ -193,6 +205,9 @@ function fetchMatchedPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promis
 }
 
 export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeRow[]> {
+  if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
+    throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
+  }
   const rows = await fetchMatchedPayees(ctx, filter);
   return rows.map((r) => ({
     id: r.id,
@@ -211,6 +226,9 @@ export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): P
 }
 
 export async function listPayeesForExport(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeExportRow[]> {
+  if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
+    throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
+  }
   const rows = await fetchMatchedPayees(ctx, filter);
   return rows.map((r) => ({
     keyId: r.keyId,

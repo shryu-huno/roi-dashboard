@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { withRLS } from "@/lib/rls";
 import {
   createPayeesBulk, listPayees, listPayeesForExport, findPayeeByBizNumber, parsePayeeSearchField,
+  parsePayeePmSearchField,
   updatePayee, softDeletePayees,
   type PayeeCreateInput,
 } from "@/lib/data/payees";
@@ -144,6 +145,19 @@ describe("payees 데이터 계층", () => {
     await createPayeesBulk(ADMIN, [input("1234561111", "VENDOR")]);
     const rows = await listPayees(ADMIN, { field: "bizNumber", q: "123456999999" });
     expect(rows).toHaveLength(1);
+  });
+
+  it("listPayees는 SETTLEMENT/ADMIN 외 역할은 거부한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    await expect(
+      listPayees({ userId: "pm1", role: "PM" }),
+    ).rejects.toThrow("지급 리스트 원문 조회 권한이 없습니다.");
+  });
+
+  it("listPayees: 연락처 검색 필드는 PM 전용이라 listPayees에서는 무시된다(파싱 단계에서 걸러짐)", () => {
+    expect(parsePayeeSearchField("phone")).toBeUndefined();
+    expect(parsePayeePmSearchField("phone")).toBe("phone");
+    expect(parsePayeePmSearchField("bizNumber")).toBeUndefined();
   });
 
   it("listPayeesForExport는 사업자번호 원문을 포함해 반환한다", async () => {
