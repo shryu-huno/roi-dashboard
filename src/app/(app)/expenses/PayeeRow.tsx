@@ -44,7 +44,7 @@ function AttachmentCell({ hasAttachment, onClick }: { hasAttachment: boolean; on
 }
 
 const inputCls =
-  "w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-center text-sm focus:border-[var(--color-primary)] focus:outline-none";
+  "w-full rounded border-2 border-[var(--color-primary)]/50 bg-[var(--color-surface)] px-2 py-1.5 text-center text-sm shadow-sm focus:border-[var(--color-primary)] focus:outline-none";
 const cellCls = "whitespace-nowrap px-3 py-2 text-center align-middle";
 
 export function PayeeRow({
