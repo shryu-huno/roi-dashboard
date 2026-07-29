@@ -35,6 +35,11 @@ export function PerformanceGrid({
         <p className="mb-3 rounded border border-[var(--color-danger)] px-3 py-2 text-sm text-[var(--color-danger)]">{state.error}</p>
       )}
 
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-[18px] font-medium text-black">{year}년 {month}월 실적</h2>
+        <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">저장</button>
+      </div>
+
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
@@ -71,8 +76,6 @@ export function PerformanceGrid({
           </tr>
         </tfoot>
       </table>
-
-      <button type="submit" className="mt-4 rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">저장</button>
     </form>
   );
 }

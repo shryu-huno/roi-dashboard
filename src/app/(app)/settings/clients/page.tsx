@@ -25,7 +25,7 @@ export default async function SettingsClientsPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">고객사·과업 설정</h1>
+        <h1 className="text-xl font-semibold">고객사 설정</h1>
         <VatToggle defaultOn={includeVat} />
       </div>
 
@@ -44,7 +44,7 @@ export default async function SettingsClientsPage() {
             <th className="py-2">고객사</th>
             <th>상태</th>
             <th>사업자 구분</th>
-            <th>작업</th>
+            <th>과업</th>
             <th>현대이지웰</th>
             {isAdmin && <th>삭제</th>}
           </tr>
