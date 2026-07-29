@@ -228,4 +228,16 @@ describe("payees 데이터 계층", () => {
       }),
     ).rejects.toThrow("지급 리스트 수정 권한이 없습니다.");
   });
+
+  it("listPayees와 listPayeesForExport는 소프트 삭제된 행을 제외한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const [row] = await listPayees(ADMIN);
+
+    await withRLS(ADMIN, (tx) =>
+      tx.payee.update({ where: { id: row.id }, data: { deletedAt: new Date() } }),
+    );
+
+    expect(await listPayees(ADMIN)).toHaveLength(0);
+    expect(await listPayeesForExport(ADMIN)).toHaveLength(0);
+  });
 });

@@ -145,6 +145,7 @@ function fetchMatchedPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promis
   }
   return withRLS(ctx, async (tx) => {
     const rows = await tx.payee.findMany({
+      where: { deletedAt: null },
       orderBy: { keyId: "asc" },
       include: { attachments: { select: { fileType: true } } },
     });
