@@ -13,71 +13,61 @@ export function NewClientForm({ pms }: { pms: Pm[] }) {
   const [pmCount, setPmCount] = useState(0);
   return (
     <form action={formAction} className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        고객사명
-        <input name="name" required className="mt-1 w-48 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-      </label>
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        사업자 구분
-        <select name="businessType" className="mt-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-fg)]">
-          <option value="">선택 안 함</option>
-          <option value="휴노">휴노</option>
-          <option value="휴노INC">휴노INC</option>
-        </select>
-      </label>
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        업종
-        <input name="industry" className="mt-1 w-40 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-      </label>
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        담당자명
-        <input name="contactName" className="mt-1 w-32 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-      </label>
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        담당자 이메일
-        <input name="contactEmail" className="mt-1 w-48 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-      </label>
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        담당자 전화
-        <input name="contactPhone" className="mt-1 w-36 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-      </label>
-      <div className="flex flex-col text-xs text-[var(--color-muted)]">
-        <span>청구 주기 (복수 선택)</span>
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-          {CYCLE_VALUES.map((v) => (
-            <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
-              <input type="checkbox" name="billingCycle" value={v} />
-              {v}
-            </label>
-          ))}
+      <div className="flex flex-nowrap items-end gap-3">
+        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+          고객사명
+          <input name="name" required className="mt-1 w-48 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+        </label>
+        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+          사업자 구분
+          <select name="businessType" className="mt-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-fg)]">
+            <option value="">선택 안 함</option>
+            <option value="휴노">휴노</option>
+            <option value="휴노INC">휴노INC</option>
+          </select>
+        </label>
+        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+          업종
+          <input name="industry" className="mt-1 w-40 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+        </label>
+        <div className="flex flex-col text-xs text-[var(--color-muted)]">
+          <span>청구 주기 (복수 선택)</span>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            {CYCLE_VALUES.map((v) => (
+              <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
+                <input type="checkbox" name="billingCycle" value={v} />
+                {v}
+              </label>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="flex flex-col text-xs text-[var(--color-muted)]">
-        <span>보고 주기 (복수 선택)</span>
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-          {CYCLE_VALUES.map((v) => (
-            <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
-              <input type="checkbox" name="reportCycle" value={v} />
-              {v}
-            </label>
-          ))}
+        <div className="flex flex-col text-xs text-[var(--color-muted)]">
+          <span>보고 주기 (복수 선택)</span>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            {CYCLE_VALUES.map((v) => (
+              <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
+                <input type="checkbox" name="reportCycle" value={v} />
+                {v}
+              </label>
+            ))}
+          </div>
         </div>
+        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+          계약 시작
+          <input type="date" name="contractStart" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+        </label>
+        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+          계약 종료
+          <input type="date" name="contractEnd" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+        </label>
+        <button
+          type="submit"
+          disabled={pmCount === 0}
+          className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          고객사 추가
+        </button>
       </div>
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        계약 시작
-        <input type="date" name="contractStart" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-      </label>
-      <label className="flex flex-col text-xs text-[var(--color-muted)]">
-        계약 종료
-        <input type="date" name="contractEnd" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-      </label>
-      <button
-        type="submit"
-        disabled={pmCount === 0}
-        className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        고객사 추가
-      </button>
       {state.ok && state.message && <span className="text-sm text-[var(--color-primary)]">{state.message}</span>}
       {!state.ok && state.error && <span className="text-sm text-[var(--color-danger)]">{state.error}</span>}
 
