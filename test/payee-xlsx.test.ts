@@ -2,11 +2,12 @@ import { describe, it, expect } from "vitest";
 import { parseXlsxToRows, buildTemplateXlsxBuffer, TEMPLATE_HEADERS } from "@/app/(app)/expenses/payees/xlsx";
 
 describe("payee xlsx 유틸", () => {
-  it("서식 버퍼는 헤더 한 행으로 라운드트립된다", async () => {
+  it("서식 버퍼는 헤더 행 + 서식 적용된 빈 데이터 행(총 1001행)으로 라운드트립된다", async () => {
     const buf = await buildTemplateXlsxBuffer();
     const rows = await parseXlsxToRows(buf);
     expect(rows[0]).toEqual([...TEMPLATE_HEADERS]);
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(1001);
+    expect(rows[1]).toEqual(TEMPLATE_HEADERS.map(() => ""));
   });
 
   it("데이터 행을 문자열 2차원 배열로 읽는다(컬럼 정렬 유지)", async () => {
@@ -29,6 +30,6 @@ describe("payee xlsx 유틸", () => {
     expect(ab instanceof ArrayBuffer).toBe(true);
     const rows = await parseXlsxToRows(ab);
     expect(rows[0]).toEqual([...TEMPLATE_HEADERS]);
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(1001);
   });
 });
