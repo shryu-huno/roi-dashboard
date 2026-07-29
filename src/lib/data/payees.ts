@@ -81,7 +81,8 @@ async function nextKeyIds(tx: Prisma.TransactionClient, type: PayeeType, count: 
 }
 
 // 유형별로 시퀀스 값을 한 번에 뽑아 채번(왕복 횟수를 N과 무관하게 고정)한 뒤 일괄 insert.
-// bizNumberBidx 기준으로 파일 내 중복(첫 행 우선)과 DB 기존 중복을 스킵한다.
+// bizNumberBidx 기준으로 파일 내 중복(첫 행 우선)과 DB 기존 활성 중복을 스킵한다.
+// DB에 소프트 삭제된 행과 겹치면 스킵하지 않고 기존 keyId를 유지한 채 그 행을 복원(revive)한다.
 export function createPayeesBulk(
   ctx: RlsContext,
   inputs: PayeeCreateInput[],
@@ -98,20 +99,48 @@ export function createPayeesBulk(
       deduped.push(input);
     }
 
-    // 2) DB에 이미 있는 bidx 스킵.
+    // 2) DB에 이미 있는 bidx 처리 — 활성 행은 스킵, 소프트 삭제된 행은 복원(revive) 대상으로 분리.
     const bidxList = deduped.map((d) => d.bizNumberBidx);
     const existing = bidxList.length
       ? await tx.payee.findMany({
           where: { bizNumberBidx: { in: bidxList } },
-          select: { bizNumberBidx: true },
+          select: { id: true, bizNumberBidx: true, deletedAt: true },
         })
       : [];
-    const existingSet = new Set(existing.map((e) => e.bizNumberBidx));
-    const toInsert = deduped.filter((d) => {
-      if (existingSet.has(d.bizNumberBidx)) { skipped++; return false; }
-      return true;
-    });
-    if (toInsert.length === 0) return { created: 0, skipped };
+    const existingMap = new Map(existing.map((e) => [e.bizNumberBidx, e]));
+    const toInsert: PayeeCreateInput[] = [];
+    const toRevive: { id: string; input: PayeeCreateInput }[] = [];
+    for (const d of deduped) {
+      const match = existingMap.get(d.bizNumberBidx);
+      if (!match) { toInsert.push(d); continue; }
+      if (match.deletedAt === null) { skipped++; continue; }
+      toRevive.push({ id: match.id, input: d });
+    }
+
+    // 2-1) 복원 대상은 기존 keyId를 유지한 채 필드만 갱신(새 채번 없음).
+    let revived = 0;
+    for (const { id, input } of toRevive) {
+      await tx.payee.update({
+        where: { id },
+        data: {
+          payeeType: input.payeeType,
+          bizName: input.bizName,
+          bizNumberEnc: input.bizNumberEnc,
+          bizNumberMasked: input.bizNumberMasked,
+          phone: input.phone,
+          phoneNormalized: input.phoneNormalized,
+          bankName: input.bankName,
+          accountNumberEnc: input.accountNumberEnc,
+          accountNumberMasked: input.accountNumberMasked,
+          accountHolder: input.accountHolder,
+          taxType: input.taxType,
+          deletedAt: null,
+        },
+      });
+      revived++;
+    }
+
+    if (toInsert.length === 0) return { created: revived, skipped };
 
     // 3) 유형별로 채번 후 일괄 insert.
     const byType = new Map<PayeeType, number[]>();
@@ -131,7 +160,7 @@ export function createPayeesBulk(
     // ON CONFLICT DO NOTHING — 사전검사와 insert 사이 경합으로 들어온 중복도 DB가 스킵.
     const { count } = await tx.payee.createMany({ data, skipDuplicates: true });
     const raceSkipped = toInsert.length - count; // 경합으로 스킵된 행
-    return { created: count, skipped: skipped + raceSkipped };
+    return { created: revived + count, skipped: skipped + raceSkipped };
   });
 }
 

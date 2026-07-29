@@ -18,7 +18,7 @@ export function PayeeDeleteConfirmModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={pending ? undefined : onCancel}>
       <div className="w-full max-w-sm rounded-[14px] bg-[var(--color-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="mb-2 text-lg font-semibold">삭제 확인</h2>
         <p className="mb-4 text-sm text-[var(--color-muted)]">

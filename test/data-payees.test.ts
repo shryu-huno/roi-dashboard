@@ -283,4 +283,22 @@ describe("payees 데이터 계층", () => {
       softDeletePayees({ userId: "pm1", role: "PM" }, [row.id]),
     ).rejects.toThrow("지급 리스트 삭제 권한이 없습니다.");
   });
+
+  it("createPayeesBulk: 소프트 삭제된 기존 행과 bizNumberBidx가 같으면 스킵 대신 자동 복원(revive)한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
+    const [before] = await listPayees(ADMIN);
+    await softDeletePayees(ADMIN, [before.id]);
+
+    const r2 = await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "New Name")]);
+    expect(r2).toEqual({ created: 1, skipped: 0 });
+
+    const rows = await listPayees(ADMIN);
+    expect(rows).toHaveLength(1); // 새 행이 아니라 기존 행이 갱신됨
+    expect(rows[0].id).toBe(before.id);
+    expect(rows[0].keyId).toBe(before.keyId); // 새 채번 없이 원래 고유번호 유지
+    expect(rows[0].bizName).toBe("New Name");
+
+    const raw = await withRLS(ADMIN, (tx) => tx.payee.findUnique({ where: { id: before.id } }));
+    expect(raw?.deletedAt).toBeNull();
+  });
 });
