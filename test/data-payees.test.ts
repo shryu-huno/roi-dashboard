@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { withRLS } from "@/lib/rls";
 import {
   createPayeesBulk, listPayees, listPayeesForExport, findPayeeByBizNumber, parsePayeeSearchField,
-  updatePayee,
+  updatePayee, softDeletePayees,
   type PayeeCreateInput,
 } from "@/lib/data/payees";
 import {
@@ -239,5 +239,48 @@ describe("payees 데이터 계층", () => {
 
     expect(await listPayees(ADMIN)).toHaveLength(0);
     expect(await listPayeesForExport(ADMIN)).toHaveLength(0);
+  });
+
+  it("softDeletePayees: deletedAt을 채우고 listPayees에서 제외한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const [row] = await listPayees(ADMIN);
+
+    const res = await softDeletePayees(ADMIN, [row.id]);
+    expect(res.ok).toBe(true);
+
+    expect(await listPayees(ADMIN)).toHaveLength(0);
+    const raw = await withRLS(ADMIN, (tx) => tx.payee.findUnique({ where: { id: row.id } }));
+    expect(raw?.deletedAt).not.toBeNull();
+  });
+
+  it("softDeletePayees: 여러 id를 한 번에 삭제한다(일괄 삭제)", async () => {
+    await createPayeesBulk(ADMIN, [
+      input("1234567890", "VENDOR"),
+      input("9002022345678", "INSTRUCTOR"),
+    ]);
+    const rows = await listPayees(ADMIN);
+
+    const res = await softDeletePayees(ADMIN, rows.map((r) => r.id));
+    expect(res.ok).toBe(true);
+    expect(await listPayees(ADMIN)).toHaveLength(0);
+  });
+
+  it("softDeletePayees: 이미 삭제된 항목을 다시 삭제하면 ok:false", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const [row] = await listPayees(ADMIN);
+
+    expect((await softDeletePayees(ADMIN, [row.id])).ok).toBe(true);
+    const res2 = await softDeletePayees(ADMIN, [row.id]);
+    expect(res2.ok).toBe(false);
+    expect(res2.error).toBe("삭제할 항목을 찾을 수 없습니다.");
+  });
+
+  it("softDeletePayees는 SETTLEMENT/ADMIN 외 역할은 거부한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const [row] = await listPayees(ADMIN);
+
+    await expect(
+      softDeletePayees({ userId: "pm1", role: "PM" }, [row.id]),
+    ).rejects.toThrow("지급 리스트 삭제 권한이 없습니다.");
   });
 });

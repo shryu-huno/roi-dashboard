@@ -1,6 +1,7 @@
 import type { Payee, PayeeType, TaxType, Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { decrypt, encrypt, blindIndex, digitsOnly, maskAccountNumber } from "@/lib/crypto/payee-secret";
+import type { ActionState } from "@/lib/action-state";
 
 export const PAYEE_SEARCH_FIELDS = ["bizName", "bizNumber", "keyId"] as const;
 export type PayeeSearchField = (typeof PAYEE_SEARCH_FIELDS)[number];
@@ -233,5 +234,21 @@ export function updatePayee(ctx: RlsContext, id: string, input: PayeeUpdateInput
         taxType: input.taxType,
       },
     });
+  });
+}
+
+// 지급 리스트 소프트 삭제 — 개별/일괄 모두 이 함수 하나로 처리(ids 길이 1 또는 N).
+// 이미 삭제됐거나 존재하지 않는 id가 섞여도 나머지는 정상 삭제되고, count가 0일 때만 실패로 본다.
+export function softDeletePayees(ctx: RlsContext, ids: string[]): Promise<ActionState> {
+  return withRLS(ctx, async (tx) => {
+    if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
+      throw new Error("지급 리스트 삭제 권한이 없습니다.");
+    }
+    const result = await tx.payee.updateMany({
+      where: { id: { in: ids }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    if (result.count === 0) return { ok: false, error: "삭제할 항목을 찾을 수 없습니다." };
+    return { ok: true };
   });
 }
