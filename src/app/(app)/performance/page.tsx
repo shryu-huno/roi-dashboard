@@ -4,7 +4,7 @@ import { listClients } from "@/lib/data/clients";
 import { listTasks } from "@/lib/data/tasks";
 import { listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { PerformanceGrid } from "./PerformanceGrid";
-import { ClientCombobox } from "./ClientCombobox";
+import { ClientCombobox } from "@/components/ClientCombobox";
 
 export default async function PerformancePage({
   searchParams,
@@ -21,7 +21,9 @@ export default async function PerformancePage({
   const kstToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
   const [defaultYear, defaultMonth] = kstToday.split("-").map(Number);
 
-  const clientId = sp.clientId ?? clients[0]?.id;
+  // 콤보박스가 비어 있으면 clientId가 ""로 넘어온다. ??는 빈 문자열을 못 걸러 담당 고객사가
+  // 없다는 화면이 뜨므로, ||로 빈 값도 기본 고객사(clients[0])로 폴백시킨다.
+  const clientId = sp.clientId || clients[0]?.id;
   const year = Number(sp.year) || defaultYear;
   const month = Number(sp.month) || defaultMonth;
 
@@ -42,7 +44,7 @@ export default async function PerformancePage({
       <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           고객사
-          <ClientCombobox clients={clients.map((c) => ({ id: c.id, name: c.name }))} defaultClientId={clientId} />
+          <ClientCombobox clients={clients.map((c) => ({ id: c.id, name: c.name }))} defaultClientId={sp.clientId} className="w-48" />
         </label>
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           연도
