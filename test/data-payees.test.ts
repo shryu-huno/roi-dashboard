@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { withRLS } from "@/lib/rls";
 import {
-  createPayeesBulk, listPayees, listPayeesForExport, findPayeeByBizNumber, parsePayeeSearchField,
-  parsePayeePmSearchField,
+  createPayeesBulk, listPayees, listPayeesForExport, listPayeesForPm, findPayeeByBizNumber,
+  parsePayeeSearchField, parsePayeePmSearchField,
   updatePayee, softDeletePayees,
   type PayeeCreateInput,
 } from "@/lib/data/payees";
@@ -184,6 +184,41 @@ describe("payees 데이터 계층", () => {
     await expect(
       listPayeesForExport({ userId: "pm1", role: "PM" }),
     ).rejects.toThrow("지급 리스트 원문 조회 권한이 없습니다.");
+  });
+
+  it("listPayeesForPm: PM 아닌 역할은 거부한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    await expect(
+      listPayeesForPm(ADMIN),
+    ).rejects.toThrow("PM 지급 리스트 조회 권한이 없습니다.");
+  });
+
+  it("listPayeesForPm: 연락처는 중간 4자리만, 은행명/계좌번호/예금주는 전체 마스킹해 반환한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Acme")]);
+    const PM = { userId: "pm1", role: "PM" as const };
+    const [row] = await listPayeesForPm(PM);
+
+    expect(row.bizName).toBe("Acme");
+    expect(row.phoneMasked).toBe("010-****-5678"); // input()의 phone은 "010-1234-5678"
+    expect(row.bankNameMasked).toBe("**"); // input()의 bankName은 "국민"(2자)
+    expect(row.accountNumberMasked).toBe("************"); // acct = "110123456789"(12자리)
+    expect(row.accountHolderMasked).toBe("***"); // "예금주"(3자)
+    expect(row.taxType).toBe("TAX_INVOICE");
+
+    // 원문이 어떤 필드에도 담기지 않는지 키 목록으로 확인.
+    expect(Object.keys(row)).not.toContain("bankName");
+    expect(Object.keys(row)).not.toContain("accountNumber");
+    expect(Object.keys(row)).not.toContain("accountHolder");
+    expect(Object.keys(row)).not.toContain("phone");
+  });
+
+  it("listPayeesForPm: 연락처 검색으로 조회할 수 있다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]); // phone: 010-1234-5678
+    const PM = { userId: "pm1", role: "PM" as const };
+    const hit = await listPayeesForPm(PM, { field: "phone", q: "010123" });
+    expect(hit).toHaveLength(1);
+    const miss = await listPayeesForPm(PM, { field: "phone", q: "999999" });
+    expect(miss).toHaveLength(0);
   });
 
   it("updatePayee: 이름/은행명/계좌번호/예금주/청구방식을 갱신한다", async () => {

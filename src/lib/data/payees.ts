@@ -1,6 +1,6 @@
 import type { Payee, PayeeType, TaxType, Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
-import { decrypt, encrypt, blindIndex, digitsOnly, maskAccountNumber } from "@/lib/crypto/payee-secret";
+import { decrypt, encrypt, blindIndex, digitsOnly, maskAccountNumber, maskPhone, maskFully } from "@/lib/crypto/payee-secret";
 import type { ActionState } from "@/lib/action-state";
 
 export const PAYEE_SEARCH_FIELDS = ["bizName", "bizNumber", "keyId"] as const;
@@ -238,6 +238,42 @@ export async function listPayeesForExport(ctx: RlsContext, filter?: PayeeSearchF
     bankName: r.bankName,
     accountNumber: decrypt(r.accountNumberEnc),
     accountHolder: r.accountHolder,
+    taxType: r.taxType,
+    hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
+    hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
+  }));
+}
+
+// PM용 지급 리스트 화면 — 사업자번호/주민번호 대신 연락처(중간 4자리 마스킹),
+// 은행명/계좌번호/예금주는 값 길이만큼 전체 마스킹. 원문은 어떤 필드에도 담기지 않는다.
+export type PayeePmRow = {
+  id: string;
+  keyId: string;
+  payeeType: PayeeType;
+  bizName: string;
+  phoneMasked: string;
+  bankNameMasked: string;
+  accountNumberMasked: string;
+  accountHolderMasked: string;
+  taxType: TaxType;
+  hasBizCert: boolean;
+  hasBankbook: boolean;
+};
+
+export async function listPayeesForPm(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeePmRow[]> {
+  if (ctx.role !== "PM") {
+    throw new Error("PM 지급 리스트 조회 권한이 없습니다.");
+  }
+  const rows = await fetchMatchedPayees(ctx, filter);
+  return rows.map((r) => ({
+    id: r.id,
+    keyId: r.keyId,
+    payeeType: r.payeeType,
+    bizName: r.bizName,
+    phoneMasked: maskPhone(digitsOnly(r.phone)),
+    bankNameMasked: maskFully(r.bankName),
+    accountNumberMasked: maskFully(decrypt(r.accountNumberEnc)),
+    accountHolderMasked: maskFully(r.accountHolder),
     taxType: r.taxType,
     hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
     hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
