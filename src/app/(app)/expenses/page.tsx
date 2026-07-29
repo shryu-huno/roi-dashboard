@@ -138,7 +138,7 @@ async function PaymentListTab({
   const ctx = getRlsContext(user);
   const parsedField = parsePayeeSearchField(sp.field);
   const field = parsedField ?? "bizName";
-  const q = sp.q ?? "";
+  const q = parsedField ? (sp.q ?? "") : "";
   const rows = await listPayees(ctx, parsedField && q.trim() ? { field: parsedField, q } : undefined);
   return <PayeeListPanel rows={rows} field={field} q={q} />;
 }
