@@ -138,6 +138,14 @@ export function PayeeListPanel({
           )}
           <button
             type="button"
+            onClick={() => setDeleteTarget(Array.from(selected))}
+            disabled={selected.size === 0}
+            className="rounded bg-[var(--color-danger)] px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            🗑️ 삭제{selected.size > 0 ? ` (${selected.size}건 선택)` : ""}
+          </button>
+          <button
+            type="button"
             onClick={() => setUploadOpen(true)}
             className="rounded bg-[var(--color-success)] px-4 py-2 text-sm text-white"
           >
