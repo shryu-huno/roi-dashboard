@@ -8,6 +8,7 @@ import { PayeeUploadModal } from "./PayeeUploadModal";
 import { PayeeAttachmentModal } from "./PayeeAttachmentModal";
 import { PayeeDeleteConfirmModal } from "./PayeeDeleteConfirmModal";
 import { PayeePmRow } from "./PayeePmRow";
+import { PayeePager } from "./PayeePager";
 
 const SEARCH_FIELD_OPTIONS: { value: PayeePmSearchField; label: string }[] = [
   { value: "bizName", label: "사업자명(이름)" },
@@ -19,10 +20,14 @@ export function PayeePmListPanel({
   rows,
   field,
   q,
+  page,
+  totalPages,
 }: {
   rows: PayeePmRowData[];
   field: PayeePmSearchField;
   q: string;
+  page: number;
+  totalPages: number;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -162,6 +167,8 @@ export function PayeePmListPanel({
           </tbody>
         </table>
       </div>
+
+      <PayeePager page={page} totalPages={totalPages} field={field} q={q} />
 
       {rows.length === 0 && (
         <p className="mt-4 text-center text-sm text-[var(--color-muted)]">
