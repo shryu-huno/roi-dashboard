@@ -150,6 +150,49 @@ describe("payment-requests 데이터 계층", () => {
     ).rejects.toThrow(/no record was found for an update/i);
   });
 
+  it("RLS: PM은 본인이 신청한 건의 clientId를 담당하지 않는 고객사로 바꿀 수 없다", async () => {
+    const { pmA, clientA, clientB } = await seed();
+    const ownRow = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({ data: baseInput({ requesterId: pmA.id, clientId: clientA.id }) }));
+
+    await expect(
+      withRLS({ userId: pmA.id, role: "PM" }, (tx) =>
+        tx.paymentRequest.update({ where: { id: ownRow.id }, data: { clientId: clientB.id } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
+
+    const updated = await withRLS({ userId: pmA.id, role: "PM" }, (tx) =>
+      tx.paymentRequest.update({ where: { id: ownRow.id }, data: { memo: "clientId는 안 건드리고 수정" } }),
+    );
+    expect(updated.memo).toBe("clientId는 안 건드리고 수정");
+    expect(updated.clientId).toBe(clientA.id);
+  });
+
+  it("페이지네이션: requestedAt이 동일한 행들도 중복/누락 없이 페이지네이션된다", async () => {
+    const { pmA, clientA } = await seed();
+    const total = PAYMENT_REQUEST_PAGE_SIZE + 5;
+    // 다건 등록 화면처럼 한 트랜잭션에서 여러 건이 생성되면 requestedAt이 동일해질 수 있다
+    // (Postgres CURRENT_TIMESTAMP는 트랜잭션 단위). 정렬 동점을 재현하기 위해 명시적으로 같은
+    // 값을 지정해 id 보조 정렬키 없이는 skip/take 페이지네이션이 깨짐을 검증한다.
+    const sharedRequestedAt = new Date("2026-07-01T00:00:00.000Z");
+    const created = await withRLS(ADMIN, async (tx) => {
+      const rows = [];
+      for (let i = 0; i < total; i++) {
+        rows.push(await tx.paymentRequest.create({
+          data: { ...baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: `동시건${i}` }), requestedAt: sharedRequestedAt },
+        }));
+      }
+      return rows;
+    });
+    expect(new Set(created.map((r) => r.requestedAt.getTime())).size).toBe(1);
+
+    const page1 = await listPaymentRequests(ADMIN, undefined, 1);
+    const page2 = await listPaymentRequests(ADMIN, undefined, 2);
+    const allIds = [...page1.rows.map((r) => r.id), ...page2.rows.map((r) => r.id)];
+    expect(allIds.length).toBe(total);
+    expect(new Set(allIds).size).toBe(total);
+    expect(new Set(allIds)).toEqual(new Set(created.map((r) => r.id)));
+  });
+
   it("RLS: SETTLEMENT은 고객사·신청인 무관하게 등록·수정할 수 있다", async () => {
     const { pmA, clientA } = await seed();
     const SETTLEMENT = { userId: "s1", role: "SETTLEMENT" as const };

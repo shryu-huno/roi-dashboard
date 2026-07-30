@@ -25,7 +25,7 @@ type FilterValues = {
 const NOT_IMPLEMENTED = "추후 구현 예정입니다.";
 
 function dateStr(d: Date | null): string {
-  return d ? d.toISOString().slice(0, 10) : "-";
+  return d ? d.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }) : "-";
 }
 
 export function PaymentRequestListPanel({
@@ -123,14 +123,16 @@ export function PaymentRequestListPanel({
             📗 엑셀 다운로드
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setBulkUpdateOpen(true)}
-          disabled={selected.size === 0}
-          className="rounded border border-[var(--color-border)] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          🗓️ 일괄수정{selected.size > 0 ? ` (${selected.size}건 선택)` : ""}
-        </button>
+        {canExport && (
+          <button
+            type="button"
+            onClick={() => setBulkUpdateOpen(true)}
+            disabled={selected.size === 0}
+            className="rounded border border-[var(--color-border)] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            🗓️ 일괄수정{selected.size > 0 ? ` (${selected.size}건 선택)` : ""}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => alert(NOT_IMPLEMENTED)}

@@ -226,7 +226,10 @@ async function PaymentRequestTab({
   user: SessionUser;
 }) {
   const ctx = getRlsContext(user);
-  const [clients, payees] = await Promise.all([listClients(ctx), listPayeeOptions(ctx)]);
+  const [clients, payees] = await Promise.all([
+    listClients(ctx),
+    user.role === "PM" ? Promise.resolve([]) : listPayeeOptions(ctx),
+  ]);
 
   const filter = {
     payDateFrom: parsePaymentRequestDateParam(sp.payDateFrom),

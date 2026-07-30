@@ -44,7 +44,7 @@ export function PaymentRequestDetailModal({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className={fieldCls}>신청일<span className={valueCls}>{row.requestedAt.toISOString().slice(0, 10)}</span></div>
+          <div className={fieldCls}>신청일<span className={valueCls}>{row.requestedAt.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" })}</span></div>
           <div className={fieldCls}>신청인<span className={valueCls}>{row.requesterName}</span></div>
           <div className={fieldCls}>지급명의<span className={valueCls}>{paymentRequestEntityLabel(row.entity)}</span></div>
           <div className={fieldCls}>고객사<span className={valueCls}>{row.clientName}</span></div>
@@ -62,7 +62,7 @@ export function PaymentRequestDetailModal({
             {canEditSettlementFields ? (
               <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className={inputCls} />
             ) : (
-              <span className={valueCls}>{row.payDate ? row.payDate.toISOString().slice(0, 10) : "-"}</span>
+              <span className={valueCls}>{row.payDate ? row.payDate.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }) : "-"}</span>
             )}
           </label>
           <label className={fieldCls}>

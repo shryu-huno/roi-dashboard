@@ -86,13 +86,12 @@ export async function listPaymentRequests(
   page = 1,
 ): Promise<PaymentRequestPage<PaymentRequestRow>> {
   const where = buildWhere(filter);
-  const skip = (page - 1) * PAYMENT_REQUEST_PAGE_SIZE;
 
   const fetchPage = (p: number) => withRLS(ctx, async (tx) => {
     const [rows, totalCount] = await Promise.all([
       tx.paymentRequest.findMany({
         where,
-        orderBy: { requestedAt: "desc" },
+        orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
         include: { requester: { select: { name: true, email: true } }, client: { select: { name: true } } },
         skip: (p - 1) * PAYMENT_REQUEST_PAGE_SIZE,
         take: PAYMENT_REQUEST_PAGE_SIZE,
