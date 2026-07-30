@@ -186,30 +186,60 @@ type MatchedPayee = Prisma.PayeeGetPayload<{
   include: { attachments: { select: { fileType: true } } };
 }>;
 
-// listPayees/listPayeesForExport/listPayeesForPm 공통: 조회 + 인메모리 검색 필터링.
+type Pagination = { skip: number; take: number };
+
+// listPayees/listPayeesForExport/listPayeesForPm 공통: 조회 + 필터링 + (옵션)페이지네이션.
+// bizName/keyId/phone(phoneNormalized)은 평문(또는 정규화된 평문)이라 DB where절로 직접
+// 필터링하고 skip/take로 페이지네이션한다. bizNumber는 암호화되어 있어 정확일치 전용
+// 블라인드 인덱스로는 부분검색이 불가능하므로, 전체 조회 후 복호화한 값을 인메모리로
+// 필터링한 뒤 필요하면 그 결과 배열을 슬라이스한다(이 경로는 페이지네이션 도입 여부와
+// 무관하게 항상 전체 스캔 비용이 든다 — 기존 설계 제약, 이번 변경 범위 밖).
 // role 가드는 두지 않는다(모듈 내부 전용 함수) — 각 공개 함수가 자기 role을 직접 검증한다.
-function fetchMatchedPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<MatchedPayee[]> {
+function fetchMatchedPayees(
+  ctx: RlsContext,
+  filter?: PayeeSearchFilter,
+  pagination?: Pagination,
+): Promise<{ rows: MatchedPayee[]; totalCount: number }> {
   return withRLS(ctx, async (tx) => {
-    const rows = await tx.payee.findMany({
-      where: { deletedAt: null },
-      orderBy: { keyId: "asc" },
-      include: { attachments: { select: { fileType: true } } },
-    });
     const q = filter?.q.trim();
-    if (!filter || !q) return rows;
-    return rows.filter((r) => {
-      if (filter.field === "bizName") return r.bizName.toLowerCase().includes(q.toLowerCase());
-      if (filter.field === "keyId") return r.keyId.toLowerCase().includes(q.toLowerCase());
-      if (filter.field === "phone") {
-        // 검색어가 URL 쿼리스트링에 그대로 남으므로, 사업자번호 검색과 동일한 이유로 앞 6자리까지만 사용한다.
-        const qDigits = digitsOnly(q).slice(0, 6);
-        return r.phoneNormalized.includes(qDigits);
-      }
+
+    if (filter && q && filter.field === "bizNumber") {
+      const all = await tx.payee.findMany({
+        where: { deletedAt: null },
+        orderBy: { keyId: "asc" },
+        include: { attachments: { select: { fileType: true } } },
+      });
       // 검색어가 URL 쿼리스트링에 그대로 남으므로(GET 폼), 원문 전체 노출 위험을 줄이기 위해
       // 사업자번호 검색은 앞 6자리까지만 사용한다.
       const qDigits = digitsOnly(q).slice(0, 6);
-      return digitsOnly(decrypt(r.bizNumberEnc)).includes(qDigits);
-    });
+      const filtered = all.filter((r) => digitsOnly(decrypt(r.bizNumberEnc)).includes(qDigits));
+      const rows = pagination ? filtered.slice(pagination.skip, pagination.skip + pagination.take) : filtered;
+      return { rows, totalCount: filtered.length };
+    }
+
+    const where: Prisma.PayeeWhereInput = { deletedAt: null };
+    if (filter && q) {
+      if (filter.field === "bizName") {
+        where.bizName = { contains: q, mode: "insensitive" };
+      } else if (filter.field === "keyId") {
+        where.keyId = { contains: q, mode: "insensitive" };
+      } else if (filter.field === "phone") {
+        // 검색어가 URL 쿼리스트링에 그대로 남으므로, 사업자번호 검색과 동일한 이유로 앞 6자리까지만 사용한다.
+        const qDigits = digitsOnly(q).slice(0, 6);
+        where.phoneNormalized = { contains: qDigits };
+      }
+    }
+
+    const [rows, totalCount] = await Promise.all([
+      tx.payee.findMany({
+        where,
+        orderBy: { keyId: "asc" },
+        include: { attachments: { select: { fileType: true } } },
+        ...(pagination ? { skip: pagination.skip, take: pagination.take } : {}),
+      }),
+      tx.payee.count({ where }),
+    ]);
+    return { rows, totalCount };
   });
 }
 
@@ -217,7 +247,7 @@ export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): P
   if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
     throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
   }
-  const rows = await fetchMatchedPayees(ctx, filter);
+  const { rows } = await fetchMatchedPayees(ctx, filter);
   return rows.map((r) => ({
     id: r.id,
     keyId: r.keyId,
@@ -238,7 +268,7 @@ export async function listPayeesForExport(ctx: RlsContext, filter?: PayeeSearchF
   if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
     throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
   }
-  const rows = await fetchMatchedPayees(ctx, filter);
+  const { rows } = await fetchMatchedPayees(ctx, filter);
   return rows.map((r) => ({
     keyId: r.keyId,
     bizName: r.bizName,
@@ -273,7 +303,7 @@ export async function listPayeesForPm(ctx: RlsContext, filter?: PayeeSearchFilte
   if (ctx.role !== "PM") {
     throw new Error("PM 지급 리스트 조회 권한이 없습니다.");
   }
-  const rows = await fetchMatchedPayees(ctx, filter);
+  const { rows } = await fetchMatchedPayees(ctx, filter);
   return rows.map((r) => ({
     id: r.id,
     keyId: r.keyId,
