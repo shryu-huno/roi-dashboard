@@ -414,12 +414,12 @@ describe("payees 데이터 계층", () => {
     expect(p2.rows).toHaveLength(5);
   });
 
-  it("listPayees: page가 totalPages보다 크면 빈 배열을 반환한다(에러 아님)", async () => {
+  it("listPayees: page가 totalPages보다 크면 마지막 페이지로 클램프한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
     const result = await listPayees(ADMIN, undefined, 5);
-    expect(result.rows).toHaveLength(0);
+    expect(result.rows).toHaveLength(1);
     expect(result.totalPages).toBe(1);
-    expect(result.page).toBe(5);
+    expect(result.page).toBe(1);
   });
 
   it("listPayeesForPm: 기본 페이지 크기만큼 반환하고 totalPages를 계산한다", async () => {
@@ -432,6 +432,15 @@ describe("payees 데이터 계층", () => {
 
     const p2 = await listPayeesForPm(PM, undefined, 2);
     expect(p2.rows).toHaveLength(5);
+  });
+
+  it("listPayeesForPm: page가 totalPages보다 크면 마지막 페이지로 클램프한다", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const PM = { userId: "pm1", role: "PM" as const };
+    const result = await listPayeesForPm(PM, undefined, 5);
+    expect(result.rows).toHaveLength(1);
+    expect(result.totalPages).toBe(1);
+    expect(result.page).toBe(1);
   });
 
   it("listPayeesForExport는 페이지 크기를 넘어도 페이지네이션 없이 전체를 반환한다", async () => {

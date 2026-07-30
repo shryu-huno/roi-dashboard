@@ -249,8 +249,14 @@ export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter, pa
   if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
     throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
   }
-  const skip = (page - 1) * PAGE_SIZE;
-  const { rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip, take: PAGE_SIZE });
+  let { rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE });
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // 삭제 등으로 결과가 줄어 요청한 page가 범위를 벗어나면 마지막 페이지로 클램프해 재조회한다
+  // (그래야 UI가 빈 목록 + 갈 곳 없는 페이저를 보여주는 막다른 상태에 빠지지 않는다).
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  if (clampedPage !== page) {
+    ({ rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip: (clampedPage - 1) * PAGE_SIZE, take: PAGE_SIZE }));
+  }
   const mapped = rows.map((r) => ({
     id: r.id,
     keyId: r.keyId,
@@ -265,7 +271,7 @@ export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter, pa
     hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
     hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
   }));
-  return { rows: mapped, page, totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) };
+  return { rows: mapped, page: clampedPage, totalPages };
 }
 
 export async function listPayeesForExport(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeExportRow[]> {
@@ -307,8 +313,14 @@ export async function listPayeesForPm(ctx: RlsContext, filter?: PayeeSearchFilte
   if (ctx.role !== "PM") {
     throw new Error("PM 지급 리스트 조회 권한이 없습니다.");
   }
-  const skip = (page - 1) * PAGE_SIZE;
-  const { rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip, take: PAGE_SIZE });
+  let { rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE });
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // 삭제 등으로 결과가 줄어 요청한 page가 범위를 벗어나면 마지막 페이지로 클램프해 재조회한다
+  // (그래야 UI가 빈 목록 + 갈 곳 없는 페이저를 보여주는 막다른 상태에 빠지지 않는다).
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  if (clampedPage !== page) {
+    ({ rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip: (clampedPage - 1) * PAGE_SIZE, take: PAGE_SIZE }));
+  }
   const mapped = rows.map((r) => ({
     id: r.id,
     keyId: r.keyId,
@@ -322,7 +334,7 @@ export async function listPayeesForPm(ctx: RlsContext, filter?: PayeeSearchFilte
     hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
     hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
   }));
-  return { rows: mapped, page, totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) };
+  return { rows: mapped, page: clampedPage, totalPages };
 }
 
 export function findPayeeByBizNumber(ctx: RlsContext, bizNumberPlain: string): Promise<Payee[]> {
