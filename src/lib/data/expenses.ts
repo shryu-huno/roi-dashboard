@@ -65,6 +65,34 @@ export async function getConsultingFieldSummary(
   return { rows, total, totalCount };
 }
 
+// 법인카드 상세 원장(CorporateCardExpense)을 항목(item)별로 합산.
+// clientId를 주면 해당 고객사만, 없으면 RLS 범위 전체(관리자·정산=모든 고객사, PM=담당 고객사).
+// 기간은 [from~to]의 각 (year,month)로 필터한다. 상담비와 달리 건수 없이 금액만 집계한다.
+export type CorporateCardItemRow = { item: string; amount: number };
+
+export async function getCorporateCardSummary(
+  ctx: RlsContext,
+  opts: { clientId?: string; from: Ym; to: Ym },
+): Promise<{ rows: CorporateCardItemRow[]; total: number }> {
+  const months = eachMonth(opts.from, opts.to);
+  const where = {
+    ...(opts.clientId ? { clientId: opts.clientId } : {}),
+    OR: months.map((m) => ({ year: m.year, month: m.month })),
+  };
+  const grouped = await withRLS(ctx, (tx) =>
+    tx.corporateCardExpense.groupBy({
+      by: ["item"],
+      where,
+      _sum: { amount: true },
+    }),
+  );
+  const rows = grouped
+    .map((g) => ({ item: g.item, amount: g._sum.amount ?? 0 }))
+    .sort((a, b) => b.amount - a.amount);
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  return { rows, total };
+}
+
 export async function upsertExpense(ctx: RlsContext, input: ExpenseInput): Promise<ActionState> {
   await withRLS(ctx, (tx) =>
     tx.expense.upsert({

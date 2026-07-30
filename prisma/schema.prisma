@@ -90,9 +90,6 @@ model Client {
   contractEnd   DateTime?
   businessType String?  // 사업자 구분: 휴노 | 휴노INC
   hyundaiEasywel Boolean @default(false) // 현대이지웰 소개로 계약한 고객사
-  contactName  String?  // 담당자명 (프로그램 대시보드의 협조요청·확정 메일 수신처)
-  contactEmail String?  // 담당자 이메일
-  contactPhone String?  // 담당자 전화
   billingCycle String[] @default([]) // 청구 주기(복수): 월/분기/중간/최종
   reportCycle  String[] @default([]) // 보고 주기(복수): 월/분기/중간/최종
   deletedAt    DateTime? // 소프트 삭제(보관). null=활성, 값=보관됨(목록에서 숨김).
@@ -105,6 +102,7 @@ model Client {
   deposits     MonthlyDeposit[]
   expenses     Expense[]
   consultingExpenses ConsultingExpense[]
+  corporateCardExpenses CorporateCardExpense[]
 }
 
 // 고객사–담당PM 다대다 조인. 한 고객사에 여러 PM을 지정할 수 있다.
@@ -211,6 +209,24 @@ model ConsultingExpense {
 
   @@index([clientId, year, month])
   @@index([field])
+}
+
+// 법인카드 사용 내역 라인아이템. 항목(item)을 세부 구분 기준으로 삼는다.
+// 엑셀(법인카드 사용 내역) 적재용. 집계형 Expense와 별개의 상세 원장.
+model CorporateCardExpense {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientName  String   // 고객사명(Client.name와 동일값). 엑셀 프로젝트명은 매칭에만 쓰고 저장은 정식 고객사명으로.
+  item        String   // 항목 — 세부 구분 기준(교통/숙박/기타 등)
+  year        Int      // 이용일(연)
+  month       Int      // 이용일(월)
+  amount      Int      // 매입금액(지출금액)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId, year, month])
+  @@index([item])
 }
 
 // 지급 대상 원장(공용). 정산담당자/관리자가 엑셀로 업로드. 민감정보는 앱 계층 암호화.

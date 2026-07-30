@@ -4,6 +4,7 @@ import { listClients } from "@/lib/data/clients";
 import { listTasks } from "@/lib/data/tasks";
 import { listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { PerformanceGrid } from "./PerformanceGrid";
+import { ClientCombobox } from "@/components/ClientCombobox";
 
 export default async function PerformancePage({
   searchParams,
@@ -20,7 +21,9 @@ export default async function PerformancePage({
   const kstToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
   const [defaultYear, defaultMonth] = kstToday.split("-").map(Number);
 
-  const clientId = sp.clientId ?? clients[0]?.id;
+  // 콤보박스가 비어 있으면 clientId가 ""로 넘어온다. ??는 빈 문자열을 못 걸러 담당 고객사가
+  // 없다는 화면이 뜨므로, ||로 빈 값도 기본 고객사(clients[0])로 폴백시킨다.
+  const clientId = sp.clientId || clients[0]?.id;
   const year = Number(sp.year) || defaultYear;
   const month = Number(sp.month) || defaultMonth;
 
@@ -41,9 +44,7 @@ export default async function PerformancePage({
       <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           고객사
-          <select name="clientId" defaultValue={clientId ?? ""} className="mt-1 w-48 rounded border border-[var(--color-border)] px-3 py-2 text-sm">
-            {clients.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-          </select>
+          <ClientCombobox clients={clients.map((c) => ({ id: c.id, name: c.name }))} defaultClientId={sp.clientId} className="w-48" />
         </label>
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
           연도
@@ -62,7 +63,6 @@ export default async function PerformancePage({
         <p className="text-[var(--color-muted)]">등록된 과업이 없습니다. 설정에서 과업을 먼저 등록하세요.</p>
       ) : (
         <>
-          <h2 className="mb-2 text-sm font-medium text-[var(--color-muted)]">{year}년 {month}월 실적 (해당 월만 저장)</h2>
           <PerformanceGrid
             clientId={clientId}
             year={year}
@@ -71,7 +71,7 @@ export default async function PerformancePage({
             initialCounts={initialCounts}
           />
 
-          <h2 className="mb-2 mt-10 text-sm font-medium text-[var(--color-muted)]">계약 기간 누적 (전체 월 합계)</h2>
+          <h2 className="mb-2 mt-10 text-[18px] font-medium text-black">{year}년 누적</h2>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
