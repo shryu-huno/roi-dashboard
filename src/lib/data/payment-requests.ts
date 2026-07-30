@@ -1,5 +1,7 @@
 import type { PaymentRequestEntity, PaymentRequestStatus, Prisma, TaxType } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
+import type { ActionState } from "@/lib/action-state";
+import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
 
 export const PAYMENT_REQUEST_PAGE_SIZE = 50;
 
@@ -129,4 +131,49 @@ export async function listPaymentRequests(
     status: r.status,
   }));
   return { rows: mapped, page: clampedPage, totalPages };
+}
+
+// PM 등록 화면에서 여러 행을 한 번에 저장한다. 사업자명/청구방식은 클라이언트 값을 신뢰하지
+// 않고 저장 시점에 Payee 테이블에서 다시 조회한 값을 스냅샷으로 남긴다 — payeeId만 클라이언트가
+// 정하고, 실제 표시값은 서버가 확정한다(변조·오염 방지). withRLS가 이미 $transaction으로
+// 감싸므로, 존재/삭제 확인을 통과한 뒤 하나라도 insert가 실패(RLS 등)하면 자동으로 전체
+// 롤백된다 — 별도 트랜잭션 처리가 필요 없다.
+export async function createPaymentRequestsBulk(
+  ctx: RlsContext,
+  requesterId: string,
+  inputs: PaymentRequestCreateInput[],
+): Promise<ActionState> {
+  return withRLS(ctx, async (tx) => {
+    const payeeIds = [...new Set(inputs.map((i) => i.payeeId))];
+    const payees = await tx.payee.findMany({
+      where: { id: { in: payeeIds }, deletedAt: null },
+      select: { id: true, bizName: true, taxType: true },
+    });
+    const payeeMap = new Map(payees.map((p) => [p.id, p]));
+    if (payeeMap.size !== payeeIds.length) {
+      return { ok: false, error: "선택한 사업자 중 존재하지 않거나 삭제된 항목이 있습니다. 다시 선택해 주세요." };
+    }
+
+    for (const input of inputs) {
+      const payee = payeeMap.get(input.payeeId)!;
+      const amount = (input.unitPrice + input.transportFee + input.materialFee) * input.count;
+      await tx.paymentRequest.create({
+        data: {
+          requesterId,
+          entity: input.entity,
+          clientId: input.clientId,
+          payeeId: input.payeeId,
+          bizName: payee.bizName,
+          unitPrice: input.unitPrice,
+          transportFee: input.transportFee,
+          materialFee: input.materialFee,
+          count: input.count,
+          amount,
+          taxType: payee.taxType,
+          memo: input.memo,
+        },
+      });
+    }
+    return { ok: true };
+  });
 }

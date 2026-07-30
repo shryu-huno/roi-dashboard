@@ -4,14 +4,22 @@ import { withRLS } from "@/lib/rls";
 import {
   listPaymentRequests, parsePaymentRequestPage, parsePaymentRequestEntity,
   parsePaymentRequestStatus, parsePaymentRequestDateParam, PAYMENT_REQUEST_PAGE_SIZE,
+  createPaymentRequestsBulk,
 } from "@/lib/data/payment-requests";
+import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
+import { createPayeesBulk } from "@/lib/data/payees";
+import { encrypt, blindIndex, maskBizNumber, maskAccountNumber } from "@/lib/crypto/payee-secret";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
 async function reset() {
   await withRLS(ADMIN, async (tx) => {
     await tx.paymentRequest.deleteMany();
+    await tx.payeeAttachment.deleteMany();
+    await tx.payee.deleteMany();
     await tx.client.deleteMany();
+    await tx.$executeRawUnsafe('ALTER SEQUENCE "payee_key_seq_instructor" RESTART WITH 1');
+    await tx.$executeRawUnsafe('ALTER SEQUENCE "payee_key_seq_vendor" RESTART WITH 1');
   });
   await prisma.user.deleteMany();
 }
@@ -27,6 +35,30 @@ async function seed() {
     data: { name: "B사", businessType: "휴노INC", managers: { create: [{ userId: pmB.id }] } },
   }));
   return { admin, pmA, pmB, clientA, clientB };
+}
+
+function payeeInput(bizDigits: string, bizName: string, taxType: "TAX_INVOICE" | "BUSINESS_INCOME" = "TAX_INVOICE") {
+  const acct = "110123456789";
+  return {
+    payeeType: "VENDOR" as const,
+    bizName,
+    bizNumberEnc: encrypt(bizDigits),
+    bizNumberMasked: maskBizNumber(bizDigits, "VENDOR"),
+    bizNumberBidx: blindIndex(bizDigits),
+    phone: "010-1234-5678",
+    phoneNormalized: "01012345678",
+    bankName: "국민",
+    accountNumberEnc: encrypt(acct),
+    accountNumberMasked: maskAccountNumber(acct),
+    accountHolder: "예금주",
+    taxType,
+  };
+}
+
+async function createPayee(bizDigits: string, bizName: string, taxType?: "TAX_INVOICE" | "BUSINESS_INCOME") {
+  await createPayeesBulk(ADMIN, [payeeInput(bizDigits, bizName, taxType)]);
+  const [payee] = await withRLS(ADMIN, (tx) => tx.payee.findMany({ where: { bizName } }));
+  return payee;
 }
 
 function baseInput(overrides: Partial<{
@@ -221,5 +253,74 @@ describe("payment-requests 데이터 계층", () => {
     expect(parsePaymentRequestDateParam("")).toBeUndefined();
     expect(parsePaymentRequestDateParam("not-a-date")).toBeUndefined();
     expect(parsePaymentRequestDateParam(undefined)).toBeUndefined();
+  });
+
+  describe("createPaymentRequestsBulk", () => {
+    it("선택한 사업자의 bizName/taxType을 스냅샷으로 저장하고 지급액을 서버가 재계산한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1234567890", "업체A", "TAX_INVOICE");
+      const input: PaymentRequestCreateInput = {
+        entity: "HUNO", clientId: clientA.id, payeeId: payee.id,
+        unitPrice: 100000, transportFee: 5000, materialFee: 2000, count: 3, memo: "테스트",
+      };
+      const result = await createPaymentRequestsBulk({ userId: pmA.id, role: "PM" }, pmA.id, [input]);
+      expect(result.ok).toBe(true);
+
+      const { rows } = await listPaymentRequests(ADMIN);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].bizName).toBe("업체A");
+      expect(rows[0].taxType).toBe("TAX_INVOICE");
+      expect(rows[0].amount).toBe((100000 + 5000 + 2000) * 3);
+    });
+
+    it("존재하지 않는 payeeId가 섞여 있으면 전체 저장을 거부한다(all-or-nothing)", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1234567890", "업체A");
+      const inputs: PaymentRequestCreateInput[] = [
+        { entity: "HUNO", clientId: clientA.id, payeeId: payee.id, unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" },
+        { entity: "HUNO", clientId: clientA.id, payeeId: "존재하지않는아이디", unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" },
+      ];
+      const result = await createPaymentRequestsBulk({ userId: pmA.id, role: "PM" }, pmA.id, inputs);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("소프트 삭제된 사업자로는 저장할 수 없다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1234567890", "삭제된업체");
+      await withRLS(ADMIN, (tx) => tx.payee.update({ where: { id: payee.id }, data: { deletedAt: new Date() } }));
+
+      const result = await createPaymentRequestsBulk(
+        { userId: pmA.id, role: "PM" }, pmA.id,
+        [{ entity: "HUNO", clientId: clientA.id, payeeId: payee.id, unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" }],
+      );
+      expect(result.ok).toBe(false);
+    });
+
+    it("PM이 담당하지 않는 고객사로 저장을 시도하면 RLS로 거부된다", async () => {
+      const { pmA, clientB } = await seed();
+      const payee = await createPayee("1234567890", "업체A");
+      await expect(
+        createPaymentRequestsBulk(
+          { userId: pmA.id, role: "PM" }, pmA.id,
+          [{ entity: "HUNO", clientId: clientB.id, payeeId: payee.id, unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" }],
+        ),
+      ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
+    });
+
+    it("여러 행을 한 번에 저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payeeA = await createPayee("1111111111", "업체1");
+      const payeeB = await createPayee("2222222222", "업체2");
+      const result = await createPaymentRequestsBulk(
+        { userId: pmA.id, role: "PM" }, pmA.id,
+        [
+          { entity: "HUNO", clientId: clientA.id, payeeId: payeeA.id, unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" },
+          { entity: "HUNO", clientId: clientA.id, payeeId: payeeB.id, unitPrice: 20000, transportFee: 0, materialFee: 0, count: 2, memo: "" },
+        ],
+      );
+      expect(result.ok).toBe(true);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(2);
+    });
   });
 });
