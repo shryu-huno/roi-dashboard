@@ -8,6 +8,7 @@ import { PayeeUploadModal } from "./PayeeUploadModal";
 import { PayeeAttachmentModal } from "./PayeeAttachmentModal";
 import { PayeeDeleteConfirmModal } from "./PayeeDeleteConfirmModal";
 import { PayeeRow } from "./PayeeRow";
+import { PayeePager } from "./PayeePager";
 
 const SEARCH_FIELD_OPTIONS: { value: PayeeSearchField; label: string }[] = [
   { value: "bizName", label: "사업자명(이름)" },
@@ -19,10 +20,14 @@ export function PayeeListPanel({
   rows,
   field,
   q,
+  page,
+  totalPages,
 }: {
   rows: PayeeRowData[];
   field: PayeeSearchField;
   q: string;
+  page: number;
+  totalPages: number;
 }) {
   const router = useRouter();
   // 체크박스 선택 행(선택만 — 편집과 무관). 다음 단계에서 일괄 작업 연결.
@@ -190,6 +195,8 @@ export function PayeeListPanel({
           </tbody>
         </table>
       </div>
+
+      <PayeePager page={page} totalPages={totalPages} field={field} q={q} />
 
       {rows.length === 0 && (
         <p className="mt-4 text-center text-sm text-[var(--color-muted)]">
