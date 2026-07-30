@@ -109,7 +109,7 @@ export function PaymentRequestRowsTable({
               <th className="px-2 py-2">교통비</th>
               <th className="px-2 py-2">재료비</th>
               <th className="px-2 py-2">횟수</th>
-              <th className="px-2 py-2">지급액(자동)</th>
+              <th className="px-2 py-2">지급액</th>
               <th className="px-2 py-2">청구방식</th>
               <th className="px-2 py-2">상세내역</th>
             </tr>
