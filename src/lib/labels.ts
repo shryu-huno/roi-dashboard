@@ -1,5 +1,5 @@
 import type { AppRole } from "@/lib/auth/rbac";
-import type { PayeeType, TaxType } from "@prisma/client";
+import type { PayeeType, TaxType, PaymentRequestEntity, PaymentRequestStatus } from "@prisma/client";
 
 export function roleLabel(role: AppRole | null | undefined): string {
   switch (role) {
@@ -68,3 +68,20 @@ export function payeeTypeLabel(t: PayeeType): string {
 
 // 은행명 편집용 드롭다운 옵션.
 export const BANKS = ["국민은행", "신한은행", "하나은행", "우리은행", "농협은행", "기업은행", "카카오뱅크", "토스뱅크"] as const;
+
+export const PAYMENT_REQUEST_ENTITY_LABELS = ["휴노", "휴노INC"] as const;
+
+export function paymentRequestEntityLabel(e: PaymentRequestEntity): string {
+  return e === "HUNO" ? "휴노" : "휴노INC";
+}
+
+export const PAYMENT_REQUEST_ENTITY_BY_LABEL: Record<(typeof PAYMENT_REQUEST_ENTITY_LABELS)[number], PaymentRequestEntity> = {
+  "휴노": "HUNO",
+  "휴노INC": "HUNO_INC",
+};
+
+export const PAYMENT_REQUEST_STATUS_LABELS = ["지급준비", "지급완료"] as const;
+
+export function paymentRequestStatusLabel(s: PaymentRequestStatus): string {
+  return s === "PREPARING" ? "지급준비" : "지급완료";
+}
