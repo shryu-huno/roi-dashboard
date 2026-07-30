@@ -243,12 +243,15 @@ function fetchMatchedPayees(
   });
 }
 
-export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeRow[]> {
+export type PayeePage<T> = { rows: T[]; page: number; totalPages: number };
+
+export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter, page = 1): Promise<PayeePage<PayeeRow>> {
   if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
     throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
   }
-  const { rows } = await fetchMatchedPayees(ctx, filter);
-  return rows.map((r) => ({
+  const skip = (page - 1) * PAGE_SIZE;
+  const { rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip, take: PAGE_SIZE });
+  const mapped = rows.map((r) => ({
     id: r.id,
     keyId: r.keyId,
     payeeType: r.payeeType,
@@ -262,6 +265,7 @@ export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter): P
     hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
     hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
   }));
+  return { rows: mapped, page, totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) };
 }
 
 export async function listPayeesForExport(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeExportRow[]> {
@@ -299,12 +303,13 @@ export type PayeePmRow = {
   hasBankbook: boolean;
 };
 
-export async function listPayeesForPm(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeePmRow[]> {
+export async function listPayeesForPm(ctx: RlsContext, filter?: PayeeSearchFilter, page = 1): Promise<PayeePage<PayeePmRow>> {
   if (ctx.role !== "PM") {
     throw new Error("PM 지급 리스트 조회 권한이 없습니다.");
   }
-  const { rows } = await fetchMatchedPayees(ctx, filter);
-  return rows.map((r) => ({
+  const skip = (page - 1) * PAGE_SIZE;
+  const { rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip, take: PAGE_SIZE });
+  const mapped = rows.map((r) => ({
     id: r.id,
     keyId: r.keyId,
     payeeType: r.payeeType,
@@ -317,6 +322,7 @@ export async function listPayeesForPm(ctx: RlsContext, filter?: PayeeSearchFilte
     hasBizCert: r.attachments.some((a) => a.fileType === "BIZ_CERT"),
     hasBankbook: r.attachments.some((a) => a.fileType === "BANKBOOK"),
   }));
+  return { rows: mapped, page, totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) };
 }
 
 export function findPayeeByBizNumber(ctx: RlsContext, bizNumberPlain: string): Promise<Payee[]> {

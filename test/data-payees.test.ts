@@ -39,6 +39,11 @@ function input(bizDigits: string, type: "INSTRUCTOR" | "VENDOR", bizName = "이�
   };
 }
 
+// 페이지네이션 테스트용 — 서로 다른 10자리 사업자번호로 count개의 VENDOR row를 만든다.
+function manyInputs(count: number): PayeeCreateInput[] {
+  return Array.from({ length: count }, (_, i) => input(String(1000000000 + i), "VENDOR", `업체${i}`));
+}
+
 describe("payees 데이터 계층", () => {
   beforeEach(reset);
 
@@ -48,13 +53,13 @@ describe("payees 데이터 계층", () => {
       input("1234567890", "VENDOR"),
       input("9002022345678", "INSTRUCTOR"),
     ]);
-    const rows = await listPayees(ADMIN);
+    const { rows } = await listPayees(ADMIN);
     expect(rows.map((r) => r.keyId).sort()).toEqual(["a001", "a002", "b001"]);
   });
 
   it("listPayees는 계좌번호 원문만 복호화해 반환(사업자번호 원문은 내보내지 않음)", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
     expect(row.accountNumber).toBe("110123456789");
     expect(row.hasBizCert).toBe(false);
     expect(row.hasBankbook).toBe(false);
@@ -83,13 +88,13 @@ describe("payees 데이터 계층", () => {
     ]);
     expect(r2).toEqual({ created: 2, skipped: 2 });
 
-    const rows = await listPayees(ADMIN);
+    const { rows } = await listPayees(ADMIN);
     expect(rows).toHaveLength(3); // b001, a001, a002
   });
 
   it("listPayees는 마스킹 값을 함께 반환", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
     expect(row.bizNumberMasked).toBe("123-45-6****");
   });
 
@@ -103,9 +108,9 @@ describe("payees 데이터 계층", () => {
   it("listPayees: 사업자명은 대소문자 무관 부분일치로 검색된다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Acme")]);
     const hit = await listPayees(ADMIN, { field: "bizName", q: "acme" });
-    expect(hit).toHaveLength(1);
+    expect(hit.rows).toHaveLength(1);
     const miss = await listPayees(ADMIN, { field: "bizName", q: "없는이름" });
-    expect(miss).toHaveLength(0);
+    expect(miss.rows).toHaveLength(0);
   });
 
   it("parsePayeeSearchField: 유효한 값은 그대로, 알 수 없는 값은 undefined 반환", () => {
@@ -117,19 +122,19 @@ describe("payees 데이터 계층", () => {
   it("listPayees: 고유번호는 부분일치로 검색된다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]); // keyId: b001
     const hit = await listPayees(ADMIN, { field: "keyId", q: "b00" });
-    expect(hit).toHaveLength(1);
+    expect(hit.rows).toHaveLength(1);
     const miss = await listPayees(ADMIN, { field: "keyId", q: "a99" });
-    expect(miss).toHaveLength(0);
+    expect(miss.rows).toHaveLength(0);
   });
 
   it("listPayees: 사업자번호는 하이픈 유무와 무관하게 부분일치로 검색된다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
     const withHyphen = await listPayees(ADMIN, { field: "bizNumber", q: "123-45" });
-    expect(withHyphen).toHaveLength(1);
+    expect(withHyphen.rows).toHaveLength(1);
     const withoutHyphen = await listPayees(ADMIN, { field: "bizNumber", q: "34567890" });
-    expect(withoutHyphen).toHaveLength(1);
+    expect(withoutHyphen.rows).toHaveLength(1);
     const miss = await listPayees(ADMIN, { field: "bizNumber", q: "99999" });
-    expect(miss).toHaveLength(0);
+    expect(miss.rows).toHaveLength(0);
   });
 
   it("listPayees: 검색어가 빈 문자열이면 전체 반환", async () => {
@@ -137,13 +142,13 @@ describe("payees 데이터 계층", () => {
       input("1234567890", "VENDOR"),
       input("9002022345678", "INSTRUCTOR"),
     ]);
-    const rows = await listPayees(ADMIN, { field: "bizName", q: "   " });
+    const { rows } = await listPayees(ADMIN, { field: "bizName", q: "   " });
     expect(rows).toHaveLength(2);
   });
 
   it("listPayees: 사업자번호 검색어가 6자리를 넘으면 앞 6자리만 사용해 매칭한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234561111", "VENDOR")]);
-    const rows = await listPayees(ADMIN, { field: "bizNumber", q: "123456999999" });
+    const { rows } = await listPayees(ADMIN, { field: "bizNumber", q: "123456999999" });
     expect(rows).toHaveLength(1);
   });
 
@@ -196,7 +201,7 @@ describe("payees 데이터 계층", () => {
   it("listPayeesForPm: 연락처는 중간 4자리만, 은행명/계좌번호/예금주는 전체 마스킹해 반환한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Acme")]);
     const PM = { userId: "pm1", role: "PM" as const };
-    const [row] = await listPayeesForPm(PM);
+    const { rows: [row] } = await listPayeesForPm(PM);
 
     expect(row.bizName).toBe("Acme");
     expect(row.phoneMasked).toBe("010-****-5678"); // input()의 phone은 "010-1234-5678"
@@ -216,14 +221,14 @@ describe("payees 데이터 계층", () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]); // phone: 010-1234-5678
     const PM = { userId: "pm1", role: "PM" as const };
     const hit = await listPayeesForPm(PM, { field: "phone", q: "010123" });
-    expect(hit).toHaveLength(1);
+    expect(hit.rows).toHaveLength(1);
     const miss = await listPayeesForPm(PM, { field: "phone", q: "999999" });
-    expect(miss).toHaveLength(0);
+    expect(miss.rows).toHaveLength(0);
   });
 
   it("updatePayee: 이름/은행명/계좌번호/예금주/청구방식을 갱신한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
 
     await updatePayee(ADMIN, row.id, {
       bizName: "New Name",
@@ -233,7 +238,7 @@ describe("payees 데이터 계층", () => {
       taxType: "OTHER_INCOME",
     });
 
-    const [after] = await listPayees(ADMIN);
+    const { rows: [after] } = await listPayees(ADMIN);
     expect(after.bizName).toBe("New Name");
     expect(after.bankName).toBe("신한은행");
     expect(after.accountNumber).toBe("99988777666");
@@ -246,7 +251,7 @@ describe("payees 데이터 계층", () => {
 
   it("updatePayee는 고유번호·유형·사업자번호(마스킹)를 변경하지 않는다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
-    const [before] = await listPayees(ADMIN);
+    const { rows: [before] } = await listPayees(ADMIN);
 
     await updatePayee(ADMIN, before.id, {
       bizName: "New Name",
@@ -256,7 +261,7 @@ describe("payees 데이터 계층", () => {
       taxType: "OTHER_INCOME",
     });
 
-    const [after] = await listPayees(ADMIN);
+    const { rows: [after] } = await listPayees(ADMIN);
     expect(after.keyId).toBe(before.keyId);
     expect(after.payeeType).toBe(before.payeeType);
     expect(after.bizNumberMasked).toBe(before.bizNumberMasked);
@@ -265,7 +270,7 @@ describe("payees 데이터 계층", () => {
 
   it("updatePayee는 SETTLEMENT/ADMIN 외 역할은 거부한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
 
     await expect(
       updatePayee({ userId: "pm1", role: "PM" }, row.id, {
@@ -281,11 +286,11 @@ describe("payees 데이터 계층", () => {
   it("updatePayeePmFields: 사업자명/청구방식만 바뀌고 은행명/계좌번호/예금주는 그대로다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
     const PM = { userId: "pm1", role: "PM" as const };
-    const [row] = await listPayeesForPm(PM);
+    const { rows: [row] } = await listPayeesForPm(PM);
 
     await updatePayeePmFields(PM, row.id, { bizName: "New Name", taxType: "OTHER_INCOME" });
 
-    const [after] = await listPayeesForPm(PM);
+    const { rows: [after] } = await listPayeesForPm(PM);
     expect(after.bizName).toBe("New Name");
     expect(after.taxType).toBe("OTHER_INCOME");
     // 마스킹 값이 그대로인지(=은행명/계좌번호/예금주 원문이 안 바뀌었는지) 확인.
@@ -296,7 +301,7 @@ describe("payees 데이터 계층", () => {
 
   it("updatePayeePmFields는 PM 외 역할은 거부한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
     await expect(
       updatePayeePmFields(ADMIN, row.id, { bizName: "x", taxType: "OTHER_INCOME" }),
     ).rejects.toThrow("PM 지급 리스트 수정 권한이 없습니다.");
@@ -304,24 +309,24 @@ describe("payees 데이터 계층", () => {
 
   it("listPayees와 listPayeesForExport는 소프트 삭제된 행을 제외한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
 
     await withRLS(ADMIN, (tx) =>
       tx.payee.update({ where: { id: row.id }, data: { deletedAt: new Date() } }),
     );
 
-    expect(await listPayees(ADMIN)).toHaveLength(0);
+    expect((await listPayees(ADMIN)).rows).toHaveLength(0);
     expect(await listPayeesForExport(ADMIN)).toHaveLength(0);
   });
 
   it("softDeletePayees: deletedAt을 채우고 listPayees에서 제외한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
 
     const res = await softDeletePayees(ADMIN, [row.id]);
     expect(res.ok).toBe(true);
 
-    expect(await listPayees(ADMIN)).toHaveLength(0);
+    expect((await listPayees(ADMIN)).rows).toHaveLength(0);
     const raw = await withRLS(ADMIN, (tx) => tx.payee.findUnique({ where: { id: row.id } }));
     expect(raw?.deletedAt).not.toBeNull();
   });
@@ -331,16 +336,16 @@ describe("payees 데이터 계층", () => {
       input("1234567890", "VENDOR"),
       input("9002022345678", "INSTRUCTOR"),
     ]);
-    const rows = await listPayees(ADMIN);
+    const { rows } = await listPayees(ADMIN);
 
     const res = await softDeletePayees(ADMIN, rows.map((r) => r.id));
     expect(res.ok).toBe(true);
-    expect(await listPayees(ADMIN)).toHaveLength(0);
+    expect((await listPayees(ADMIN)).rows).toHaveLength(0);
   });
 
   it("softDeletePayees: 이미 삭제된 항목을 다시 삭제하면 ok:false", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
 
     expect((await softDeletePayees(ADMIN, [row.id])).ok).toBe(true);
     const res2 = await softDeletePayees(ADMIN, [row.id]);
@@ -350,22 +355,22 @@ describe("payees 데이터 계층", () => {
 
   it("softDeletePayees는 PM도 삭제할 수 있다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
-    const [row] = await listPayees(ADMIN);
+    const { rows: [row] } = await listPayees(ADMIN);
 
     const res = await softDeletePayees({ userId: "pm1", role: "PM" }, [row.id]);
     expect(res.ok).toBe(true);
-    expect(await listPayees(ADMIN)).toHaveLength(0);
+    expect((await listPayees(ADMIN)).rows).toHaveLength(0);
   });
 
   it("createPayeesBulk: 소프트 삭제된 기존 행과 bizNumberBidx가 같으면 스킵 대신 자동 복원(revive)한다", async () => {
     await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "Old Name")]);
-    const [before] = await listPayees(ADMIN);
+    const { rows: [before] } = await listPayees(ADMIN);
     await softDeletePayees(ADMIN, [before.id]);
 
     const r2 = await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "New Name")]);
     expect(r2).toEqual({ created: 1, skipped: 0 });
 
-    const rows = await listPayees(ADMIN);
+    const { rows } = await listPayees(ADMIN);
     expect(rows).toHaveLength(1); // 새 행이 아니라 기존 행이 갱신됨
     expect(rows[0].id).toBe(before.id);
     expect(rows[0].keyId).toBe(before.keyId); // 새 채번 없이 원래 고유번호 유지
@@ -382,5 +387,56 @@ describe("payees 데이터 계층", () => {
     expect(parsePage("abc")).toBe(1);
     expect(parsePage("2.5")).toBe(1);
     expect(parsePage("3")).toBe(3);
+  });
+
+  it("listPayees: 기본 페이지 크기만큼 반환하고 totalPages를 계산한다", async () => {
+    await createPayeesBulk(ADMIN, manyInputs(PAGE_SIZE + 5));
+
+    const p1 = await listPayees(ADMIN);
+    expect(p1.rows).toHaveLength(PAGE_SIZE);
+    expect(p1.page).toBe(1);
+    expect(p1.totalPages).toBe(2);
+
+    const p2 = await listPayees(ADMIN, undefined, 2);
+    expect(p2.rows).toHaveLength(5);
+    expect(p2.page).toBe(2);
+    expect(p2.totalPages).toBe(2);
+  });
+
+  it("listPayees: 사업자번호 검색도 전체 스캔 후 슬라이스로 페이지네이션이 적용된다", async () => {
+    await createPayeesBulk(ADMIN, manyInputs(PAGE_SIZE + 5)); // 전부 "100000"으로 시작하는 사업자번호
+
+    const p1 = await listPayees(ADMIN, { field: "bizNumber", q: "100000" });
+    expect(p1.rows).toHaveLength(PAGE_SIZE);
+    expect(p1.totalPages).toBe(2);
+
+    const p2 = await listPayees(ADMIN, { field: "bizNumber", q: "100000" }, 2);
+    expect(p2.rows).toHaveLength(5);
+  });
+
+  it("listPayees: page가 totalPages보다 크면 빈 배열을 반환한다(에러 아님)", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR")]);
+    const result = await listPayees(ADMIN, undefined, 5);
+    expect(result.rows).toHaveLength(0);
+    expect(result.totalPages).toBe(1);
+    expect(result.page).toBe(5);
+  });
+
+  it("listPayeesForPm: 기본 페이지 크기만큼 반환하고 totalPages를 계산한다", async () => {
+    await createPayeesBulk(ADMIN, manyInputs(PAGE_SIZE + 5));
+    const PM = { userId: "pm1", role: "PM" as const };
+
+    const p1 = await listPayeesForPm(PM);
+    expect(p1.rows).toHaveLength(PAGE_SIZE);
+    expect(p1.totalPages).toBe(2);
+
+    const p2 = await listPayeesForPm(PM, undefined, 2);
+    expect(p2.rows).toHaveLength(5);
+  });
+
+  it("listPayeesForExport는 페이지 크기를 넘어도 페이지네이션 없이 전체를 반환한다", async () => {
+    await createPayeesBulk(ADMIN, manyInputs(PAGE_SIZE + 5));
+    const rows = await listPayeesForExport(ADMIN);
+    expect(rows).toHaveLength(PAGE_SIZE + 5);
   });
 });
