@@ -10,6 +10,7 @@ import { ClientCombobox } from "@/components/ClientCombobox";
 import { PaymentRequestPager } from "./PaymentRequestPager";
 import { PaymentRequestNoticeBanner } from "./PaymentRequestNoticeBanner";
 import { PaymentRequestDetailModal } from "./PaymentRequestDetailModal";
+import { PaymentRequestBulkUpdateModal } from "./PaymentRequestBulkUpdateModal";
 import { formatWon } from "@/lib/format";
 import {
   PAYMENT_REQUEST_ENTITY_LABELS, PAYMENT_REQUEST_ENTITY_BY_LABEL, paymentRequestEntityLabel,
@@ -47,6 +48,7 @@ export function PaymentRequestListPanel({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailTarget, setDetailTarget] = useState<PaymentRequestRow | null>(null);
+  const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
   const canExport = role === "ADMIN" || role === "SETTLEMENT";
   const allSelected = rows.length > 0 && selected.size === rows.length;
 
@@ -121,7 +123,7 @@ export function PaymentRequestListPanel({
         )}
         <button
           type="button"
-          onClick={() => alert(NOT_IMPLEMENTED)}
+          onClick={() => setBulkUpdateOpen(true)}
           disabled={selected.size === 0}
           className="rounded border border-[var(--color-border)] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -207,6 +209,10 @@ export function PaymentRequestListPanel({
           currentUserId={currentUserId}
           onClose={() => setDetailTarget(null)}
         />
+      )}
+
+      {bulkUpdateOpen && (
+        <PaymentRequestBulkUpdateModal count={selected.size} onClose={() => setBulkUpdateOpen(false)} />
       )}
     </div>
   );
