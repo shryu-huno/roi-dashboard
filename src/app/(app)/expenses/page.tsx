@@ -3,7 +3,7 @@ import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { getConsultingFieldSummary, getCorporateCardSummary, getExpenseSummaryTotals } from "@/lib/data/expenses";
-import { listPayees, parsePayeeSearchField } from "@/lib/data/payees";
+import { listPayees, listPayeesForPm, parsePage, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
 import { EXPENSE_SUMMARY_CATEGORIES } from "@/lib/expense-summary";
 import { orderRange, parseYm, rangeLabel, ymValue } from "@/lib/month-range";
 import { ClientCombobox } from "@/components/ClientCombobox";
@@ -12,6 +12,7 @@ import { CorporateCardSummaryTable } from "./CorporateCardSummaryTable";
 import { ExpenseSummaryTable } from "./ExpenseSummaryTable";
 import { ExpenseTabs } from "./ExpenseTabs";
 import { PayeeListPanel } from "./PayeeListPanel";
+import { PayeePmListPanel } from "./PayeePmListPanel";
 import {
   DEFAULT_EXPENSE_TAB,
   canAccessExpenseTab,
@@ -187,15 +188,25 @@ async function PaymentListTab({
   sp,
   user,
 }: {
-  sp: { field?: string; q?: string };
+  sp: { field?: string; q?: string; page?: string };
   user: SessionUser;
 }) {
   const ctx = getRlsContext(user);
+  const page = parsePage(sp.page);
+
+  if (user.role === "PM") {
+    const parsedField = parsePayeePmSearchField(sp.field);
+    const field = parsedField ?? "bizName";
+    const q = parsedField ? (sp.q ?? "") : "";
+    const result = await listPayeesForPm(ctx, parsedField && q.trim() ? { field: parsedField, q } : undefined, page);
+    return <PayeePmListPanel rows={result.rows} field={field} q={q} page={result.page} totalPages={result.totalPages} />;
+  }
+
   const parsedField = parsePayeeSearchField(sp.field);
   const field = parsedField ?? "bizName";
-  const q = sp.q ?? "";
-  const rows = await listPayees(ctx, parsedField && q.trim() ? { field: parsedField, q } : undefined);
-  return <PayeeListPanel rows={rows} field={field} q={q} />;
+  const q = parsedField ? (sp.q ?? "") : "";
+  const result = await listPayees(ctx, parsedField && q.trim() ? { field: parsedField, q } : undefined, page);
+  return <PayeeListPanel rows={result.rows} field={field} q={q} page={result.page} totalPages={result.totalPages} />;
 }
 
 // 아직 내용이 정해지지 않은 신규 탭용 자리표시자.
@@ -210,7 +221,7 @@ function PlaceholderTab({ label }: { label: string }) {
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; clientId?: string; from?: string; to?: string; field?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; clientId?: string; from?: string; to?: string; field?: string; q?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();

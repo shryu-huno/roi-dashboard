@@ -247,6 +247,7 @@ model Payee {
   taxType             TaxType            // 청구방식
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?          // 소프트 삭제. null=활성, 값=삭제됨(목록에서 숨김).
 
   attachments         PayeeAttachment[]
 

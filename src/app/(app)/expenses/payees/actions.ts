@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { createPayeesBulk } from "@/lib/data/payees";
+import { createPayeesBulk, updatePayee, updatePayeePmFields, softDeletePayees } from "@/lib/data/payees";
 import { PayeeKeyConfigError } from "@/lib/crypto/payee-secret";
+import { TAX_TYPE_BY_LABEL } from "@/lib/labels";
+import { payeeUpdateSchema, payeeUpdatePmSchema } from "@/lib/validation/schemas";
+import { SAVED, type ActionState } from "@/lib/action-state";
 import { buildPayeeInputsFromCsv, buildPayeeInputsFromRows, type BuildResult } from "./build-inputs";
 import { parseXlsxToRows } from "./xlsx";
 import type { PayeeUploadState } from "./upload-state";
@@ -13,7 +16,7 @@ export async function uploadPayeesAction(
   _prev: PayeeUploadState,
   formData: FormData,
 ): Promise<PayeeUploadState> {
-  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const user = await requireRole("PM"); // ADMIN/SETTLEMENT도 랭크상 통과
   const ctx = getRlsContext(user);
 
   const file = formData.get("file");
@@ -63,4 +66,78 @@ export async function uploadPayeesAction(
   const parts = [`${created}건 등록`];
   if (skipped) parts.push(`${skipped}건 중복 스킵`);
   return { ok: true, message: parts.join(" · "), created, skipped, rowErrors: errors };
+}
+
+export async function updatePayeeAction(id: string, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const ctx = getRlsContext(user);
+
+  const parsed = payeeUpdateSchema.safeParse({
+    bizName: formData.get("bizName"),
+    bankName: formData.get("bankName"),
+    accountNumber: formData.get("accountNumber"),
+    accountHolder: formData.get("accountHolder"),
+    taxType: formData.get("taxType"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "입력값을 확인하세요." };
+  }
+  const d = parsed.data;
+
+  try {
+    await updatePayee(ctx, id, {
+      bizName: d.bizName,
+      bankName: d.bankName,
+      accountNumber: d.accountNumber,
+      accountHolder: d.accountHolder,
+      taxType: TAX_TYPE_BY_LABEL[d.taxType],
+    });
+  } catch (e) {
+    console.error("[payee update] 수정 실패:", e);
+    return { ok: false, error: "수정 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
+  }
+
+  revalidatePath("/expenses");
+  return SAVED;
+}
+
+export async function updatePayeePmAction(id: string, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("PM");
+  const ctx = getRlsContext(user);
+
+  const parsed = payeeUpdatePmSchema.safeParse({
+    bizName: formData.get("bizName"),
+    taxType: formData.get("taxType"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "입력값을 확인하세요." };
+  }
+  const d = parsed.data;
+
+  try {
+    await updatePayeePmFields(ctx, id, { bizName: d.bizName, taxType: TAX_TYPE_BY_LABEL[d.taxType] });
+  } catch (e) {
+    console.error("[payee update-pm] 수정 실패:", e);
+    return { ok: false, error: "수정 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
+  }
+
+  revalidatePath("/expenses");
+  return SAVED;
+}
+
+export async function deletePayeesAction(ids: string[]): Promise<ActionState> {
+  const user = await requireRole("PM"); // ADMIN/SETTLEMENT도 랭크상 통과
+  const ctx = getRlsContext(user);
+
+  let result: ActionState;
+  try {
+    result = await softDeletePayees(ctx, ids);
+  } catch (e) {
+    console.error("[payee delete] 삭제 실패:", e);
+    return { ok: false, error: "삭제 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
+  }
+  if (!result.ok) return result;
+
+  revalidatePath("/expenses");
+  return result;
 }
