@@ -11,6 +11,7 @@ import { PaymentRequestPager } from "./PaymentRequestPager";
 import { PaymentRequestNoticeBanner } from "./PaymentRequestNoticeBanner";
 import { PaymentRequestDetailModal } from "./PaymentRequestDetailModal";
 import { PaymentRequestBulkUpdateModal } from "./PaymentRequestBulkUpdateModal";
+import { PaymentRequestRegisterModal } from "./PaymentRequestRegisterModal";
 import { formatWon } from "@/lib/format";
 import {
   PAYMENT_REQUEST_ENTITY_LABELS, PAYMENT_REQUEST_ENTITY_BY_LABEL, paymentRequestEntityLabel,
@@ -49,6 +50,7 @@ export function PaymentRequestListPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailTarget, setDetailTarget] = useState<PaymentRequestRow | null>(null);
   const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const canExport = role === "ADMIN" || role === "SETTLEMENT";
   const allSelected = rows.length > 0 && selected.size === rows.length;
 
@@ -142,7 +144,7 @@ export function PaymentRequestListPanel({
             + 등록
           </Link>
         ) : (
-          <button type="button" onClick={() => alert(NOT_IMPLEMENTED)} className="rounded bg-[var(--color-success)] px-4 py-2 text-sm text-white">
+          <button type="button" onClick={() => setRegisterOpen(true)} className="rounded bg-[var(--color-success)] px-4 py-2 text-sm text-white">
             + 등록
           </button>
         )}
@@ -213,6 +215,10 @@ export function PaymentRequestListPanel({
 
       {bulkUpdateOpen && (
         <PaymentRequestBulkUpdateModal count={selected.size} onClose={() => setBulkUpdateOpen(false)} />
+      )}
+
+      {registerOpen && (
+        <PaymentRequestRegisterModal clients={clients} payees={payees} onClose={() => setRegisterOpen(false)} />
       )}
     </div>
   );
