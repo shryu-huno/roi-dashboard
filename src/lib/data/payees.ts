@@ -12,6 +12,15 @@ export type PayeePmSearchField = (typeof PAYEE_SEARCH_FIELDS_PM)[number];
 
 export type PayeeSearchFilter = { field: PayeeSearchField | PayeePmSearchField; q: string };
 
+export const PAGE_SIZE = 50;
+
+// URL 쿼리 파라미터(page)를 파싱. 1 미만이거나 정수가 아니면 1(첫 페이지)로 클램프.
+export function parsePage(value: string | undefined): number {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) return 1;
+  return n;
+}
+
 // 알 수 없는 field 값(URL 조작 등)은 undefined 반환 — 호출부가 필터를 완전히 무시하도록.
 export function parsePayeeSearchField(value: string | undefined): PayeeSearchField | undefined {
   return PAYEE_SEARCH_FIELDS.find((f) => f === value);

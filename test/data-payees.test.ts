@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { withRLS } from "@/lib/rls";
 import {
   createPayeesBulk, listPayees, listPayeesForExport, listPayeesForPm, findPayeeByBizNumber,
-  parsePayeeSearchField, parsePayeePmSearchField,
+  parsePayeeSearchField, parsePayeePmSearchField, parsePage, PAGE_SIZE,
   updatePayee, updatePayeePmFields, softDeletePayees,
   type PayeeCreateInput,
 } from "@/lib/data/payees";
@@ -373,5 +373,14 @@ describe("payees 데이터 계층", () => {
 
     const raw = await withRLS(ADMIN, (tx) => tx.payee.findUnique({ where: { id: before.id } }));
     expect(raw?.deletedAt).toBeNull();
+  });
+
+  it("parsePage: 1 미만이거나 숫자가 아니면 1로 클램프", () => {
+    expect(parsePage(undefined)).toBe(1);
+    expect(parsePage("0")).toBe(1);
+    expect(parsePage("-3")).toBe(1);
+    expect(parsePage("abc")).toBe(1);
+    expect(parsePage("2.5")).toBe(1);
+    expect(parsePage("3")).toBe(3);
   });
 });
