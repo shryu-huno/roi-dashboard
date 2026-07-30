@@ -145,3 +145,16 @@ export const payeeUpdatePmSchema = z.object({
   bizName: z.string().trim().min(1, "이름은 필수입니다."),
   taxType: z.enum(TAX_TYPE_LABELS),
 });
+
+// PM 등록 화면 행 하나. 단가/횟수는 0보다 커야 하고(0이면 무의미), 교통비/재료비는 0을 허용한다.
+// entity/payeeId/clientId는 화면에서 자동완성/드롭다운으로만 채워지므로 빈 문자열이면 거부한다.
+export const paymentRequestRowSchema = z.object({
+  entity: z.enum(["HUNO", "HUNO_INC"]),
+  clientId: z.string().min(1),
+  payeeId: z.string().min(1),
+  unitPrice: z.coerce.number().int().min(1),
+  transportFee: z.coerce.number().int().min(0),
+  materialFee: z.coerce.number().int().min(0),
+  count: z.coerce.number().int().min(1),
+  memo: z.string(),
+});

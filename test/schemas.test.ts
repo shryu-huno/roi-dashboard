@@ -8,6 +8,7 @@ import {
   payeeUploadRowSchema,
   payeeUpdateSchema,
   payeeUpdatePmSchema,
+  paymentRequestRowSchema,
 } from "@/lib/validation/schemas";
 
 describe("performanceBatchSchema", () => {
@@ -211,5 +212,29 @@ describe("payeeUpdatePmSchema", () => {
   });
   it("알 수 없는 청구방식은 실패", () => {
     expect(payeeUpdatePmSchema.safeParse({ bizName: "홍길동", taxType: "카드" }).success).toBe(false);
+  });
+});
+
+describe("paymentRequestRowSchema", () => {
+  const valid = { entity: "HUNO", clientId: "c1", payeeId: "p1", unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" };
+
+  it("유효한 값은 통과한다", () => {
+    expect(paymentRequestRowSchema.safeParse(valid).success).toBe(true);
+  });
+  it("단가가 0이면 실패한다", () => {
+    expect(paymentRequestRowSchema.safeParse({ ...valid, unitPrice: 0 }).success).toBe(false);
+  });
+  it("횟수가 0이면 실패한다", () => {
+    expect(paymentRequestRowSchema.safeParse({ ...valid, count: 0 }).success).toBe(false);
+  });
+  it("교통비/재료비는 0이어도 통과한다", () => {
+    expect(paymentRequestRowSchema.safeParse({ ...valid, transportFee: 0, materialFee: 0 }).success).toBe(true);
+  });
+  it("알 수 없는 지급명의는 실패한다", () => {
+    expect(paymentRequestRowSchema.safeParse({ ...valid, entity: "HACKED" }).success).toBe(false);
+  });
+  it("고객사/사업자 id가 비어있으면 실패한다", () => {
+    expect(paymentRequestRowSchema.safeParse({ ...valid, clientId: "" }).success).toBe(false);
+    expect(paymentRequestRowSchema.safeParse({ ...valid, payeeId: "" }).success).toBe(false);
   });
 });
