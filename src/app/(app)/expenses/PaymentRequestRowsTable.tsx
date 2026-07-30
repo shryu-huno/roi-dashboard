@@ -80,12 +80,18 @@ export function PaymentRequestRowsTable({
     updateRow(key, patch);
   }
 
+  const allSelected = rows.length > 0 && selected.size === rows.length;
+
   function toggleSelect(key: string) {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
+  }
+
+  function toggleSelectAll() {
+    setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.key)));
   }
 
   function removeSelected() {
@@ -100,7 +106,9 @@ export function PaymentRequestRowsTable({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)] text-center text-[var(--color-muted)]">
-              <th className="w-10 px-2 py-2">선택</th>
+              <th className="w-10 px-2 py-2">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} aria-label="전체선택" />
+              </th>
               <th className="w-10 px-2 py-2">No</th>
               <th className="px-2 py-2">지급명의</th>
               <th className="px-2 py-2">고객사</th>
