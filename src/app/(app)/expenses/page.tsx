@@ -3,7 +3,7 @@ import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { getConsultingFieldSummary, getCorporateCardSummary, getExpenseSummaryTotals } from "@/lib/data/expenses";
-import { listPayees, listPayeesForPm, listPayeeOptions, parsePage, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
+import { listPayees, listPayeesForPm, parsePage, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
 import {
   listPaymentRequests, parsePaymentRequestPage, parsePaymentRequestEntity,
   parsePaymentRequestStatus, parsePaymentRequestDateParam,
@@ -226,10 +226,7 @@ async function PaymentRequestTab({
   user: SessionUser;
 }) {
   const ctx = getRlsContext(user);
-  const [clients, payees] = await Promise.all([
-    listClients(ctx),
-    user.role === "PM" ? Promise.resolve([]) : listPayeeOptions(ctx),
-  ]);
+  const clients = await listClients(ctx);
 
   const filter = {
     payDateFrom: parsePaymentRequestDateParam(sp.payDateFrom),
@@ -248,7 +245,6 @@ async function PaymentRequestTab({
       page={result.page}
       totalPages={result.totalPages}
       clients={clients.map((c) => ({ id: c.id, name: c.name, businessType: c.businessType }))}
-      payees={payees}
       filterValues={{
         payDateFrom: sp.payDateFrom ?? "",
         payDateTo: sp.payDateTo ?? "",

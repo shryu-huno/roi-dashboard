@@ -4,14 +4,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PAYMENT_REQUEST_PAGE_SIZE, type PaymentRequestRow } from "@/lib/data/payment-requests";
-import type { PayeeOption } from "@/lib/data/payees";
 import type { AppRole } from "@/lib/auth/rbac";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { PaymentRequestPager } from "./PaymentRequestPager";
 import { PaymentRequestNoticeBanner } from "./PaymentRequestNoticeBanner";
 import { PaymentRequestDetailModal } from "./PaymentRequestDetailModal";
 import { PaymentRequestBulkUpdateModal } from "./PaymentRequestBulkUpdateModal";
-import { PaymentRequestRegisterModal } from "./PaymentRequestRegisterModal";
+import { PaymentRequestExcelUploadModal } from "./PaymentRequestExcelUploadModal";
 import { formatWon } from "@/lib/format";
 import {
   PAYMENT_REQUEST_ENTITY_LABELS, PAYMENT_REQUEST_ENTITY_BY_LABEL, paymentRequestEntityLabel,
@@ -33,7 +32,6 @@ export function PaymentRequestListPanel({
   page,
   totalPages,
   clients,
-  payees,
   filterValues,
   role,
   currentUserId,
@@ -42,7 +40,6 @@ export function PaymentRequestListPanel({
   page: number;
   totalPages: number;
   clients: { id: string; name: string; businessType: string | null }[];
-  payees: PayeeOption[];
   filterValues: FilterValues;
   role: AppRole;
   currentUserId: string;
@@ -50,7 +47,7 @@ export function PaymentRequestListPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailTarget, setDetailTarget] = useState<PaymentRequestRow | null>(null);
   const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
-  const [registerOpen, setRegisterOpen] = useState(false);
+  const [excelUploadOpen, setExcelUploadOpen] = useState(false);
   const canExport = role === "ADMIN" || role === "SETTLEMENT";
   const allSelected = rows.length > 0 && selected.size === rows.length;
 
@@ -141,13 +138,14 @@ export function PaymentRequestListPanel({
         >
           🗑️ 삭제{selected.size > 0 ? ` (${selected.size}건 선택)` : ""}
         </button>
-        {role === "PM" ? (
+        {role === "PM" && (
           <Link href="/expenses/payment-request/new" className="rounded bg-[var(--color-success)] px-4 py-2 text-sm text-white">
             + 등록
           </Link>
-        ) : (
-          <button type="button" onClick={() => setRegisterOpen(true)} className="rounded bg-[var(--color-success)] px-4 py-2 text-sm text-white">
-            + 등록
+        )}
+        {canExport && (
+          <button type="button" onClick={() => setExcelUploadOpen(true)} className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
+            ⬆ 엑셀 업로드
           </button>
         )}
       </div>
@@ -219,8 +217,8 @@ export function PaymentRequestListPanel({
         <PaymentRequestBulkUpdateModal count={selected.size} onClose={() => setBulkUpdateOpen(false)} />
       )}
 
-      {registerOpen && (
-        <PaymentRequestRegisterModal clients={clients} payees={payees} onClose={() => setRegisterOpen(false)} />
+      {excelUploadOpen && (
+        <PaymentRequestExcelUploadModal onClose={() => setExcelUploadOpen(false)} />
       )}
     </div>
   );
