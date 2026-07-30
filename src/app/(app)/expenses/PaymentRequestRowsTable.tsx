@@ -110,15 +110,15 @@ export function PaymentRequestRowsTable({
                 <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} aria-label="전체선택" />
               </th>
               <th className="w-10 px-2 py-2">No</th>
-              <th className="px-2 py-2">지급명의</th>
-              <th className="px-2 py-2">고객사</th>
+              <th className="w-24 px-2 py-2">지급명의</th>
+              <th className="w-28 px-2 py-2">고객사</th>
               <th className="px-2 py-2">사업자명(이름)</th>
-              <th className="px-2 py-2">단가</th>
-              <th className="px-2 py-2">교통비</th>
-              <th className="px-2 py-2">재료비</th>
-              <th className="px-2 py-2">횟수</th>
-              <th className="px-2 py-2">지급액</th>
-              <th className="px-2 py-2">청구방식</th>
+              <th className="w-20 px-2 py-2">단가</th>
+              <th className="w-20 px-2 py-2">교통비</th>
+              <th className="w-20 px-2 py-2">재료비</th>
+              <th className="w-14 px-2 py-2">횟수</th>
+              <th className="w-24 px-2 py-2">지급액</th>
+              <th className="w-28 px-2 py-2">청구방식</th>
               <th className="px-2 py-2">상세내역</th>
             </tr>
           </thead>
