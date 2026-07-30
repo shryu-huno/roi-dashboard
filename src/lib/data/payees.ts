@@ -402,3 +402,17 @@ export function softDeletePayees(ctx: RlsContext, ids: string[]): Promise<Action
     return { ok: true };
   });
 }
+
+// 지급요청 등록 화면의 사업자명(이름) 검색 콤보박스용 — 민감정보(계좌/사업자번호) 없이
+// id/keyId/bizName만. Payee의 SELECT RLS(payee_select)는 전 역할 허용이라 role 분기가 필요 없다.
+export type PayeeOption = { id: string; keyId: string; bizName: string };
+
+export function listPayeeOptions(ctx: RlsContext): Promise<PayeeOption[]> {
+  return withRLS(ctx, (tx) =>
+    tx.payee.findMany({
+      where: { deletedAt: null },
+      select: { id: true, keyId: true, bizName: true },
+      orderBy: { bizName: "asc" },
+    }),
+  );
+}
