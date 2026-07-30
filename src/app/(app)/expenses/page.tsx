@@ -3,7 +3,11 @@ import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { getConsultingFieldSummary, getCorporateCardSummary, getExpenseSummaryTotals } from "@/lib/data/expenses";
-import { listPayees, listPayeesForPm, parsePage, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
+import { listPayees, listPayeesForPm, listPayeeOptions, parsePage, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
+import {
+  listPaymentRequests, parsePaymentRequestPage, parsePaymentRequestEntity,
+  parsePaymentRequestStatus, parsePaymentRequestDateParam,
+} from "@/lib/data/payment-requests";
 import { EXPENSE_SUMMARY_CATEGORIES } from "@/lib/expense-summary";
 import { orderRange, parseYm, rangeLabel, ymValue } from "@/lib/month-range";
 import { ClientCombobox } from "@/components/ClientCombobox";
@@ -13,6 +17,7 @@ import { ExpenseSummaryTable } from "./ExpenseSummaryTable";
 import { ExpenseTabs } from "./ExpenseTabs";
 import { PayeeListPanel } from "./PayeeListPanel";
 import { PayeePmListPanel } from "./PayeePmListPanel";
+import { PaymentRequestListPanel } from "./PaymentRequestListPanel";
 import {
   DEFAULT_EXPENSE_TAB,
   canAccessExpenseTab,
@@ -209,6 +214,52 @@ async function PaymentListTab({
   return <PayeeListPanel rows={result.rows} field={field} q={q} page={result.page} totalPages={result.totalPages} />;
 }
 
+// 지급요청 탭 본문 — 조회(필터+페이지네이션)만 실동작, 나머지 쓰기 액션은 화면만(다음 단계에서 구현).
+async function PaymentRequestTab({
+  sp,
+  user,
+}: {
+  sp: {
+    clientId?: string; page?: string;
+    payDateFrom?: string; payDateTo?: string; entity?: string; status?: string; bizName?: string;
+  };
+  user: SessionUser;
+}) {
+  const ctx = getRlsContext(user);
+  const [clients, payees] = await Promise.all([listClients(ctx), listPayeeOptions(ctx)]);
+
+  const filter = {
+    payDateFrom: parsePaymentRequestDateParam(sp.payDateFrom),
+    payDateTo: parsePaymentRequestDateParam(sp.payDateTo),
+    clientId: sp.clientId || undefined,
+    entity: parsePaymentRequestEntity(sp.entity),
+    status: parsePaymentRequestStatus(sp.status),
+    bizName: sp.bizName || undefined,
+  };
+  const page = parsePaymentRequestPage(sp.page);
+  const result = await listPaymentRequests(ctx, filter, page);
+
+  return (
+    <PaymentRequestListPanel
+      rows={result.rows}
+      page={result.page}
+      totalPages={result.totalPages}
+      clients={clients.map((c) => ({ id: c.id, name: c.name, businessType: c.businessType }))}
+      payees={payees}
+      filterValues={{
+        payDateFrom: sp.payDateFrom ?? "",
+        payDateTo: sp.payDateTo ?? "",
+        clientId: sp.clientId ?? "",
+        entity: sp.entity ?? "",
+        status: sp.status ?? "",
+        bizName: sp.bizName ?? "",
+      }}
+      role={user.role!}
+      currentUserId={user.id}
+    />
+  );
+}
+
 // 아직 내용이 정해지지 않은 신규 탭용 자리표시자.
 function PlaceholderTab({ label }: { label: string }) {
   return (
@@ -221,7 +272,10 @@ function PlaceholderTab({ label }: { label: string }) {
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; clientId?: string; from?: string; to?: string; field?: string; q?: string; page?: string }>;
+  searchParams: Promise<{
+    tab?: string; clientId?: string; from?: string; to?: string; field?: string; q?: string; page?: string;
+    payDateFrom?: string; payDateTo?: string; entity?: string; status?: string; bizName?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();
@@ -248,6 +302,8 @@ export default async function ExpensesPage({
         <CorporateCardTab sp={sp} user={user} />
       ) : currentTab === "payment-list" ? (
         <PaymentListTab sp={sp} user={user} />
+      ) : currentTab === "payment-request" ? (
+        <PaymentRequestTab sp={sp} user={user} />
       ) : (
         <PlaceholderTab label={currentLabel} />
       )}
