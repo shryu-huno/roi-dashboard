@@ -62,6 +62,16 @@ enum PayeeFileType {
   BANKBOOK // 통장사본
 }
 
+enum PaymentRequestEntity {
+  HUNO       // 휴노
+  HUNO_INC   // 휴노INC
+}
+
+enum PaymentRequestStatus {
+  PREPARING  // 지급준비 (기본값)
+  COMPLETED  // 지급완료
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
@@ -74,6 +84,7 @@ model User {
   updatedAt DateTime   @updatedAt
 
   managedClients ClientManager[]
+  paymentRequests PaymentRequest[]
   accounts  Account[]
   sessions  Session[]
 
@@ -103,6 +114,7 @@ model Client {
   expenses     Expense[]
   consultingExpenses ConsultingExpense[]
   corporateCardExpenses CorporateCardExpense[]
+  paymentRequests PaymentRequest[]
 }
 
 // 고객사–담당PM 다대다 조인. 한 고객사에 여러 PM을 지정할 수 있다.
@@ -250,6 +262,7 @@ model Payee {
   deletedAt           DateTime?          // 소프트 삭제. null=활성, 값=삭제됨(목록에서 숨김).
 
   attachments         PayeeAttachment[]
+  paymentRequests     PaymentRequest[]
 
   @@index([phoneNormalized])
   @@index([payeeType])
@@ -266,6 +279,39 @@ model PayeeAttachment {
   uploadedAt DateTime      @default(now())
 
   @@unique([payeeId, fileType])
+  @@index([payeeId])
+}
+
+// PM이 강사/업체 지급을 요청하는 건별 레코드. Payee(마스터 정보)와는 느슨하게 연결—
+// 지급 리스트에서 선택한 건은 payeeId로 연동, 지급 리스트에 없는 예외 건은 payeeId를 비우고
+// bizName만 텍스트로 저장한다.
+model PaymentRequest {
+  id            String                @id @default(cuid())
+  requestedAt   DateTime              @default(now())   // 신청일 (자동)
+  requesterId   String                                   // 신청인
+  requester     User                  @relation(fields: [requesterId], references: [id])
+  entity        PaymentRequestEntity                     // 지급명의
+  clientId      String                                   // 고객사
+  client        Client                @relation(fields: [clientId], references: [id])
+  payeeId       String?                                  // 지급 리스트 연동(있으면 FK)
+  payee         Payee?                @relation(fields: [payeeId], references: [id])
+  bizName       String                                   // 사업자명(이름) 스냅샷
+  unitPrice     Int                                       // 단가
+  transportFee  Int                                       // 교통비
+  materialFee   Int                                       // 재료비
+  count         Int                                       // 횟수
+  amount        Int                                       // 지급액 = (단가+교통비+재료비)×횟수
+  taxType       TaxType                                   // 청구방식
+  memo          String                                    // 상세내역(비고)
+  payDate       DateTime?                                 // 지급일 — 정산담당자가 이후 채움
+  status        PaymentRequestStatus  @default(PREPARING) // 지급여부
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  deletedAt     DateTime?                                 // 소프트 삭제
+
+  @@index([clientId])
+  @@index([requesterId])
+  @@index([status])
   @@index([payeeId])
 }
 
