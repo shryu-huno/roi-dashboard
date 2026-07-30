@@ -9,6 +9,7 @@ import type { AppRole } from "@/lib/auth/rbac";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { PaymentRequestPager } from "./PaymentRequestPager";
 import { PaymentRequestNoticeBanner } from "./PaymentRequestNoticeBanner";
+import { PaymentRequestDetailModal } from "./PaymentRequestDetailModal";
 import { formatWon } from "@/lib/format";
 import {
   PAYMENT_REQUEST_ENTITY_LABELS, PAYMENT_REQUEST_ENTITY_BY_LABEL, paymentRequestEntityLabel,
@@ -30,10 +31,10 @@ export function PaymentRequestListPanel({
   page,
   totalPages,
   clients,
-  payees: _payees,
+  payees,
   filterValues,
   role,
-  currentUserId: _currentUserId,
+  currentUserId,
 }: {
   rows: PaymentRequestRow[];
   page: number;
@@ -45,6 +46,7 @@ export function PaymentRequestListPanel({
   currentUserId: string;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [detailTarget, setDetailTarget] = useState<PaymentRequestRow | null>(null);
   const canExport = role === "ADMIN" || role === "SETTLEMENT";
   const allSelected = rows.length > 0 && selected.size === rows.length;
 
@@ -180,7 +182,7 @@ export function PaymentRequestListPanel({
                 <td className="whitespace-nowrap px-3 py-2">{paymentRequestStatusLabel(r.status)}</td>
                 <td className="whitespace-nowrap px-3 py-2">
                   <div className="flex justify-center gap-2">
-                    <button type="button" onClick={() => alert(NOT_IMPLEMENTED)} className="text-[var(--color-muted)] hover:text-[var(--color-primary)]" aria-label="상세">🔍</button>
+                    <button type="button" onClick={() => setDetailTarget(r)} className="text-[var(--color-muted)] hover:text-[var(--color-primary)]" aria-label="상세">🔍</button>
                     <button type="button" onClick={() => alert(NOT_IMPLEMENTED)} className="text-[var(--color-muted)] hover:text-[var(--color-danger)]" aria-label="삭제">🗑️</button>
                   </div>
                 </td>
@@ -196,6 +198,15 @@ export function PaymentRequestListPanel({
         <p className="mt-4 text-center text-sm text-[var(--color-muted)]">
           {Object.values(filterValues).some((v) => v) ? "검색 결과가 없습니다." : "등록된 지급요청이 없습니다."}
         </p>
+      )}
+
+      {detailTarget && (
+        <PaymentRequestDetailModal
+          row={detailTarget}
+          role={role}
+          currentUserId={currentUserId}
+          onClose={() => setDetailTarget(null)}
+        />
       )}
     </div>
   );
