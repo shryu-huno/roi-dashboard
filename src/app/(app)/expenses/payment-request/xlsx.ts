@@ -28,6 +28,8 @@ export const EXPORT_HEADERS = [
 const TEXT_COLUMNS = ["사업자번호(주민등록번호)", "계좌번호", "지급일"] as const;
 const NUMBER_COLUMNS = ["단가", "교통비", "재료비", "횟수", "총지급액"] as const;
 
+// 지급일은 KST 달력일 기준으로 표시/파싱한다 — DB에는 그 날짜의 UTC 자정(00:00:00Z)으로
+// 저장된다. 다른 곳에서 payDate를 쓸 때도 이 규약을 맞춰야 재업로드 시 날짜가 밀리지 않는다.
 function formatPayDate(d: Date | null): string {
   return d ? d.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }) : "";
 }
