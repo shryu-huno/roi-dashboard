@@ -4,7 +4,7 @@ import { withRLS } from "@/lib/rls";
 import {
   listPaymentRequests, parsePaymentRequestPage, parsePaymentRequestEntity,
   parsePaymentRequestStatus, parsePaymentRequestDateParam, PAYMENT_REQUEST_PAGE_SIZE,
-  createPaymentRequestsBulk,
+  createPaymentRequestsBulk, listPaymentRequestsForExport,
 } from "@/lib/data/payment-requests";
 import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
 import { createPayeesBulk } from "@/lib/data/payees";
@@ -324,6 +324,79 @@ describe("payment-requests 데이터 계층", () => {
       );
       expect(result.ok).toBe(true);
       expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(2);
+    });
+  });
+
+  describe("listPaymentRequestsForExport", () => {
+    it("ids가 있으면 필터를 무시하고 해당 건만 반환한다", async () => {
+      const { pmA, clientA } = await seed();
+      const r1 = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "A건", status: "PREPARING" }),
+      }));
+      await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "B건", status: "COMPLETED" }),
+      }));
+
+      const rows = await listPaymentRequestsForExport(ADMIN, { status: "COMPLETED" }, [r1.id]);
+      expect(rows.map((r) => r.bizName)).toEqual(["A건"]);
+    });
+
+    it("ids 없이 필터만 지정하면 페이지네이션 없이 필터링된 전체 결과를 반환한다", async () => {
+      const { pmA, clientA } = await seed();
+      for (let i = 0; i < PAYMENT_REQUEST_PAGE_SIZE + 1; i++) {
+        await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+          data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: `건${i}` }),
+        }));
+      }
+      const rows = await listPaymentRequestsForExport(ADMIN, { clientId: clientA.id });
+      expect(rows).toHaveLength(PAYMENT_REQUEST_PAGE_SIZE + 1);
+    });
+
+    it("연동된 Payee의 지급 리스트 정보를 원문으로 포함한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1101234567", "김강사", "BUSINESS_INCOME");
+      await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: { ...baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "김강사" }), payeeId: payee.id },
+      }));
+
+      const [row] = await listPaymentRequestsForExport(ADMIN);
+      expect(row.payeeKeyId).toBe(payee.keyId);
+      expect(row.phone).toBe("010-1234-5678");
+      expect(row.bizNumber).toBe("1101234567");
+      expect(row.bankName).toBe("국민");
+      expect(row.accountNumber).toBe("110123456789");
+      expect(row.accountHolder).toBe("예금주");
+    });
+
+    it("payeeId가 없는 건은 지급 리스트 연동 컬럼이 빈 문자열이다", async () => {
+      const { pmA, clientA } = await seed();
+      await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "예외건" }),
+      }));
+
+      const [row] = await listPaymentRequestsForExport(ADMIN);
+      expect(row.payeeKeyId).toBe("");
+      expect(row.phone).toBe("");
+      expect(row.bizNumber).toBe("");
+      expect(row.bankName).toBe("");
+      expect(row.accountNumber).toBe("");
+      expect(row.accountHolder).toBe("");
+    });
+
+    it("사업자명·청구방식은 등록 시점 스냅샷을 그대로 사용한다(Payee 최신값 아님)", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1101234567", "김강사", "TAX_INVOICE");
+      await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: {
+          ...baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "등록당시이름", taxType: "BUSINESS_INCOME" }),
+          payeeId: payee.id,
+        },
+      }));
+      await withRLS(ADMIN, (tx) => tx.payee.update({ where: { id: payee.id }, data: { bizName: "바뀐이름", taxType: "TAX_INVOICE" } }));
+
+      const [row] = await listPaymentRequestsForExport(ADMIN);
+      expect(row.bizName).toBe("등록당시이름");
+      expect(row.taxType).toBe("BUSINESS_INCOME");
     });
   });
 });

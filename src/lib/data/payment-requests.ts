@@ -2,6 +2,7 @@ import type { PaymentRequestEntity, PaymentRequestStatus, Prisma, TaxType } from
 import { withRLS, type RlsContext } from "@/lib/rls";
 import type { ActionState } from "@/lib/action-state";
 import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
+import { decrypt } from "@/lib/crypto/payee-secret";
 
 export const PAYMENT_REQUEST_PAGE_SIZE = 50;
 
@@ -131,6 +132,70 @@ export async function listPaymentRequests(
     status: r.status,
   }));
   return { rows: mapped, page: clampedPage, totalPages };
+}
+
+export type PaymentRequestExportRow = {
+  requesterName: string;
+  entity: PaymentRequestEntity;
+  clientName: string;
+  bizName: string;
+  payeeKeyId: string;
+  phone: string;
+  bizNumber: string;
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  unitPrice: number;
+  transportFee: number;
+  materialFee: number;
+  count: number;
+  amount: number;
+  taxType: TaxType;
+  memo: string;
+};
+
+// 엑셀 다운로드 전용. ids가 있으면 필터 없이 해당 건만(체크박스 선택), 없으면 필터링된 전체
+// 결과를 페이지네이션 없이 반환한다. 사업자명/청구방식은 PaymentRequest 스냅샷을 그대로 쓰고,
+// 나머지 지급 리스트 정보(고유번호/연락처/사업자번호/은행명/계좌번호/예금주)만 연동된 Payee에서
+// 조회한다 — payeeId가 없는 건은 빈 문자열로 채운다. role 체크는 호출부(export 라우트)가 담당한다.
+export async function listPaymentRequestsForExport(
+  ctx: RlsContext,
+  filter?: PaymentRequestFilter,
+  ids?: string[],
+): Promise<PaymentRequestExportRow[]> {
+  const where: Prisma.PaymentRequestWhereInput = ids && ids.length > 0
+    ? { id: { in: ids }, deletedAt: null }
+    : buildWhere(filter);
+
+  const rows = await withRLS(ctx, (tx) => tx.paymentRequest.findMany({
+    where,
+    orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+    include: {
+      requester: { select: { name: true, email: true } },
+      client: { select: { name: true } },
+      payee: { select: { keyId: true, phone: true, bizNumberEnc: true, bankName: true, accountNumberEnc: true, accountHolder: true } },
+    },
+  }));
+
+  return rows.map((r) => ({
+    requesterName: r.requester.name ?? r.requester.email,
+    entity: r.entity,
+    clientName: r.client.name,
+    bizName: r.bizName,
+    payeeKeyId: r.payee?.keyId ?? "",
+    phone: r.payee?.phone ?? "",
+    bizNumber: r.payee ? decrypt(r.payee.bizNumberEnc) : "",
+    bankName: r.payee?.bankName ?? "",
+    accountNumber: r.payee ? decrypt(r.payee.accountNumberEnc) : "",
+    accountHolder: r.payee?.accountHolder ?? "",
+    unitPrice: r.unitPrice,
+    transportFee: r.transportFee,
+    materialFee: r.materialFee,
+    count: r.count,
+    amount: r.amount,
+    taxType: r.taxType,
+    memo: r.memo,
+  }));
 }
 
 // PM 등록 화면에서 여러 행을 한 번에 저장한다. 사업자명/청구방식은 클라이언트 값을 신뢰하지
