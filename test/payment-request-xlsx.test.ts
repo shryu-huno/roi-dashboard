@@ -65,4 +65,16 @@ describe("payment-request export xlsx", () => {
     expect(parsed[2][2]).toBe("휴노INC");
     expect(parsed[2][16]).toBe("세금계산서");
   });
+
+  it("긴 상세내역은 열 너비를 60 이하로 제한한다", async () => {
+    const longMemo = "가".repeat(200); // 200자 한글 = 너비 400, 패딩 제외하면 396 → 오버플로우 위험
+    const rowWithLongMemo = { ...row, memo: longMemo };
+    const buf = await buildPaymentRequestExportXlsxBuffer([rowWithLongMemo]);
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const ws = wb.worksheets[0];
+    const memoCol = EXPORT_HEADERS.indexOf("상세내역") + 1;
+    expect(ws.getColumn(memoCol).width).toBeLessThanOrEqual(60);
+  });
 });

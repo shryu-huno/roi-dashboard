@@ -62,9 +62,10 @@ export async function buildPaymentRequestExportXlsxBuffer(rows: PaymentRequestEx
 
   // 열 너비 — 헤더와 실제 데이터 중 가장 넓은 값 기준.
   const COLUMN_WIDTH_PADDING = 4;
+  const MAX_COLUMN_WIDTH = 60;
   EXPORT_HEADERS.forEach((header, i) => {
     const candidates = [header, ...dataRows.map((row) => String(row[i]))];
-    ws.getColumn(i + 1).width = Math.max(...candidates.map(displayWidth)) + COLUMN_WIDTH_PADDING;
+    ws.getColumn(i + 1).width = Math.min(Math.max(...candidates.map(displayWidth)) + COLUMN_WIDTH_PADDING, MAX_COLUMN_WIDTH);
   });
 
   ws.views = [{ state: "frozen", ySplit: 1 }];
