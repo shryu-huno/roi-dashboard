@@ -3,6 +3,7 @@ import { withRLS, type RlsContext } from "@/lib/rls";
 import { resolvePeriod } from "@/lib/period";
 import { prisma } from "@/lib/db";
 import { withVat } from "@/lib/vat";
+import { sessionDateBetween, sessionMonth } from "@/lib/consulting-basis";
 
 // 고객사 where 조각: 보관(소프트 삭제) 제외 + (옵션) 현대이지웰 고객사만.
 function clientWhere(easywelOnly: boolean) {
@@ -16,12 +17,14 @@ export type PeriodTotals = {
   expense: number;
 };
 
+// fiscalBasis: false=프로젝트 기준(상담비를 실시일시로 집계), true=회계연도 기준(지급월로 집계).
 export function getPeriodTotals(
   ctx: RlsContext,
   year: number,
   period: string,
   includeVat = false,
   easywelOnly = false,
+  fiscalBasis = false,
 ): Promise<PeriodTotals> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
@@ -48,7 +51,9 @@ export function getPeriodTotals(
       _sum: { amount: true },
     });
     const consulting = await tx.consultingExpense.aggregate({
-      where: { year, month: monthRange, client: cw },
+      where: fiscalBasis
+        ? { year, month: monthRange, client: cw }
+        : { sessionDate: sessionDateBetween({ year, month: startMonth }, { year, month: endMonth }), client: cw },
       _sum: { amount: true },
     });
     const corporateCard = await tx.corporateCardExpense.aggregate({
@@ -102,7 +107,7 @@ export function getClientYearProgress(
 
 export type TrendPoint = { month: number; performance: number; expense: number };
 
-export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = false, easywelOnly = false): Promise<TrendPoint[]> {
+export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = false, easywelOnly = false, fiscalBasis = false): Promise<TrendPoint[]> {
   const cw = clientWhere(easywelOnly);
   return withRLS(ctx, async (tx) => {
     const perf = await tx.monthlyPerformance.groupBy({
@@ -115,11 +120,26 @@ export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = fals
       where: { year, client: cw },
       _sum: { amount: true },
     });
-    const cons = await tx.consultingExpense.groupBy({
-      by: ["month"],
-      where: { year, client: cw },
-      _sum: { amount: true },
-    });
+    // 상담비 월별 — 회계연도 기준은 지급월(groupBy), 프로젝트 기준은 실시일시에서 월 추출(JS 집계).
+    const consByMonth = new Map<number, number>();
+    if (fiscalBasis) {
+      const cons = await tx.consultingExpense.groupBy({
+        by: ["month"],
+        where: { year, client: cw },
+        _sum: { amount: true },
+      });
+      for (const r of cons) consByMonth.set(r.month, r._sum.amount ?? 0);
+    } else {
+      const consRows = await tx.consultingExpense.findMany({
+        where: { sessionDate: sessionDateBetween({ year, month: 1 }, { year, month: 12 }), client: cw },
+        select: { sessionDate: true, amount: true },
+      });
+      for (const r of consRows) {
+        if (!r.sessionDate) continue;
+        const m = sessionMonth(r.sessionDate);
+        consByMonth.set(m, (consByMonth.get(m) ?? 0) + (r.amount ?? 0));
+      }
+    }
     const cc = await tx.corporateCardExpense.groupBy({
       by: ["month"],
       where: { year, client: cw },
@@ -127,7 +147,6 @@ export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = fals
     });
     const perfByMonth = new Map(perf.map((r) => [r.month, r._sum.amount ?? 0]));
     const expByMonth = new Map(exp.map((r) => [r.month, r._sum.amount ?? 0]));
-    const consByMonth = new Map(cons.map((r) => [r.month, r._sum.amount ?? 0]));
     const ccByMonth = new Map(cc.map((r) => [r.month, r._sum.amount ?? 0]));
     return Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
@@ -180,6 +199,7 @@ export async function getClientSummaries(
   period: string,
   includeVat = false,
   easywelOnly = false,
+  fiscalBasis = false,
 ): Promise<ClientSummary[]> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
@@ -196,7 +216,9 @@ export async function getClientSummaries(
     });
     const consRows = await tx.consultingExpense.groupBy({
       by: ["clientId"],
-      where: { year, month: monthRange },
+      where: fiscalBasis
+        ? { year, month: monthRange }
+        : { sessionDate: sessionDateBetween({ year, month: startMonth }, { year, month: endMonth }) },
       _sum: { amount: true },
     });
     const ccRows = await tx.corporateCardExpense.groupBy({
@@ -257,8 +279,9 @@ export async function getPmSummaries(
   ctx: RlsContext,
   year: number,
   period: string,
+  fiscalBasis = false,
 ): Promise<PmSummary[]> {
-  const clients = await getClientSummaries(ctx, year, period);
+  const clients = await getClientSummaries(ctx, year, period, false, false, fiscalBasis);
   return rollupPmSummaries(clients);
 }
 
@@ -323,6 +346,7 @@ export function getClientDetail(
   year: number,
   period: string,
   includeVat = false,
+  fiscalBasis = false,
 ): Promise<ClientDetail | null> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
@@ -361,9 +385,24 @@ export function getClientDetail(
     const expM = await tx.expense.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
     });
-    const consM = await tx.consultingExpense.groupBy({
-      by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
-    });
+    // 상담비 월별 — 회계연도 기준은 지급월(groupBy), 프로젝트 기준은 실시일시에서 월 추출(JS 집계).
+    const ce = new Map<number, number>();
+    if (fiscalBasis) {
+      const consM = await tx.consultingExpense.groupBy({
+        by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
+      });
+      for (const r of consM) ce.set(r.month, r._sum.amount ?? 0);
+    } else {
+      const consRows = await tx.consultingExpense.findMany({
+        where: { sessionDate: sessionDateBetween({ year, month: 1 }, { year, month: 12 }), clientId: id },
+        select: { sessionDate: true, amount: true },
+      });
+      for (const r of consRows) {
+        if (!r.sessionDate) continue;
+        const m = sessionMonth(r.sessionDate);
+        ce.set(m, (ce.get(m) ?? 0) + (r.amount ?? 0));
+      }
+    }
     const ccM = await tx.corporateCardExpense.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
     });
@@ -373,7 +412,7 @@ export function getClientDetail(
     const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: withVat(r._sum.amount ?? 0, includeVat) }));
     const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
       new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
-    const p = map(perfM), b = map(billM), d = map(depM), e = map(expM), ce = map(consM), cc = map(ccM);
+    const p = map(perfM), b = map(billM), d = map(depM), e = map(expM), cc = map(ccM);
     const monthly: MonthlyRow[] = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       return {

@@ -19,6 +19,8 @@ import { BarList } from "@/components/charts/BarList";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { ClientSummaryTable } from "@/components/dashboard/ClientSummaryTable";
 import { EasywelFilterToggle } from "@/components/dashboard/EasywelFilterToggle";
+import { BasisToggle } from "@/components/dashboard/BasisToggle";
+import { getFiscalBasis } from "@/lib/basis";
 
 export default async function DashboardPage({
   searchParams,
@@ -31,14 +33,15 @@ export default async function DashboardPage({
   const { year, period } = parsePeriodParams(sp, new Date().getFullYear());
   const includeVat = await getIncludeVat();
   const easywelOnly = await getEasywelOnly();
+  const fiscalBasis = await getFiscalBasis();
 
   // 각 조회는 독립 트랜잭션이므로 병렬 실행 가능.
   const [totals, contract, trend, breakdown, clients] = await Promise.all([
-    getPeriodTotals(ctx, year, period, includeVat, easywelOnly),
+    getPeriodTotals(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
     getContractTotal(ctx, includeVat, easywelOnly),
-    getMonthlyTrend(ctx, year, includeVat, easywelOnly),
+    getMonthlyTrend(ctx, year, includeVat, easywelOnly, fiscalBasis),
     getExpenseBreakdown(ctx, year, period, includeVat, easywelOnly),
-    getClientSummaries(ctx, year, period, includeVat, easywelOnly),
+    getClientSummaries(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
   ]);
   const showPm = hasAtLeast(user.role, "SETTLEMENT");
   const pms = showPm ? rollupPmSummaries(clients) : [];
@@ -50,7 +53,10 @@ export default async function DashboardPage({
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">전사 대시보드</h1>
-        <EasywelFilterToggle defaultOn={easywelOnly} />
+        <div className="flex items-center gap-6">
+          <EasywelFilterToggle defaultOn={easywelOnly} />
+          <BasisToggle defaultOn={fiscalBasis} />
+        </div>
       </div>
       <PeriodFilter year={year} period={period} />
 

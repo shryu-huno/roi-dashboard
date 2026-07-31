@@ -224,3 +224,49 @@ describe("metrics: client detail", () => {
     expect(d).toBeNull();
   });
 });
+
+describe("metrics: 상담비 집계 기준 (프로젝트=실시일시 / 회계연도=지급월)", () => {
+  let clientA: string;
+  beforeEach(async () => {
+    await reset();
+    clientA = (await createClient(ADMIN, { name: "A사" })).id;
+    // 실시일시와 지급월이 어긋나는 상담비 2건을 넣어 기준별 집계 차이를 만든다.
+    await withRLS(ADMIN, (tx) =>
+      tx.consultingExpense.createMany({
+        data: [
+          // 실시 2026-03(상반기), 지급 2026-07(하반기)
+          { clientId: clientA, clientName: "A사", field: "심리상담", sessionDate: "2026-03-15", year: 2026, month: 7, amount: 100000 },
+          // 실시 2025-12(2026년 범위 밖), 지급 2026-01(상반기)
+          { clientId: clientA, clientName: "A사", field: "심리상담", sessionDate: "2025-12-20", year: 2026, month: 1, amount: 50000 },
+        ],
+      }),
+    );
+  });
+
+  it("프로젝트 기준: 상담비를 실시일시로 집계", async () => {
+    // 상반기(1~6월) 실시 = 2026-03 건만 → 100000. (지급 2026-07 건은 실시일이 6월 이후라 제외, 2025-12 건도 제외)
+    const h1 = await getPeriodTotals(ADMIN, 2026, "h1", false, false, false);
+    expect(h1.expense).toBe(100000);
+    // 2026 전체 실시 = 2026-03 건만(2025-12 건은 2026 범위 밖) → 100000.
+    const all = await getPeriodTotals(ADMIN, 2026, "all", false, false, false);
+    expect(all.expense).toBe(100000);
+  });
+
+  it("회계연도 기준: 상담비를 지급월로 집계", async () => {
+    // 상반기(1~6월) 지급 = 2026-01 건만 → 50000. (지급 2026-07 건은 하반기라 제외)
+    const h1 = await getPeriodTotals(ADMIN, 2026, "h1", false, false, true);
+    expect(h1.expense).toBe(50000);
+    // 2026 전체 지급 = 두 건 모두 → 150000.
+    const all = await getPeriodTotals(ADMIN, 2026, "all", false, false, true);
+    expect(all.expense).toBe(150000);
+  });
+
+  it("월별 추이도 기준을 따른다", async () => {
+    const proj = await getMonthlyTrend(ADMIN, 2026, false, false, false);
+    expect(proj.find((t) => t.month === 3)!.expense).toBe(100000); // 실시 3월
+    expect(proj.find((t) => t.month === 7)!.expense).toBe(0);
+    const fisc = await getMonthlyTrend(ADMIN, 2026, false, false, true);
+    expect(fisc.find((t) => t.month === 7)!.expense).toBe(100000); // 지급 7월
+    expect(fisc.find((t) => t.month === 1)!.expense).toBe(50000); // 지급 1월
+  });
+});

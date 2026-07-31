@@ -6,6 +6,7 @@ import {
   type ExpenseSummaryKey,
 } from "@/lib/expense-summary";
 import { eachMonth, type Ym } from "@/lib/month-range";
+import { sessionDateBetween } from "@/lib/consulting-basis";
 
 export type ExpenseInput = {
   clientId: string;
@@ -40,14 +41,17 @@ export async function getExpenseSummaryTotals(
 // 기간은 [from~to]의 각 (year,month)로 필터한다.
 export type ConsultingFieldRow = { field: string; count: number; amount: number };
 
+// fiscalBasis: false=프로젝트 기준(실시일시로 기간 필터), true=회계연도 기준(지급월로 필터).
 export async function getConsultingFieldSummary(
   ctx: RlsContext,
-  opts: { clientId?: string; from: Ym; to: Ym },
+  opts: { clientId?: string; from: Ym; to: Ym; fiscalBasis?: boolean },
 ): Promise<{ rows: ConsultingFieldRow[]; total: number; totalCount: number }> {
   const months = eachMonth(opts.from, opts.to);
   const where = {
     ...(opts.clientId ? { clientId: opts.clientId } : {}),
-    OR: months.map((m) => ({ year: m.year, month: m.month })),
+    ...(opts.fiscalBasis
+      ? { OR: months.map((m) => ({ year: m.year, month: m.month })) }
+      : { sessionDate: sessionDateBetween(opts.from, opts.to) }),
   };
   const grouped = await withRLS(ctx, (tx) =>
     tx.consultingExpense.groupBy({
