@@ -45,6 +45,7 @@ export type PaymentRequestFilter = {
 // 재료비/횟수/청구방식/상세내역)도 함께 내려보내 상세보기가 별도 조회 없이 이 행을 그대로 쓴다.
 export type PaymentRequestRow = {
   id: string;
+  seqNo: number;
   requestedAt: Date;
   requesterId: string;
   requesterName: string;
@@ -114,6 +115,7 @@ export async function listPaymentRequests(
 
   const mapped = rows.map((r) => ({
     id: r.id,
+    seqNo: r.seqNo,
     requestedAt: r.requestedAt,
     requesterId: r.requesterId,
     requesterName: r.requester.name ?? r.requester.email,
@@ -135,6 +137,7 @@ export async function listPaymentRequests(
 }
 
 export type PaymentRequestExportRow = {
+  seqNo: number;
   requesterName: string;
   entity: PaymentRequestEntity;
   clientName: string;
@@ -152,6 +155,8 @@ export type PaymentRequestExportRow = {
   amount: number;
   taxType: TaxType;
   memo: string;
+  payDate: Date | null;
+  status: PaymentRequestStatus;
 };
 
 // 엑셀 다운로드 전용. ids가 있으면 필터 없이 해당 건만(체크박스 선택), 없으면 필터링된 전체
@@ -178,6 +183,7 @@ export async function listPaymentRequestsForExport(
   }));
 
   return rows.map((r) => ({
+    seqNo: r.seqNo,
     requesterName: r.requester.name ?? r.requester.email,
     entity: r.entity,
     clientName: r.client.name,
@@ -195,6 +201,8 @@ export async function listPaymentRequestsForExport(
     amount: r.amount,
     taxType: r.taxType,
     memo: r.memo,
+    payDate: r.payDate,
+    status: r.status,
   }));
 }
 

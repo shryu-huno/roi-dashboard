@@ -114,6 +114,23 @@ describe("payment-requests 데이터 계층", () => {
     expect(row.clientName).toBe("A사");
   });
 
+  it("seqNo는 자동으로, 유일하게 채번된다", async () => {
+    const { pmA, clientA } = await seed();
+    const r1 = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+      data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "A건" }),
+    }));
+    const r2 = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+      data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "B건" }),
+    }));
+    expect(r1.seqNo).toBeGreaterThan(0);
+    expect(r2.seqNo).toBeGreaterThan(r1.seqNo);
+
+    const { rows } = await listPaymentRequests(ADMIN);
+    const bySeqNo = new Map(rows.map((r) => [r.bizName, r.seqNo]));
+    expect(bySeqNo.get("A건")).toBe(r1.seqNo);
+    expect(bySeqNo.get("B건")).toBe(r2.seqNo);
+  });
+
   it("고객사/지급명의/지급여부/사업자명 필터가 동작한다", async () => {
     const { pmA, clientA, clientB } = await seed();
     await withRLS(ADMIN, (tx) => tx.paymentRequest.create({ data: baseInput({ requesterId: pmA.id, clientId: clientA.id, entity: "HUNO", bizName: "홍길동", status: "PREPARING" }) }));
@@ -397,6 +414,21 @@ describe("payment-requests 데이터 계층", () => {
       const [row] = await listPaymentRequestsForExport(ADMIN);
       expect(row.bizName).toBe("등록당시이름");
       expect(row.taxType).toBe("BUSINESS_INCOME");
+    });
+
+    it("seqNo/지급일/지급여부를 포함한다", async () => {
+      const { pmA, clientA } = await seed();
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({
+          requesterId: pmA.id, clientId: clientA.id, bizName: "C건",
+          payDate: new Date("2026-08-05"), status: "COMPLETED",
+        }),
+      }));
+
+      const [row] = await listPaymentRequestsForExport(ADMIN);
+      expect(row.seqNo).toBe(created.seqNo);
+      expect(row.payDate).toEqual(new Date("2026-08-05"));
+      expect(row.status).toBe("COMPLETED");
     });
   });
 });
