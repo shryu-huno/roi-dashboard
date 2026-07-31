@@ -33,7 +33,8 @@ export default async function ClientsPage() {
       status: c.status,
       industry: c.industry,
       pmLabel: labels.length ? labels.join(", ") : "미배정",
-      // 계약금액이 0/없음이면 attainment가 null → 카드에서 "실적 계약" 표시.
+      // 실적 계약으로 지정됐거나 계약금액이 0/없음이면 카드에서 "실적 계약" 표시(달성률 대신).
+      performanceContract: c.performanceContract,
       progress: attainment(perf.get(c.id) ?? 0, contract.get(c.id) ?? 0),
       billingCycle: c.billingCycle,
       reportCycle: c.reportCycle,

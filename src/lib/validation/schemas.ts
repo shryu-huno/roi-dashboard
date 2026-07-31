@@ -72,6 +72,8 @@ export const clientSchema = z.object({
   // 청구·보고 주기(복수 선택). 체크박스는 항상 폼에 있으므로 미선택이면 [](클리어).
   billingCycle: cycleArray,
   reportCycle: cycleArray,
+  // 실적 계약 여부(단일 체크박스). 체크 시 value="true"만 전송, 미체크면 null → false.
+  performanceContract: z.preprocess((v) => v === "true", z.boolean()),
 });
 
 export const taskSchema = z.object({

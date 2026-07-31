@@ -15,6 +15,7 @@ type ClientInit = {
   contractEnd: string;
   billingCycle: string[];
   reportCycle: string[];
+  performanceContract: boolean;
 };
 
 const labelCls = "flex flex-col text-xs text-[var(--color-muted)]";
@@ -75,6 +76,11 @@ export function EditClientForm({ client }: { client: ClientInit }) {
           ))}
         </div>
       </div>
+      {/* 실적 계약 여부 — 저장 버튼 좌측. 체크 시 실적 계약으로 취급(목록에서 "실적 계약" 표시). */}
+      <label className="flex items-center gap-1.5 self-end pb-2 text-sm text-[var(--color-fg)]">
+        <input type="checkbox" name="performanceContract" value="true" defaultChecked={client.performanceContract} />
+        실적 계약
+      </label>
       <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">저장</button>
       {state.ok && state.message && <span className="text-sm text-[var(--color-primary)]">{state.message}</span>}
       {!state.ok && state.error && <span className="text-sm text-[var(--color-danger)]">{state.error}</span>}

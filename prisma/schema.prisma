@@ -92,6 +92,7 @@ model Client {
   hyundaiEasywel Boolean @default(false) // 현대이지웰 소개로 계약한 고객사
   billingCycle String[] @default([]) // 청구 주기(복수): 월/분기/중간/최종
   reportCycle  String[] @default([]) // 보고 주기(복수): 월/분기/중간/최종
+  performanceContract Boolean @default(false) // 실적 계약 여부. true=계약금 대신 실적 기준으로 보는 고객사(목록에서 달성률 대신 "실적 계약" 표시).
   deletedAt    DateTime? // 소프트 삭제(보관). null=활성, 값=보관됨(목록에서 숨김).
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
