@@ -32,6 +32,16 @@ function digitsLengthFormula(cellRef: string, lengths: number[]): string {
   return `AND(ISNUMBER(VALUE(${digits})),OR(${lenChecks}))`;
 }
 
+// Date 타입 셀은 화면 표시 서식(로캘/포맷)에 좌우되지 않도록 UTC 연/월/일을 직접 조합한다.
+// exceljs는 Excel 날짜 직렬값을 타임존 없이 그대로 UTC Date로 해석하므로, UTC 컴포넌트가
+// 곧 사용자가 입력한 달력일과 일치한다.
+function formatUtcDateAsIsoDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // 첫 워크시트를 문자열 2차원 배열로 변환(헤더 컬럼 수만큼 정렬 유지, 셀은 표시 텍스트).
 export async function parseXlsxToRows(buf: Buffer | ArrayBuffer): Promise<string[][]> {
   const wb = new ExcelJS.Workbook();
@@ -45,7 +55,12 @@ export async function parseXlsxToRows(buf: Buffer | ArrayBuffer): Promise<string
     const row = ws.getRow(r);
     const cells: string[] = [];
     for (let c = 1; c <= colCount; c++) {
-      cells.push((row.getCell(c).text ?? "").toString());
+      const cell = row.getCell(c);
+      const text =
+        cell.type === ExcelJS.ValueType.Date && cell.value instanceof Date
+          ? formatUtcDateAsIsoDate(cell.value)
+          : (cell.text ?? "").toString();
+      cells.push(text);
     }
     rows.push(cells);
   }
