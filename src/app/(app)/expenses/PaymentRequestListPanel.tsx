@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PAYMENT_REQUEST_PAGE_SIZE, type PaymentRequestRow } from "@/lib/data/payment-requests";
+import type { PaymentRequestRow } from "@/lib/data/payment-requests";
 import type { AppRole } from "@/lib/auth/rbac";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { PaymentRequestPager } from "./PaymentRequestPager";
@@ -187,12 +187,12 @@ export function PaymentRequestListPanel({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {rows.map((r) => (
               <tr key={r.id} className={`border-b border-[var(--color-border)] ${selected.has(r.id) ? "bg-[var(--color-hover)]" : ""}`}>
                 <td className="whitespace-nowrap px-3 py-2 align-middle">
                   <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} aria-label={`${r.bizName} 선택`} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2">{(page - 1) * PAYMENT_REQUEST_PAGE_SIZE + i + 1}</td>
+                <td className="whitespace-nowrap px-3 py-2">{r.seqNo}</td>
                 <td className="whitespace-nowrap px-3 py-2">{dateStr(r.requestedAt)}</td>
                 <td className="whitespace-nowrap px-3 py-2">{r.requesterName}</td>
                 <td className="whitespace-nowrap px-3 py-2">{paymentRequestEntityLabel(r.entity)}</td>
