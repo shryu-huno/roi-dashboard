@@ -4,7 +4,7 @@ import { withRLS } from "@/lib/rls";
 import {
   listPaymentRequests, parsePaymentRequestPage, parsePaymentRequestEntity,
   parsePaymentRequestStatus, parsePaymentRequestDateParam, PAYMENT_REQUEST_PAGE_SIZE,
-  createPaymentRequestsBulk, listPaymentRequestsForExport,
+  createPaymentRequestsBulk, listPaymentRequestsForExport, updatePaymentRequestsBulk,
 } from "@/lib/data/payment-requests";
 import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
 import { createPayeesBulk } from "@/lib/data/payees";
@@ -429,6 +429,74 @@ describe("payment-requests 데이터 계층", () => {
       expect(row.seqNo).toBe(created.seqNo);
       expect(row.payDate).toEqual(new Date("2026-08-05"));
       expect(row.status).toBe("COMPLETED");
+    });
+  });
+
+  describe("updatePaymentRequestsBulk", () => {
+    it("seqNo로 매칭된 건의 지급일/지급여부만 갱신한다", async () => {
+      const { pmA, clientA } = await seed();
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "A건", unitPrice: 50000 }),
+      }));
+
+      const result = await updatePaymentRequestsBulk(ADMIN, [
+        { seqNo: created.seqNo, payDate: new Date("2026-08-05"), status: "COMPLETED" },
+      ]);
+      expect(result).toEqual({ updated: 1, notFoundSeqNos: [] });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.payDate).toEqual(new Date("2026-08-05"));
+      expect(row.status).toBe("COMPLETED");
+      expect(row.unitPrice).toBe(50000); // 다른 필드는 그대로
+    });
+
+    it("존재하지 않는 seqNo는 notFoundSeqNos로 보고한다", async () => {
+      const result = await updatePaymentRequestsBulk(ADMIN, [
+        { seqNo: 999999, payDate: new Date("2026-08-05"), status: "COMPLETED" },
+      ]);
+      expect(result).toEqual({ updated: 0, notFoundSeqNos: [999999] });
+    });
+
+    it("소프트 삭제된 건은 매칭 대상에서 제외한다", async () => {
+      const { pmA, clientA } = await seed();
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "삭제건" }),
+      }));
+      await withRLS(ADMIN, (tx) => tx.paymentRequest.update({ where: { id: created.id }, data: { deletedAt: new Date() } }));
+
+      const result = await updatePaymentRequestsBulk(ADMIN, [
+        { seqNo: created.seqNo, payDate: new Date("2026-08-05"), status: "COMPLETED" },
+      ]);
+      expect(result).toEqual({ updated: 0, notFoundSeqNos: [created.seqNo] });
+    });
+
+    it("지급일을 null로 업로드하면 기존 값을 지운다", async () => {
+      const { pmA, clientA } = await seed();
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "B건", payDate: new Date("2026-08-01"), status: "COMPLETED" }),
+      }));
+
+      await updatePaymentRequestsBulk(ADMIN, [{ seqNo: created.seqNo, payDate: null, status: "PREPARING" }]);
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.payDate).toBeNull();
+      expect(row.status).toBe("PREPARING");
+    });
+
+    it("여러 건을 한 번에 반영한다", async () => {
+      const { pmA, clientA } = await seed();
+      const a = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "A건" }),
+      }));
+      const b = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "B건" }),
+      }));
+
+      const result = await updatePaymentRequestsBulk(ADMIN, [
+        { seqNo: a.seqNo, payDate: new Date("2026-08-05"), status: "COMPLETED" },
+        { seqNo: b.seqNo, payDate: null, status: "PREPARING" },
+      ]);
+      expect(result).toEqual({ updated: 2, notFoundSeqNos: [] });
     });
   });
 });

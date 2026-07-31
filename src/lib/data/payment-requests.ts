@@ -250,3 +250,32 @@ export async function createPaymentRequestsBulk(
     return { ok: true };
   });
 }
+
+export type PaymentRequestBulkUpdateResult = { updated: number; notFoundSeqNos: number[] };
+
+// 엑셀 재업로드 반영 전용. seqNo로 대상을 찾아 payDate/status만 갱신한다(다른 필드는 건드리지
+// 않음). 존재하지 않거나 소프트 삭제된 seqNo는 notFoundSeqNos로 보고 — 호출부(서버 액션)가
+// 업로드 파일의 원래 행 번호로 역매핑해 사용자에게 안내한다.
+export async function updatePaymentRequestsBulk(
+  ctx: RlsContext,
+  updates: { seqNo: number; payDate: Date | null; status: PaymentRequestStatus }[],
+): Promise<PaymentRequestBulkUpdateResult> {
+  return withRLS(ctx, async (tx) => {
+    const seqNos = updates.map((u) => u.seqNo);
+    const found = await tx.paymentRequest.findMany({
+      where: { seqNo: { in: seqNos }, deletedAt: null },
+      select: { id: true, seqNo: true },
+    });
+    const idBySeqNo = new Map(found.map((f) => [f.seqNo, f.id]));
+
+    let updated = 0;
+    const notFoundSeqNos: number[] = [];
+    for (const u of updates) {
+      const id = idBySeqNo.get(u.seqNo);
+      if (!id) { notFoundSeqNos.push(u.seqNo); continue; }
+      await tx.paymentRequest.update({ where: { id }, data: { payDate: u.payDate, status: u.status } });
+      updated++;
+    }
+    return { updated, notFoundSeqNos };
+  });
+}
