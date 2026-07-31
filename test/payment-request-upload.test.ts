@@ -28,6 +28,18 @@ describe("buildPaymentRequestUpdatesFromRows", () => {
     expect(result.errors).toEqual([{ row: 2, message: "No 값이 올바르지 않습니다." }]);
   });
 
+  it("No가 지수 표기(1e3)면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1e3", "2026-08-05", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors).toEqual([{ row: 2, message: "No 값이 올바르지 않습니다." }]);
+  });
+
+  it("No가 16진수 표기(0x10)면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["0x10", "2026-08-05", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors).toEqual([{ row: 2, message: "No 값이 올바르지 않습니다." }]);
+  });
+
   it("지급여부가 지급준비/지급완료가 아니면 오류", () => {
     const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-08-05", "완료함"]]);
     expect(result.updates).toEqual([]);

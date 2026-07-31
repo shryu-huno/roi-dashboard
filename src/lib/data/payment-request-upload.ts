@@ -21,6 +21,8 @@ const STATUS_BY_LABEL: Record<string, PaymentRequestStatus> = {
 
 // <input type="date">와 동일하게 "YYYY-MM-DD"만 허용.
 // 달력 유효성 검증: 예를 들어 "2026-02-30"은 2월 30일이 존재하지 않으므로 거부.
+// 지급일은 KST 달력일 기준으로 표시/파싱한다 — DB에는 그 날짜의 UTC 자정(00:00:00Z)으로
+// 저장된다. 다른 곳에서 payDate를 쓸 때도 이 규약을 맞춰야 재업로드 시 날짜가 밀리지 않는다.
 function parseDateCell(value: string): Date | undefined {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
   const d = new Date(`${value}T00:00:00.000Z`);
@@ -68,11 +70,11 @@ export function buildPaymentRequestUpdatesFromRows(rows: string[][]): PaymentReq
     const rowNum = r + 1;
 
     const noCell = at(cells, "No");
-    const seqNo = Number(noCell);
-    if (!noCell || !Number.isInteger(seqNo) || seqNo <= 0) {
+    if (!/^\d+$/.test(noCell) || Number(noCell) <= 0) {
       errors.push({ row: rowNum, message: "No 값이 올바르지 않습니다." });
       continue;
     }
+    const seqNo = Number(noCell);
 
     const statusLabel = at(cells, "지급여부");
     const status = STATUS_BY_LABEL[statusLabel];
