@@ -6,6 +6,8 @@ import { getConsultingFieldSummary, getCorporateCardSummary, getExpenseSummaryTo
 import { listPayees, listPayeesForPm, parsePage, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
 import { EXPENSE_SUMMARY_CATEGORIES } from "@/lib/expense-summary";
 import { orderRange, parseYm, rangeLabel, ymValue } from "@/lib/month-range";
+import { getFiscalBasis } from "@/lib/basis";
+import { BasisToggle } from "@/components/dashboard/BasisToggle";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { ConsultingSummaryTable } from "./ConsultingSummaryTable";
 import { CorporateCardSummaryTable } from "./CorporateCardSummaryTable";
@@ -92,12 +94,17 @@ async function ConsultingTab({
     parseYm(sp.from) ?? { year: 2026, month: 1 },
     parseYm(sp.to) ?? { year: 2026, month: 12 },
   );
+  // 프로젝트 기준(실시일시)/회계연도 기준(지급월) — 대시보드와 동일한 전역 쿠키를 따른다.
+  const fiscalBasis = await getFiscalBasis();
 
-  const { rows, total, totalCount } = await getConsultingFieldSummary(ctx, { clientId, from, to });
+  const { rows, total, totalCount } = await getConsultingFieldSummary(ctx, { clientId, from, to, fiscalBasis });
   const selectedName = clientId ? clients.find((c) => c.id === clientId)?.name : undefined;
 
   return (
     <>
+      <div className="mb-4 flex items-center justify-end">
+        <BasisToggle defaultOn={fiscalBasis} />
+      </div>
       {/* 필터 제출 시에도 상담비 탭 유지. 고객사를 비우면 전체 범위로 조회. */}
       <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <input type="hidden" name="tab" value="consulting" />

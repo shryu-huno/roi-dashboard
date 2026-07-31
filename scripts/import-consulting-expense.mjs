@@ -36,6 +36,17 @@ const cCompany = need('고객사명', '기업명');
 const cType = need('상담유형');
 const cMonth = need('지급월');
 const cCost = need('지급비용');
+const cSession = need('실시일시');
+
+// 실시일시 → 'YYYY-MM-DD'. 엑셀 날짜는 UTC로 읽히므로 UTC 기준으로 날짜부분만 취한다
+// (로컬 게터를 쓰면 16:00Z 같은 값이 다음 날로 밀림). 비날짜/빈칸은 null.
+const toSessionDate = (v) => {
+  if (!(v instanceof Date)) return null;
+  const y = v.getUTCFullYear();
+  const m = String(v.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(v.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 const rows = [];
 for (let r = 2; r <= ws.rowCount; r++) {
@@ -45,6 +56,7 @@ for (let r = 2; r <= ws.rowCount; r++) {
   const type = cell(row, cType);
   const payMonth = cell(row, cMonth);
   const costRaw = cell(row, cCost);
+  const sessionDate = toSessionDate(cell(row, cSession));
   if (field == null && company == null) continue; // 빈 행 스킵
 
   const costNum = typeof costRaw === 'number' ? costRaw : Number(String(costRaw ?? '').replace(/,/g, ''));
@@ -55,6 +67,7 @@ for (let r = 2; r <= ws.rowCount; r++) {
     field: String(field),
     excelCompany: String(company), // 매칭용 엑셀값(저장은 정식 고객사명으로)
     consultType: type == null ? null : String(type),
+    sessionDate,
     year: payMonth.getFullYear(),
     month: payMonth.getMonth() + 1,
     amount,
@@ -95,9 +108,9 @@ const inserted = await prisma.$transaction(async (tx) => {
   const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const slice = rows.slice(i, i + CHUNK);
-    const tuples = slice.map((r) => Prisma.sql`(${crypto.randomUUID()}, ${r.clientId}, ${r.clientName}, ${r.field}, ${r.consultType}, ${r.year}, ${r.month}, ${r.amount}, ${now})`);
+    const tuples = slice.map((r) => Prisma.sql`(${crypto.randomUUID()}, ${r.clientId}, ${r.clientName}, ${r.field}, ${r.consultType}, ${r.sessionDate}, ${r.year}, ${r.month}, ${r.amount}, ${now})`);
     count += await tx.$executeRaw`
-      INSERT INTO "ConsultingExpense" ("id","clientId","clientName","field","consultType","year","month","amount","updatedAt")
+      INSERT INTO "ConsultingExpense" ("id","clientId","clientName","field","consultType","sessionDate","year","month","amount","updatedAt")
       VALUES ${Prisma.join(tuples)}`;
   }
   return count;
