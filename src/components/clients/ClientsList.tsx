@@ -83,7 +83,7 @@ export function ClientsList({ clients, showPm }: { clients: ClientItem[]; showPm
               <div className="flex items-start justify-between gap-2">
                 <div className="text-base font-medium text-[var(--color-fg)]">{c.name}</div>
                 <div className="shrink-0 text-sm font-semibold text-[var(--color-primary)]">
-                  {c.performanceContract || c.progress === null ? "실적 계약" : formatPercent(c.progress)}
+                  {c.performanceContract ? "실적 계약" : formatPercent(c.progress)}
                 </div>
               </div>
               <div className="mt-1 flex items-end justify-between gap-2">
