@@ -71,11 +71,6 @@ export function PaymentRequestNewForm({
         </div>
       </div>
 
-      <p className="mb-3 text-xs text-[var(--color-muted)]">
-        지급 리스트에 등록된 대상은 사업자명(이름)에서 검색해 선택하세요. 지급 리스트에 없는 예외 건은
-        &quot;엑셀 업로드&quot;로 등록합니다.
-      </p>
-
       {saveError && <p className="mb-3 text-sm text-[var(--color-danger)]">{saveError}</p>}
 
       <PaymentRequestRowsTable rows={rows} onRowsChange={setRows} clients={clients} payees={payees} rowErrors={rowErrors} />

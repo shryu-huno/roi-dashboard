@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PayeeOption } from "@/lib/data/payees";
 import { taxTypeLabel } from "@/lib/labels";
+import { FloatingList } from "./FloatingList";
 
 // 사업자명(이름) 검색형 선택. 동명이인/동일업체명 구분을 위해 후보 목록에는
 // "이름 (고유번호)"를 보여주고, 선택하면 입력창에는 이름만 남긴다. 선택된 사업자가 있을 때
@@ -102,8 +103,8 @@ export function PayeeCombobox({
           청구방식: {taxTypeLabel(selected.taxType)}
         </div>
       )}
-      {open && filtered.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-96 w-full overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+      <FloatingList anchorRef={boxRef} open={open && filtered.length > 0}>
+        <ul className="mt-1 max-h-96 w-full overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
           {filtered.map((p, i) => (
             <li key={p.id}>
               <button
@@ -122,7 +123,7 @@ export function PayeeCombobox({
             </li>
           ))}
         </ul>
-      )}
+      </FloatingList>
     </div>
   );
 }

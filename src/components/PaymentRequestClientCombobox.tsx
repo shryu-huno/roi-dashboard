@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FloatingList } from "./FloatingList";
 
 type ClientOption = { id: string; name: string };
 
@@ -95,8 +96,8 @@ export function PaymentRequestClientCombobox({
         aria-expanded={open}
         className={`w-full rounded border ${hasError ? "border-[var(--color-danger)]" : "border-[var(--color-border)]"} px-2 py-1.5 text-center text-sm`}
       />
-      {open && filtered.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-96 w-full overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+      <FloatingList anchorRef={boxRef} open={open && filtered.length > 0}>
+        <ul className="mt-1 max-h-96 w-full overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
           {filtered.map((c, i) => (
             <li key={c.id}>
               <button
@@ -115,7 +116,7 @@ export function PaymentRequestClientCombobox({
             </li>
           ))}
         </ul>
-      )}
+      </FloatingList>
     </div>
   );
 }

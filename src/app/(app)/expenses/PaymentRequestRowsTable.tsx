@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TaxType } from "@prisma/client";
 import type { PayeeOption } from "@/lib/data/payees";
 import { PayeeCombobox } from "@/components/PayeeCombobox";
 import { PaymentRequestClientCombobox } from "@/components/PaymentRequestClientCombobox";
+import { FloatingList } from "@/components/FloatingList";
 import { PAYMENT_REQUEST_ENTITY_LABELS, PAYMENT_REQUEST_ENTITY_BY_LABEL } from "@/lib/labels";
-import { formatWon } from "@/lib/format";
+import { formatThousands, formatWon } from "@/lib/format";
 import type { PaymentRequestRowField } from "@/lib/payment-request-validation";
 
 export type DraftRow = {
@@ -117,8 +118,8 @@ export function PaymentRequestRowsTable({
                 <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} aria-label="전체선택" />
               </th>
               <th className="w-24 px-2 py-2">지급명의</th>
-              <th className="w-28 px-2 py-2">고객사</th>
-              <th className="px-2 py-2">사업자명(이름)</th>
+              <th className="w-40 px-2 py-2">고객사</th>
+              <th className="w-40 px-2 py-2">사업자명(이름)</th>
               <th className="w-28 px-2 py-2">단가</th>
               <th className="w-24 px-2 py-2">교통비</th>
               <th className="w-24 px-2 py-2">재료비</th>
@@ -170,17 +171,11 @@ function RowFields({
     <tr className="border-b border-[var(--color-border)]">
       <td className={cellCls}><input type="checkbox" checked={selected} onChange={onToggleSelect} aria-label={`${no}행 선택`} /></td>
       <td className={cellCls}>
-        <select
+        <EntitySelect
           value={row.entity}
-          onChange={(e) => onChange({ entity: e.target.value as DraftRow["entity"] })}
-          className={inputCls(errors?.has("entity"))}
-          style={{ textAlignLast: "center" }}
-        >
-          <option value="">선택</option>
-          {PAYMENT_REQUEST_ENTITY_LABELS.map((label) => (
-            <option key={label} value={PAYMENT_REQUEST_ENTITY_BY_LABEL[label]}>{label}</option>
-          ))}
-        </select>
+          onChange={(entity) => onChange({ entity })}
+          hasError={errors?.has("entity")}
+        />
       </td>
       <td className={cellCls}>
         <PaymentRequestClientCombobox
@@ -198,14 +193,71 @@ function RowFields({
           hasError={errors?.has("payeeId")}
         />
       </td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value.replace(/[^\d]/g, "") })} className={inputCls(errors?.has("unitPrice"))} placeholder="예: 50000" /></td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.transportFee} onChange={(e) => onChange({ transportFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls()} placeholder="예: 0" /></td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.materialFee} onChange={(e) => onChange({ materialFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls()} placeholder="예: 0" /></td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.count} onChange={(e) => onChange({ count: e.target.value.replace(/[^\d]/g, "") })} className={inputCls(errors?.has("count"))} placeholder="예: 1" /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={formatThousands(row.unitPrice)} onChange={(e) => onChange({ unitPrice: e.target.value.replace(/[^\d]/g, "") })} className={inputCls(errors?.has("unitPrice"))} /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={formatThousands(row.transportFee)} onChange={(e) => onChange({ transportFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls()} /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={formatThousands(row.materialFee)} onChange={(e) => onChange({ materialFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls()} /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={row.count} onChange={(e) => onChange({ count: e.target.value.replace(/[^\d]/g, "") })} className={inputCls(errors?.has("count"))} /></td>
       <td className={`${cellCls} font-medium`}>{formatWon(computeRowAmount(row))}</td>
       <td className={`${cellCls} min-w-[10rem]`}>
-        <input type="text" value={row.memo} onChange={(e) => onChange({ memo: e.target.value })} placeholder="예: 7/30 테라리움 만들기 진행" className={inputCls()} />
+        <input type="text" value={row.memo} onChange={(e) => onChange({ memo: e.target.value })} className={inputCls()} />
       </td>
     </tr>
+  );
+}
+
+// 네이티브 <select>는 펼친 목록을 OS가 그려 CSS로 가운데 정렬을 할 수 없어 커스텀 드롭다운으로 대체.
+function EntitySelect({
+  value,
+  onChange,
+  hasError,
+}: {
+  value: DraftRow["entity"];
+  onChange: (value: DraftRow["entity"]) => void;
+  hasError?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const options: { value: DraftRow["entity"]; label: string }[] = [
+    { value: "", label: "선택" },
+    ...PAYMENT_REQUEST_ENTITY_LABELS.map((label) => ({ value: PAYMENT_REQUEST_ENTITY_BY_LABEL[label], label })),
+  ];
+  const currentLabel = options.find((o) => o.value === value)?.label ?? "선택";
+
+  return (
+    <div ref={boxRef} className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)} className={inputCls(hasError)}>
+        {currentLabel}
+      </button>
+      <FloatingList anchorRef={boxRef} open={open}>
+        <ul className="mt-1 w-full overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+          {options.map((o) => (
+            <li key={o.value || "none"}>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`block w-full px-2 py-1.5 text-center text-sm hover:bg-[var(--color-border)] ${
+                  o.value === value ? "bg-[var(--color-border)]" : ""
+                }`}
+              >
+                {o.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </FloatingList>
+    </div>
   );
 }
