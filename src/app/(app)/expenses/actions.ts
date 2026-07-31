@@ -44,7 +44,8 @@ export async function createPaymentRequests(rows: PaymentRequestCreateInput[]): 
   try {
     const result = await createPaymentRequestsBulk(ctx, user.id, parsed.data);
     if (!result.ok) return result;
-  } catch {
+  } catch (e) {
+    console.error("[payment-request create] 저장 실패:", e);
     return { ok: false, error: "저장 중 오류가 발생했습니다. 담당 고객사와 사업자 선택을 다시 확인해 주세요." };
   }
 

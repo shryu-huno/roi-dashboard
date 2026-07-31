@@ -26,12 +26,20 @@ export function PaymentRequestClientCombobox({
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
+  const suppressSyncRef = useRef(false);
 
+  // 부모가 selectedId를 바꾸면(예: 다른 행 데이터 로드) 입력값을 동기화.
+  // 단, 타이핑 중 onChange가 onSelect(null)을 호출해 selectedId가 바뀐 경우는
+  // suppressSyncRef로 걸러 query를 되돌리지 않는다(그렇지 않으면 첫 키 입력이 씹힌다).
   const [prevSelectedId, setPrevSelectedId] = useState(selectedId);
   if (selectedId !== prevSelectedId) {
     setPrevSelectedId(selectedId);
-    setQuery(selected?.name ?? "");
-    setOpen(false);
+    if (suppressSyncRef.current) {
+      suppressSyncRef.current = false;
+    } else {
+      setQuery(selected?.name ?? "");
+      setOpen(false);
+    }
   }
 
   const q = query.trim().toLowerCase();
@@ -58,6 +66,7 @@ export function PaymentRequestClientCombobox({
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
+          suppressSyncRef.current = true;
           onSelect(null);
           setOpen(true);
           setHighlight(0);

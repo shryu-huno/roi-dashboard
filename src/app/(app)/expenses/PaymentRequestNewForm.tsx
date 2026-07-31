@@ -27,6 +27,10 @@ export function PaymentRequestNewForm({
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSave() {
+    if (rows.length === 0) {
+      setSaveError("등록할 행을 추가해 주세요.");
+      return;
+    }
     const errors = validateDraftRows(rows);
     if (errors.size > 0) {
       setRowErrors(errors);
@@ -37,16 +41,13 @@ export function PaymentRequestNewForm({
     setRowErrors(new Map());
     setSaveError(null);
     setIsSaving(true);
-    try {
-      const result = await createPaymentRequests(toPaymentRequestCreateInputs(rows));
-      if (!result.ok) {
-        setSaveError(result.error ?? "저장에 실패했습니다.");
-        return;
-      }
-      router.push("/expenses?tab=payment-request");
-    } finally {
+    const result = await createPaymentRequests(toPaymentRequestCreateInputs(rows));
+    if (!result.ok) {
+      setSaveError(result.error ?? "저장에 실패했습니다.");
       setIsSaving(false);
+      return;
     }
+    router.push("/expenses?tab=payment-request");
   }
 
   function handleExcelUpload() {
