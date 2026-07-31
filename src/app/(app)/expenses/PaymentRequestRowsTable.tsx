@@ -4,9 +4,10 @@ import { useState } from "react";
 import type { TaxType } from "@prisma/client";
 import type { PayeeOption } from "@/lib/data/payees";
 import { PayeeCombobox } from "@/components/PayeeCombobox";
-import { TAX_TYPE_LABELS, TAX_TYPE_BY_LABEL, taxTypeLabel } from "@/lib/labels";
+import { PaymentRequestClientCombobox } from "@/components/PaymentRequestClientCombobox";
 import { PAYMENT_REQUEST_ENTITY_LABELS, PAYMENT_REQUEST_ENTITY_BY_LABEL } from "@/lib/labels";
 import { formatWon } from "@/lib/format";
+import type { PaymentRequestRowField } from "@/lib/payment-request-validation";
 
 export type DraftRow = {
   key: string;
@@ -47,18 +48,24 @@ function inferEntity(businessType: string | null): "HUNO" | "HUNO_INC" | "" {
 }
 
 const cellCls = "whitespace-nowrap px-2 py-2 text-center align-middle";
-const inputCls = "w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-center text-sm";
+
+function inputCls(hasError = false): string {
+  const border = hasError ? "border-[var(--color-danger)]" : "border-[var(--color-border)]";
+  return `w-full rounded border ${border} px-2 py-1.5 text-center text-sm`;
+}
 
 export function PaymentRequestRowsTable({
   rows,
   onRowsChange,
   clients,
   payees,
+  rowErrors = new Map(),
 }: {
   rows: DraftRow[];
   onRowsChange: (rows: DraftRow[]) => void;
   clients: { id: string; name: string; businessType: string | null }[];
   payees: PayeeOption[];
+  rowErrors?: Map<string, Set<PaymentRequestRowField>>;
 }) {
   // 체크박스 선택은 이 컴포넌트가 소유하는 실제 상태(useState)로 관리한다 — 렌더마다 새로
   // 만들어지는 일반 객체(ref 흉내)를 쓰면 다른 행 입력으로 리렌더될 때 선택이 조용히 사라진다.
@@ -109,16 +116,14 @@ export function PaymentRequestRowsTable({
               <th className="w-10 px-2 py-2">
                 <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} aria-label="전체선택" />
               </th>
-              <th className="w-10 px-2 py-2">No</th>
               <th className="w-24 px-2 py-2">지급명의</th>
               <th className="w-28 px-2 py-2">고객사</th>
               <th className="px-2 py-2">사업자명(이름)</th>
-              <th className="w-20 px-2 py-2">단가</th>
-              <th className="w-20 px-2 py-2">교통비</th>
-              <th className="w-20 px-2 py-2">재료비</th>
+              <th className="w-28 px-2 py-2">단가</th>
+              <th className="w-24 px-2 py-2">교통비</th>
+              <th className="w-24 px-2 py-2">재료비</th>
               <th className="w-14 px-2 py-2">횟수</th>
               <th className="w-24 px-2 py-2">지급액</th>
-              <th className="w-28 px-2 py-2">청구방식</th>
               <th className="px-2 py-2">상세내역</th>
             </tr>
           </thead>
@@ -134,6 +139,7 @@ export function PaymentRequestRowsTable({
                 onClientChange={(clientId) => handleClientChange(row.key, clientId)}
                 clients={clients}
                 payees={payees}
+                errors={rowErrors.get(row.key)}
               />
             ))}
           </tbody>
@@ -148,7 +154,7 @@ export function PaymentRequestRowsTable({
 }
 
 function RowFields({
-  row, no, selected, onToggleSelect, onChange, onClientChange, clients, payees,
+  row, no, selected, onToggleSelect, onChange, onClientChange, clients, payees, errors,
 }: {
   row: DraftRow;
   no: number;
@@ -158,13 +164,18 @@ function RowFields({
   onClientChange: (clientId: string) => void;
   clients: { id: string; name: string; businessType: string | null }[];
   payees: PayeeOption[];
+  errors?: Set<PaymentRequestRowField>;
 }) {
   return (
     <tr className="border-b border-[var(--color-border)]">
       <td className={cellCls}><input type="checkbox" checked={selected} onChange={onToggleSelect} aria-label={`${no}행 선택`} /></td>
-      <td className={cellCls}>{no}</td>
       <td className={cellCls}>
-        <select value={row.entity} onChange={(e) => onChange({ entity: e.target.value as DraftRow["entity"] })} className={inputCls}>
+        <select
+          value={row.entity}
+          onChange={(e) => onChange({ entity: e.target.value as DraftRow["entity"] })}
+          className={inputCls(errors?.has("entity"))}
+          style={{ textAlignLast: "center" }}
+        >
           <option value="">선택</option>
           {PAYMENT_REQUEST_ENTITY_LABELS.map((label) => (
             <option key={label} value={PAYMENT_REQUEST_ENTITY_BY_LABEL[label]}>{label}</option>
@@ -172,35 +183,28 @@ function RowFields({
         </select>
       </td>
       <td className={cellCls}>
-        <select value={row.clientId} onChange={(e) => onClientChange(e.target.value)} className={inputCls}>
-          <option value="">선택</option>
-          {clients.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-        </select>
+        <PaymentRequestClientCombobox
+          clients={clients}
+          selectedId={row.clientId || null}
+          onSelect={(c) => onClientChange(c?.id ?? "")}
+          hasError={errors?.has("clientId")}
+        />
       </td>
       <td className={`${cellCls} min-w-[10rem]`}>
         <PayeeCombobox
           payees={payees}
           selectedId={row.payeeId}
-          onSelect={(p) => onChange({ payeeId: p?.id ?? null, bizName: p?.bizName ?? "" })}
+          onSelect={(p) => onChange({ payeeId: p?.id ?? null, bizName: p?.bizName ?? "", taxType: p?.taxType ?? "" })}
+          hasError={errors?.has("payeeId")}
         />
       </td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value.replace(/[^\d]/g, "") })} className={inputCls} /></td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.transportFee} onChange={(e) => onChange({ transportFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls} /></td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.materialFee} onChange={(e) => onChange({ materialFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls} /></td>
-      <td className={cellCls}><input type="text" inputMode="numeric" value={row.count} onChange={(e) => onChange({ count: e.target.value.replace(/[^\d]/g, "") })} className={inputCls} /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={row.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value.replace(/[^\d]/g, "") })} className={inputCls(errors?.has("unitPrice"))} placeholder="예: 50000" /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={row.transportFee} onChange={(e) => onChange({ transportFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls()} placeholder="예: 0" /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={row.materialFee} onChange={(e) => onChange({ materialFee: e.target.value.replace(/[^\d]/g, "") })} className={inputCls()} placeholder="예: 0" /></td>
+      <td className={cellCls}><input type="text" inputMode="numeric" value={row.count} onChange={(e) => onChange({ count: e.target.value.replace(/[^\d]/g, "") })} className={inputCls(errors?.has("count"))} placeholder="예: 1" /></td>
       <td className={`${cellCls} font-medium`}>{formatWon(computeRowAmount(row))}</td>
-      <td className={cellCls}>
-        <select
-          value={row.taxType ? taxTypeLabel(row.taxType) : ""}
-          onChange={(e) => onChange({ taxType: e.target.value ? TAX_TYPE_BY_LABEL[e.target.value as (typeof TAX_TYPE_LABELS)[number]] : "" })}
-          className={inputCls}
-        >
-          <option value="">선택</option>
-          {TAX_TYPE_LABELS.map((label) => (<option key={label} value={label}>{label}</option>))}
-        </select>
-      </td>
       <td className={`${cellCls} min-w-[10rem]`}>
-        <input type="text" value={row.memo} onChange={(e) => onChange({ memo: e.target.value })} placeholder="예: 7/30 테라리움 만들기 진행" className={inputCls} />
+        <input type="text" value={row.memo} onChange={(e) => onChange({ memo: e.target.value })} placeholder="예: 7/30 테라리움 만들기 진행" className={inputCls()} />
       </td>
     </tr>
   );
