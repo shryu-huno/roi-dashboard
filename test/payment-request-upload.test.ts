@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { buildPaymentRequestUpdatesFromRows } from "@/lib/data/payment-request-upload";
 
 const HEADER = ["No", "지급일", "지급여부"];
@@ -58,8 +58,8 @@ describe("buildPaymentRequestUpdatesFromRows", () => {
     expect(result.updates).toEqual([{ row: 2, seqNo: 1, payDate: null, status: "PREPARING" }]);
   });
 
-  it("지급일 형식이 YYYY-MM-DD가 아니면 오류", () => {
-    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026/08/05", "지급완료"]]);
+  it("지급일이 한글 혼합 표기면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026년08월05일", "지급완료"]]);
     expect(result.updates).toEqual([]);
     expect(result.errors[0].message).toContain("지급일 형식");
   });
@@ -121,6 +121,60 @@ describe("buildPaymentRequestUpdatesFromRows", () => {
 
   it("2026-11-31(11월 31일)은 거부한다", () => {
     const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-11-31", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("지급일 구분자로 .과 /도 허용한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([
+      HEADER,
+      ["1", "2026.08.05", "지급완료"],
+      ["2", "2026/08/05", "지급완료"],
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2026-08-05T00:00:00.000Z"), status: "COMPLETED" },
+      { row: 3, seqNo: 2, payDate: new Date("2026-08-05T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  it("지급일에 월/일 앞자리 0을 생략해도 허용한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-8-5", "지급완료"]]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2026-08-05T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  it("지급일에 연도를 생략하면 파싱 시점의 KST 올해로 채운다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-01T00:00:00.000Z"));
+    try {
+      const result = buildPaymentRequestUpdatesFromRows([
+        HEADER,
+        ["1", "8/15", "지급완료"],
+        ["2", "8.15", "지급완료"],
+        ["3", "8-15", "지급완료"],
+      ]);
+      expect(result.errors).toEqual([]);
+      expect(result.updates).toEqual([
+        { row: 2, seqNo: 1, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+        { row: 3, seqNo: 2, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+        { row: 4, seqNo: 3, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("지급일이 일-월 순서(DD/MM)면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "31/7", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("지급일이 2자리 연도면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "26-8-15", "지급완료"]]);
     expect(result.updates).toEqual([]);
     expect(result.errors[0].message).toContain("지급일 형식");
   });
