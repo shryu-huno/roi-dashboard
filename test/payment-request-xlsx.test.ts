@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseXlsxToRows } from "@/app/(app)/expenses/payees/xlsx";
 import { buildPaymentRequestExportXlsxBuffer, EXPORT_HEADERS } from "@/app/(app)/expenses/payment-request/xlsx";
 import type { PaymentRequestExportRow } from "@/lib/data/payment-requests";
+import { buildPaymentRequestUpdatesFromRows } from "@/lib/data/payment-request-upload";
 
 describe("payment-request export xlsx", () => {
   const row: PaymentRequestExportRow = {
@@ -87,6 +88,17 @@ describe("payment-request export xlsx", () => {
     const ws = wb.worksheets[0];
     const memoCol = EXPORT_HEADERS.indexOf("상세내역") + 1;
     expect(ws.getColumn(memoCol).width).toBeLessThanOrEqual(60);
+  });
+
+  it("내보낸 파일을 그대로 재업로드 파서에 넣으면 원본 값으로 왕복된다(헤더 문자열 드리프트 회귀 방지)", async () => {
+    const buf = await buildPaymentRequestExportXlsxBuffer([row]);
+    const rows = await parseXlsxToRows(buf);
+    const { updates, errors } = buildPaymentRequestUpdatesFromRows(rows);
+    expect(errors).toEqual([]);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].seqNo).toBe(row.seqNo);
+    expect(updates[0].status).toBe(row.status);
+    expect(updates[0].payDate).toEqual(row.payDate);
   });
 
   it("지급여부 컬럼에 드롭다운 유효성 검사가 걸려있다", async () => {
