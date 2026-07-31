@@ -264,16 +264,21 @@ export async function updatePaymentRequestsBulk(
     const seqNos = updates.map((u) => u.seqNo);
     const found = await tx.paymentRequest.findMany({
       where: { seqNo: { in: seqNos }, deletedAt: null },
-      select: { id: true, seqNo: true },
+      select: { id: true, seqNo: true, payDate: true, status: true },
     });
-    const idBySeqNo = new Map(found.map((f) => [f.seqNo, f.id]));
+    const bySeqNo = new Map(found.map((f) => [f.seqNo, f]));
 
     let updated = 0;
     const notFoundSeqNos: number[] = [];
     for (const u of updates) {
-      const id = idBySeqNo.get(u.seqNo);
-      if (!id) { notFoundSeqNos.push(u.seqNo); continue; }
-      await tx.paymentRequest.update({ where: { id }, data: { payDate: u.payDate, status: u.status } });
+      const current = bySeqNo.get(u.seqNo);
+      if (!current) { notFoundSeqNos.push(u.seqNo); continue; }
+      // 재업로드 파일은 필터에 걸린 전체 행(대부분 미변경)을 담고 있을 수 있어, 실제로 값이
+      // 달라진 행만 update한다 — 트랜잭션 타임아웃 방지 + updatedAt/반영 건수 정확도를 위해서다.
+      const samePayDate = (current.payDate?.getTime() ?? null) === (u.payDate?.getTime() ?? null);
+      const sameStatus = current.status === u.status;
+      if (samePayDate && sameStatus) continue;
+      await tx.paymentRequest.update({ where: { id: current.id }, data: { payDate: u.payDate, status: u.status } });
       updated++;
     }
     return { updated, notFoundSeqNos };

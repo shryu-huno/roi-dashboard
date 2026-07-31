@@ -489,7 +489,7 @@ describe("payment-requests 데이터 계층", () => {
         data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "A건" }),
       }));
       const b = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
-        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "B건" }),
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "B건", payDate: new Date("2026-08-01"), status: "COMPLETED" }),
       }));
 
       const result = await updatePaymentRequestsBulk(ADMIN, [
@@ -508,6 +508,30 @@ describe("payment-requests 데이터 계층", () => {
       expect(rowA!.status).toBe("COMPLETED");
       expect(rowB!.payDate).toBeNull();
       expect(rowB!.status).toBe("PREPARING");
+    });
+
+    it("DB와 값이 동일한 행은 재업데이트하지 않고 updated에도 세지 않는다(변경된 행만 카운트)", async () => {
+      const { pmA, clientA } = await seed();
+      const unchanged = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "미변경건", payDate: new Date("2026-08-05"), status: "COMPLETED" }),
+      }));
+      const changed = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "변경건", payDate: null, status: "PREPARING" }),
+      }));
+
+      const result = await updatePaymentRequestsBulk(ADMIN, [
+        { seqNo: unchanged.seqNo, payDate: new Date("2026-08-05"), status: "COMPLETED" }, // 기존 값과 동일 → no-op
+        { seqNo: changed.seqNo, payDate: new Date("2026-08-10"), status: "COMPLETED" }, // 실제로 변경됨
+      ]);
+      expect(result).toEqual({ updated: 1, notFoundSeqNos: [] });
+
+      const { rows } = await listPaymentRequests(ADMIN);
+      const rowUnchanged = rows.find((r) => r.bizName === "미변경건");
+      const rowChanged = rows.find((r) => r.bizName === "변경건");
+      expect(rowUnchanged!.payDate).toEqual(new Date("2026-08-05"));
+      expect(rowUnchanged!.status).toBe("COMPLETED");
+      expect(rowChanged!.payDate).toEqual(new Date("2026-08-10"));
+      expect(rowChanged!.status).toBe("COMPLETED");
     });
   });
 });
