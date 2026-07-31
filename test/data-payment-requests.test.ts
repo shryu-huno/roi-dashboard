@@ -497,6 +497,17 @@ describe("payment-requests 데이터 계층", () => {
         { seqNo: b.seqNo, payDate: null, status: "PREPARING" },
       ]);
       expect(result).toEqual({ updated: 2, notFoundSeqNos: [] });
+
+      // 각 행이 자신의 고유한 값을 받았는지 확인 (값 교환 버그 등을 감지)
+      const { rows } = await listPaymentRequests(ADMIN);
+      const rowA = rows.find((r) => r.bizName === "A건");
+      const rowB = rows.find((r) => r.bizName === "B건");
+      expect(rowA).toBeDefined();
+      expect(rowB).toBeDefined();
+      expect(rowA!.payDate).toEqual(new Date("2026-08-05"));
+      expect(rowA!.status).toBe("COMPLETED");
+      expect(rowB!.payDate).toBeNull();
+      expect(rowB!.status).toBe("PREPARING");
     });
   });
 });
