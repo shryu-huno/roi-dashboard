@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { buildPaymentRequestUpdatesFromRows } from "@/lib/data/payment-request-upload";
+import { parseXlsxToRows } from "@/app/(app)/expenses/payees/xlsx";
 
 const HEADER = ["No", "지급일", "지급여부"];
 
@@ -175,6 +176,40 @@ describe("buildPaymentRequestUpdatesFromRows", () => {
 
   it("지급일이 2자리 연도면 오류", () => {
     const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "26-8-15", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  // 실제 엑셀 Date 타입 셀 → parseXlsxToRows → buildPaymentRequestUpdatesFromRows 전체 경로 통합 테스트.
+  it("실제 엑셀 Date 타입 셀의 지급일을 재업로드 파이프라인 전체 경로로 정상 반영한다", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("s");
+    ws.addRow(HEADER);
+    ws.addRow(["1", new Date(Date.UTC(2026, 7, 15)), "지급완료"]); // 8월 15일(UTC)
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+
+    const rows = await parseXlsxToRows(buf);
+    const result = buildPaymentRequestUpdatesFromRows(rows);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  // 시간 전용 셀(예: "8:15"를 잘못 입력) 회귀 테스트 — 1899-12-30(엑셀 기준일)으로 조용히
+  // 파싱되지 않고 오류로 처리되어야 한다.
+  it("시간 전용 셀(엑셀 기준일 1899-12-30)은 지급일로 조용히 반영되지 않고 오류 처리한다", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("s");
+    ws.addRow(HEADER);
+    const row = ws.addRow(["1", new Date(Date.UTC(1899, 11, 30, 8, 15)), "지급완료"]);
+    row.getCell(2).numFmt = "h:mm";
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+
+    const rows = await parseXlsxToRows(buf);
+    const result = buildPaymentRequestUpdatesFromRows(rows);
     expect(result.updates).toEqual([]);
     expect(result.errors[0].message).toContain("지급일 형식");
   });

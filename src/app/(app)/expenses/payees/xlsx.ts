@@ -57,7 +57,7 @@ export async function parseXlsxToRows(buf: Buffer | ArrayBuffer): Promise<string
     for (let c = 1; c <= colCount; c++) {
       const cell = row.getCell(c);
       const text =
-        cell.type === ExcelJS.ValueType.Date && cell.value instanceof Date
+        cell.type === ExcelJS.ValueType.Date && cell.value instanceof Date && cell.value.getUTCFullYear() >= 1900
           ? formatUtcDateAsIsoDate(cell.value)
           : (cell.text ?? "").toString();
       cells.push(text);
