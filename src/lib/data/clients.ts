@@ -10,6 +10,7 @@ export type ClientInput = {
   contractEnd?: Date | null;
   billingCycle?: string[]; // 청구 주기(복수). 미선택이면 []로 클리어.
   reportCycle?: string[]; // 보고 주기(복수). 미선택이면 []로 클리어.
+  performanceContract?: boolean; // 실적 계약 여부. 체크박스라 항상 boolean(미포함=false).
   pmIds?: string[]; // 담당 PM(여러 명). undefined면 담당 배정을 건드리지 않는다.
 };
 
@@ -45,6 +46,7 @@ export function createClient(ctx: RlsContext, input: ClientInput) {
         contractEnd: input.contractEnd ?? null,
         billingCycle: input.billingCycle ?? [],
         reportCycle: input.reportCycle ?? [],
+        performanceContract: input.performanceContract ?? false,
         managers: input.pmIds?.length
           ? { create: input.pmIds.map((userId) => ({ userId })) }
           : undefined,
@@ -69,6 +71,7 @@ export async function updateClient(ctx: RlsContext, id: string, input: ClientInp
         contractEnd: input.contractEnd,
         billingCycle: input.billingCycle,
         reportCycle: input.reportCycle,
+        performanceContract: input.performanceContract,
       },
     });
     // 접근 불가(RLS로 count 0)면 담당 배정도 손대지 않는다.

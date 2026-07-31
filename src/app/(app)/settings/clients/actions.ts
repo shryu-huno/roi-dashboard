@@ -22,6 +22,7 @@ export async function createClientAction(_prev: ActionState, formData: FormData)
     contractEnd: formData.get("contractEnd"),
     billingCycle: formData.getAll("billingCycle"),
     reportCycle: formData.getAll("reportCycle"),
+    performanceContract: formData.get("performanceContract"),
     pmIds: formData.getAll("pmIds"),
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 고객사명을 확인하세요." };
@@ -49,6 +50,7 @@ export async function updateClientAction(_prev: ActionState, formData: FormData)
     contractEnd: formData.get("contractEnd"),
     billingCycle: formData.getAll("billingCycle"),
     reportCycle: formData.getAll("reportCycle"),
+    performanceContract: formData.get("performanceContract"),
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다." };
   const result = await updateClient(ctx, id, parsed.data);

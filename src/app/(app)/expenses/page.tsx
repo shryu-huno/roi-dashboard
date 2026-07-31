@@ -38,8 +38,10 @@ async function AllExpensesTab({
     parseYm(sp.from) ?? { year: 2026, month: 1 },
     parseYm(sp.to) ?? parseYm(sp.from) ?? { year: 2026, month: 1 },
   );
+  // 상담비 합산 기준(실시일시/지급월) — 대시보드·상담비 탭과 동일한 전역 쿠키를 따른다.
+  const fiscalBasis = await getFiscalBasis();
 
-  const totals = clientId ? await getExpenseSummaryTotals(ctx, clientId, from, to) : null;
+  const totals = clientId ? await getExpenseSummaryTotals(ctx, clientId, from, to, fiscalBasis) : null;
   const rows = EXPENSE_SUMMARY_CATEGORIES.map((c) => ({
     key: c.key,
     label: c.label,
@@ -48,6 +50,9 @@ async function AllExpensesTab({
 
   return (
     <>
+      <div className="mb-4 flex items-center justify-end">
+        <BasisToggle defaultOn={fiscalBasis} />
+      </div>
       {/* 필터 제출 시에도 전체 내역 탭 유지 */}
       <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <input type="hidden" name="tab" value="all" />
