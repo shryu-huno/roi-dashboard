@@ -66,7 +66,8 @@ export function getPeriodTotals(
       performance: withVat(perf._sum.amount ?? 0, includeVat),
       billing: withVat(billing._sum.amount ?? 0, includeVat),
       deposit: withVat(deposit._sum.amount ?? 0, includeVat),
-      expense: withVat(expenseTotal, includeVat),
+      // 지출은 부가세 미포함(원장 원값). 실적/청구/입금만 VAT 토글을 따른다.
+      expense: expenseTotal,
     };
   });
 }
@@ -153,10 +154,8 @@ export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = fals
       return {
         month,
         performance: withVat(perfByMonth.get(month) ?? 0, includeVat),
-        expense: withVat(
-          (expByMonth.get(month) ?? 0) + (consByMonth.get(month) ?? 0) + (ccByMonth.get(month) ?? 0),
-          includeVat,
-        ),
+        // 지출은 부가세 미포함(원장 원값).
+        expense: (expByMonth.get(month) ?? 0) + (consByMonth.get(month) ?? 0) + (ccByMonth.get(month) ?? 0),
       };
     });
   });
@@ -164,11 +163,11 @@ export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = fals
 
 export type ExpenseSlice = { category: ExpenseCategory; amount: number };
 
+// 지출 분류별 내역 — 부가세 미포함(원장 원값)이라 includeVat 파라미터가 없다.
 export function getExpenseBreakdown(
   ctx: RlsContext,
   year: number,
   period: string,
-  includeVat = false,
   easywelOnly = false,
 ): Promise<ExpenseSlice[]> {
   const { startMonth, endMonth } = resolvePeriod(period);
@@ -178,7 +177,7 @@ export function getExpenseBreakdown(
       where: { year, month: { gte: startMonth, lte: endMonth }, client: clientWhere(easywelOnly) },
       _sum: { amount: true },
     });
-    return rows.map((r) => ({ category: r.category, amount: withVat(r._sum.amount ?? 0, includeVat) }));
+    return rows.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
   });
 }
 
@@ -249,7 +248,8 @@ export async function getClientSummaries(
       pmIds: c.managers.map((m) => m.userId),
       industry: c.industry,
       performance: withVat(perfByClient.get(c.id) ?? 0, includeVat),
-      expense: withVat(expByClient.get(c.id) ?? 0, includeVat),
+      // 지출은 부가세 미포함(원장 원값).
+      expense: expByClient.get(c.id) ?? 0,
       contract: withVat(contractByClient.get(c.id) ?? 0, includeVat),
     }));
   });
@@ -409,7 +409,8 @@ export function getClientDetail(
     const expCat = await tx.expense.groupBy({
       by: ["category"], where: { year, month: monthRange, clientId: id }, _sum: { amount: true },
     });
-    const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: withVat(r._sum.amount ?? 0, includeVat) }));
+    // 지출은 부가세 미포함(원장 원값).
+    const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
     const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
       new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
     const p = map(perfM), b = map(billM), d = map(depM), e = map(expM), cc = map(ccM);
@@ -420,7 +421,8 @@ export function getClientDetail(
         performance: withVat(p.get(month) ?? 0, includeVat),
         billing: withVat(b.get(month) ?? 0, includeVat),
         deposit: withVat(d.get(month) ?? 0, includeVat),
-        expense: withVat((e.get(month) ?? 0) + (ce.get(month) ?? 0) + (cc.get(month) ?? 0), includeVat),
+        // 지출은 부가세 미포함(원장 원값).
+        expense: (e.get(month) ?? 0) + (ce.get(month) ?? 0) + (cc.get(month) ?? 0),
       };
     });
 

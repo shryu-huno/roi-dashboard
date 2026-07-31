@@ -40,7 +40,7 @@ export default async function DashboardPage({
     getPeriodTotals(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
     getContractTotal(ctx, includeVat, easywelOnly),
     getMonthlyTrend(ctx, year, includeVat, easywelOnly, fiscalBasis),
-    getExpenseBreakdown(ctx, year, period, includeVat, easywelOnly),
+    getExpenseBreakdown(ctx, year, period, easywelOnly),
     getClientSummaries(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
   ]);
   const showPm = hasAtLeast(user.role, "SETTLEMENT");

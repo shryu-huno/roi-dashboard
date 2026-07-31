@@ -66,12 +66,12 @@ describe("metrics: period totals & contract total", () => {
     expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(500000); // A만
   });
 
-  it("includeVat=true applies ×1.1 to displayed totals and contract", async () => {
+  it("includeVat=true applies ×1.1 to 실적/청구/입금/계약금 but NOT 지출", async () => {
     const t = await getPeriodTotals(ADMIN, 2026, "h1", true);
     expect(t.performance).toBe(66000); // 60000 × 1.1
     expect(t.billing).toBe(33000); // 30000 × 1.1
     expect(t.deposit).toBe(22000); // 20000 × 1.1
-    expect(t.expense).toBe(5500); // 5000 × 1.1
+    expect(t.expense).toBe(5000); // 지출은 부가세 미포함(원장 원값) — VAT 토글 무관
     expect(await getContractTotal(ADMIN, true)).toBe(1430000); // 1300000 × 1.1
   });
 

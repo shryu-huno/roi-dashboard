@@ -21,19 +21,29 @@ export function listExpenses(ctx: RlsContext, clientId: string, year: number, mo
   return withRLS(ctx, (tx) => tx.expense.findMany({ where: { clientId, year, month } }));
 }
 
-// 전체 내역 요약표용 분류별 합계. 항목별 지출 라인아이템 모델이 도입되면
-// 여기서 clientId·[from~to] 기간·분류 기준으로 합산한다. 지금은 라인아이템 데이터가
-// 없으므로 모든 분류를 0으로 반환한다(연동 지점 단일화).
+// 전체 내역 요약표용 분류별 합계. clientId·[from~to] 기간 기준으로 합산한다.
+// 상담비(ConsultingExpense)·법인카드(CorporateCardExpense)는 상세 원장에서 실제 합산하고,
+// 나머지 분류(지급 내역·개인카드·홍보비·하이패스)는 아직 전용 모델이 없어 0으로 둔다.
+// 금액은 원장 원값(부가세 미포함) — 같은 화면의 상담비/법인카드 탭과 동일 기준.
+// fiscalBasis: false=프로젝트 기준(상담비 실시일시), true=회계연도 기준(상담비 지급월).
 export async function getExpenseSummaryTotals(
-  _ctx: RlsContext,
-  _clientId: string,
-  _from: Ym,
-  _to: Ym,
+  ctx: RlsContext,
+  clientId: string,
+  from: Ym,
+  to: Ym,
+  fiscalBasis = false,
 ): Promise<Record<ExpenseSummaryKey, number>> {
-  // TODO: 라인아이템(지출 항목) 모델 연동 시 [from~to] 각 달을 합산하도록 교체.
-  return Object.fromEntries(
+  const [consulting, corporate] = await Promise.all([
+    getConsultingFieldSummary(ctx, { clientId, from, to, fiscalBasis }),
+    getCorporateCardSummary(ctx, { clientId, from, to }),
+  ]);
+  // TODO: 지급 내역·개인카드·홍보비·하이패스는 데이터 모델 도입 시 여기에 합산 추가.
+  const totals = Object.fromEntries(
     EXPENSE_SUMMARY_CATEGORIES.map((c) => [c.key, 0]),
   ) as Record<ExpenseSummaryKey, number>;
+  totals.consulting = consulting.total;
+  totals["corporate-card"] = corporate.total;
+  return totals;
 }
 
 // 상담비 상세 원장(ConsultingExpense)을 상담분야(field)별로 합산.
