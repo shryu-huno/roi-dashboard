@@ -20,10 +20,24 @@ const STATUS_BY_LABEL: Record<string, PaymentRequestStatus> = {
 };
 
 // <input type="date">와 동일하게 "YYYY-MM-DD"만 허용.
+// 달력 유효성 검증: 예를 들어 "2026-02-30"은 2월 30일이 존재하지 않으므로 거부.
 function parseDateCell(value: string): Date | undefined {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
   const d = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? undefined : d;
+  if (Number.isNaN(d.getTime())) return undefined;
+
+  // Date 생성자는 범위를 벗어난 날짜를 자동으로 정규화한다.
+  // 예: new Date("2026-02-30T...") → 2026-03-02
+  // 따라서 입력 컴포넌트와 파싱된 Date의 UTC 컴포넌트가 일치하는지 확인해야 한다.
+  const [inputYear, inputMonth, inputDay] = value.split("-").map(Number);
+  if (
+    d.getUTCFullYear() !== inputYear ||
+    d.getUTCMonth() + 1 !== inputMonth ||
+    d.getUTCDate() !== inputDay
+  ) {
+    return undefined;
+  }
+  return d;
 }
 
 // 엑셀 재업로드 파싱 — 헤더에서 "No"/"지급일"/"지급여부" 3개만 이름으로 찾아 읽는다(나머지 컬럼은

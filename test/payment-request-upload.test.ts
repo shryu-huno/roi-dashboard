@@ -79,4 +79,37 @@ describe("buildPaymentRequestUpdatesFromRows", () => {
     expect(result.updates).toHaveLength(2);
     expect(result.errors).toEqual([{ row: 3, message: "No 값이 올바르지 않습니다." }]);
   });
+
+  // 달력 유효성 검증 (회귀 테스트)
+  it("달력상 유효하지 않은 날짜 2026-02-30은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-02-30", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("달력상 유효하지 않은 날짜 2026-04-31은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-04-31", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("평년의 2월 29일(2001-02-29)은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2001-02-29", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("윤년의 2월 29일(2024-02-29)은 정상 처리한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2024-02-29", "지급완료"]]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2024-02-29T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  it("2026-11-31(11월 31일)은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-11-31", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
 });
