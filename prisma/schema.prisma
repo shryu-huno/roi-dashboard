@@ -287,6 +287,7 @@ model PayeeAttachment {
 // bizName만 텍스트로 저장한다.
 model PaymentRequest {
   id            String                @id @default(cuid())
+  seqNo         Int                   @unique @default(autoincrement()) // 영구 고정 채번(No) — Payee.keyId처럼 등록 시 한 번 정해지고 이후 바뀌지 않음
   requestedAt   DateTime              @default(now())   // 신청일 (자동)
   requesterId   String                                   // 신청인
   requester     User                  @relation(fields: [requesterId], references: [id])
