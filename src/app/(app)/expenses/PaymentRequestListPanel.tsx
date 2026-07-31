@@ -72,6 +72,12 @@ export function PaymentRequestListPanel({
     bizName: filterValues.bizName,
   };
 
+  // 체크된 행이 있으면 그 항목만, 없으면 현재 검색/필터 결과 전체를 다운로드 대상으로 삼는다.
+  const selectedIds = rows.filter((r) => selected.has(r.id)).map((r) => r.id);
+  const exportHref = selectedIds.length > 0
+    ? `/expenses/payment-request/export?ids=${encodeURIComponent(selectedIds.join(","))}`
+    : `/expenses/payment-request/export?${new URLSearchParams(filterParams).toString()}`;
+
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <PaymentRequestNoticeBanner />
@@ -116,9 +122,20 @@ export function PaymentRequestListPanel({
 
       <div className="mb-4 flex justify-end gap-2">
         {canExport && (
-          <button type="button" onClick={() => alert(NOT_IMPLEMENTED)} className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
-            📗 엑셀 다운로드
-          </button>
+          rows.length > 0 ? (
+            <a href={exportHref} className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
+              📗 엑셀 다운로드{selectedIds.length > 0 ? ` (${selectedIds.length}건 선택)` : ""}
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title="다운로드할 데이터가 없습니다"
+              className="cursor-not-allowed rounded border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-muted)] opacity-50"
+            >
+              📗 엑셀 다운로드
+            </button>
+          )
         )}
         {canExport && (
           <button
