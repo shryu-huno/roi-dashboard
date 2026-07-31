@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import {
@@ -85,6 +85,9 @@ function baseInput(overrides: Partial<{
 
 describe("payment-requests 데이터 계층", () => {
   beforeEach(reset);
+  // paymentRequest는 client/payee/user를 참조하므로, 이 파일의 마지막 테스트가 남긴 행이
+  // 다른 테스트 파일의 reset()(client/user를 지움)을 FK 위반으로 깨뜨린다 — 파일 종료 시에도 정리한다.
+  afterAll(reset);
 
   it("ADMIN은 전체 지급요청을 조회한다", async () => {
     const { admin, pmA, clientA, clientB } = await seed();
