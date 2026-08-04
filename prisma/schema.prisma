@@ -140,7 +140,7 @@ model MonthlyPerformance {
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   year      Int
   month     Int
-  count     Int
+  count     Int?
   amount    Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

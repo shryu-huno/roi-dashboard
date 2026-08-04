@@ -34,7 +34,9 @@ export default async function PerformancePage({
         listPerformanceTotals(ctx, clientId),
       ])
     : [[], [], []];
-  const initialCounts = Object.fromEntries(perf.map((p) => [p.taskId, p.count]));
+  // count가 null인 레코드는 금액 직접입력 모드 → 금액을 초깃값으로 복원.
+  const initialCounts = Object.fromEntries(perf.filter((p) => p.count != null).map((p) => [p.taskId, p.count!]));
+  const initialAmounts = Object.fromEntries(perf.filter((p) => p.count == null).map((p) => [p.taskId, p.amount]));
   const totalsByTask = new Map(totals.map((t) => [t.taskId, t]));
 
   return (
@@ -69,6 +71,7 @@ export default async function PerformancePage({
             month={month}
             tasks={tasks.map((t) => ({ id: t.id, name: t.name, unitPrice: t.unitPrice }))}
             initialCounts={initialCounts}
+            initialAmounts={initialAmounts}
           />
 
           <h2 className="mb-2 mt-10 text-[18px] font-medium text-black">{year}년 누적</h2>
@@ -88,7 +91,10 @@ export default async function PerformancePage({
                 const tot = totalsByTask.get(t.id);
                 const cumCount = tot?.totalCount ?? 0;
                 const cumAmount = tot?.totalAmount ?? 0;
-                const rate = t.contractCount ? Math.round((cumCount / t.contractCount) * 100) : null;
+                // 계약금 기준 우선(금액 모드 과업 대응). 횟수 과업은 계약금=단가×계약횟수라 결과 동일.
+                const rate = t.contractAmount
+                  ? Math.round((cumAmount / t.contractAmount) * 100)
+                  : (t.contractCount ? Math.round((cumCount / t.contractCount) * 100) : null);
                 return (
                   <tr key={t.id} className="border-b border-[var(--color-border)]">
                     <td className="py-2">{t.name}</td>

@@ -5,7 +5,8 @@ export type PerformanceBatchInput = {
   clientId: string;
   year: number;
   month: number;
-  rows: { taskId: string; count: number }[];
+  // 과업별 택일: count(횟수 모드) 또는 amount(금액 직접입력 모드) 중 정확히 한쪽만 non-null.
+  rows: { taskId: string; count: number | null; amount: number | null }[];
 };
 
 export function listPerformance(ctx: RlsContext, clientId: string, year: number, month: number) {
@@ -40,11 +41,13 @@ export function upsertPerformanceBatch(ctx: RlsContext, input: PerformanceBatchI
       const task = await tx.task.findUnique({ where: { id: row.taskId } });
       // task가 null이면: 존재하지 않거나 RLS가 은닉(타 고객사) → 위조로 간주하고 전체 롤백.
       if (!task || task.clientId !== input.clientId) throw new Error(FORBIDDEN);
-      const amount = task.unitPrice * row.count;
+      // 금액 모드: 입력 금액 저장, count는 null. 횟수 모드: 단가×횟수로 금액 파생.
+      const count = row.count;
+      const amount = row.amount != null ? row.amount : task.unitPrice * (row.count as number);
       await tx.monthlyPerformance.upsert({
         where: { taskId_year_month: { taskId: row.taskId, year: input.year, month: input.month } },
-        create: { taskId: row.taskId, year: input.year, month: input.month, count: row.count, amount },
-        update: { count: row.count, amount },
+        create: { taskId: row.taskId, year: input.year, month: input.month, count, amount },
+        update: { count, amount },
       });
     }
     return { ok: true } as ActionState;

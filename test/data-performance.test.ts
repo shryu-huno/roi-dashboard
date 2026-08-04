@@ -29,7 +29,7 @@ describe("performance data layer", () => {
   });
 
   it("computes amount = unitPrice * count on save", async () => {
-    const res = await upsertPerformanceBatch({ userId: pmA, role: "PM" }, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 4 }] });
+    const res = await upsertPerformanceBatch({ userId: pmA, role: "PM" }, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 4, amount: null }] });
     expect(res.ok).toBe(true);
     const rows = await listPerformance(ADMIN, clientA, 2026, 3);
     expect(rows).toHaveLength(1);
@@ -37,9 +37,18 @@ describe("performance data layer", () => {
     expect(rows[0].count).toBe(4);
   });
 
+  it("stores amount directly and leaves count null in amount mode", async () => {
+    const res = await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: null, amount: 500000 }] });
+    expect(res.ok).toBe(true);
+    const rows = await listPerformance(ADMIN, clientA, 2026, 3);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount).toBe(500000); // 단가×횟수가 아니라 입력 금액 그대로
+    expect(rows[0].count).toBeNull();
+  });
+
   it("upsert is idempotent on (task, year, month)", async () => {
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 4 }] });
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 7 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 4, amount: null }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 7, amount: null }] });
     const rows = await listPerformance(ADMIN, clientA, 2026, 3);
     expect(rows).toHaveLength(1);
     expect(rows[0].count).toBe(7);
@@ -47,27 +56,27 @@ describe("performance data layer", () => {
   });
 
   it("PM A cannot write performance to PM B's task (RLS → ok:false, no row)", async () => {
-    const res = await upsertPerformanceBatch({ userId: pmA, role: "PM" }, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB1, count: 1 }] });
+    const res = await upsertPerformanceBatch({ userId: pmA, role: "PM" }, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB1, count: 1, amount: null }] });
     expect(res.ok).toBe(false);
     const rows = await listPerformance(ADMIN, clientB, 2026, 3);
     expect(rows).toHaveLength(0);
   });
 
   it("rejects a row whose task belongs to a different client", async () => {
-    const res = await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskB1, count: 1 }] });
+    const res = await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskB1, count: 1, amount: null }] });
     expect(res.ok).toBe(false);
   });
 
   it("sums count/amount across all months per task (계약 기간 누적)", async () => {
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 1, rows: [{ taskId: taskA1, count: 2 }] });
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 2, rows: [{ taskId: taskA1, count: 3 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 1, rows: [{ taskId: taskA1, count: 2, amount: null }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 2, rows: [{ taskId: taskA1, count: 3, amount: null }] });
     const totals = await listPerformanceTotals(ADMIN, clientA);
     expect(totals).toHaveLength(1);
     expect(totals[0]).toEqual({ taskId: taskA1, totalCount: 5, totalAmount: 50000 });
   });
 
   it("PM totals are RLS-scoped (no other client rows)", async () => {
-    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 1, rows: [{ taskId: taskB1, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 1, rows: [{ taskId: taskB1, count: 4, amount: null }] });
     const totals = await listPerformanceTotals({ userId: pmA, role: "PM" }, clientB);
     expect(totals).toHaveLength(0);
   });
