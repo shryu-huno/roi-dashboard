@@ -489,11 +489,50 @@ export async function createPaymentRequestsFromUpload(
       materialFee: number; count: number; memo: string;
     }[] = [];
 
-    for (const { row, data } of rows) {
+    // 행마다 DB 조회를 던지면 큰 배치에서 Prisma 인터랙티브 트랜잭션 타임아웃(기본 5000ms)에
+    // 걸릴 수 있어, 다른 대량 등록 함수들(createPaymentRequestsBulk, createPayeesBulk)과
+    // 동일하게 조회를 루프 밖에서 한 번씩만 배치로 실행한다.
+    const clientNames = [...new Set(rows.map((r) => r.data.clientName))];
+    const clientsByName = new Map<string, { id: string }[]>();
+    if (clientNames.length > 0) {
       const clients = await tx.client.findMany({
-        where: { name: data.clientName, deletedAt: null },
-        select: { id: true },
+        where: { name: { in: clientNames }, deletedAt: null },
+        select: { id: true, name: true },
       });
+      for (const c of clients) {
+        const list = clientsByName.get(c.name);
+        if (list) list.push({ id: c.id });
+        else clientsByName.set(c.name, [{ id: c.id }]);
+      }
+    }
+
+    const keyIds = [...new Set(rows.map((r) => r.data.keyId).filter((v): v is string => !!v))];
+    const payeeByKeyId = new Map<string, { id: string; bizName: string; taxType: TaxType }>();
+    if (keyIds.length > 0) {
+      const payees = await tx.payee.findMany({
+        where: { keyId: { in: keyIds }, deletedAt: null },
+        select: { id: true, keyId: true, bizName: true, taxType: true },
+      });
+      for (const p of payees) {
+        if (p.keyId) payeeByKeyId.set(p.keyId, { id: p.id, bizName: p.bizName, taxType: p.taxType });
+      }
+    }
+
+    const bizNumberDigitsList = [...new Set(rows.map((r) => r.data.bizNumberDigits).filter((v): v is string => !!v))];
+    const payeeByBizBidx = new Map<string, { id: string; bizName: string; taxType: TaxType }>();
+    if (bizNumberDigitsList.length > 0) {
+      const bidxList = bizNumberDigitsList.map((digits) => blindIndex(digits));
+      const payees = await tx.payee.findMany({
+        where: { bizNumberBidx: { in: bidxList }, deletedAt: null },
+        select: { id: true, bizNumberBidx: true, bizName: true, taxType: true },
+      });
+      for (const p of payees) {
+        if (p.bizNumberBidx) payeeByBizBidx.set(p.bizNumberBidx, { id: p.id, bizName: p.bizName, taxType: p.taxType });
+      }
+    }
+
+    for (const { row, data } of rows) {
+      const clients = clientsByName.get(data.clientName) ?? [];
       if (clients.length === 0) {
         errors.push({ row, message: `등록되지 않은 고객사명입니다: ${data.clientName}` });
         continue;
@@ -505,19 +544,13 @@ export async function createPaymentRequestsFromUpload(
 
       let payee: { id: string; bizName: string; taxType: TaxType } | null = null;
       if (data.keyId) {
-        payee = await tx.payee.findFirst({
-          where: { keyId: data.keyId, deletedAt: null },
-          select: { id: true, bizName: true, taxType: true },
-        });
+        payee = payeeByKeyId.get(data.keyId) ?? null;
         if (!payee) {
           errors.push({ row, message: `고유번호에 해당하는 지급 대상을 찾을 수 없습니다: ${data.keyId}` });
           continue;
         }
       } else if (data.bizNumberDigits) {
-        payee = await tx.payee.findFirst({
-          where: { bizNumberBidx: blindIndex(data.bizNumberDigits), deletedAt: null },
-          select: { id: true, bizName: true, taxType: true },
-        });
+        payee = payeeByBizBidx.get(blindIndex(data.bizNumberDigits)) ?? null;
         if (!payee) {
           errors.push({ row, message: "사업자번호에 해당하는 지급 대상을 찾을 수 없습니다." });
           continue;

@@ -961,5 +961,49 @@ describe("payment-requests 데이터 계층", () => {
       const { rows: [row] } = await listPaymentRequests(ADMIN);
       expect(row.amount).toBe((100000 + 5000 + 2000) * 3);
     });
+
+    it("고유번호로 매칭되면 엑셀에 적힌 사업자명/청구방식이 달라도 Payee 스냅샷을 저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1111111111", "실제이름", "BUSINESS_INCOME");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, {
+          clientName: clientA.name, keyId: payee.keyId,
+          bizNameRaw: "엉뚱한이름", taxTypeRaw: "세금계산서",
+        }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.bizName).toBe("실제이름");
+      expect(row.taxType).toBe("BUSINESS_INCOME");
+    });
+
+    it("고유번호와 사업자번호가 서로 다른 사업자를 가리키면 고유번호를 우선한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payeeByKey = await createPayee("1111111111", "업체A");
+      await createPayee("2222222222", "업체B");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, keyId: payeeByKey.keyId, bizNumberDigits: "2222222222" }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.payeeId).toBe(payeeByKey.id);
+      expect(row.bizName).toBe("업체A");
+    });
+
+    it("고유번호가 소프트삭제된 사업자를 가리키면 오류를 반환하고 미저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1111111111", "업체A");
+      await withRLS(ADMIN, (tx) => tx.payee.update({ where: { id: payee.id }, data: { deletedAt: new Date() } }));
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, keyId: payee.keyId }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
   });
 });
