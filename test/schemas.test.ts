@@ -264,6 +264,19 @@ describe("paymentRequestUpdateSchema (정산담당자 인라인 수정)", () => 
     expect(paymentRequestUpdateSchema.safeParse({ entity: "HUNO", clientId: "", payeeId: "p1", payDate: "", status: "PREPARING" }).success).toBe(false);
     expect(paymentRequestUpdateSchema.safeParse({ entity: "HUNO", clientId: "c1", payeeId: "", payDate: "", status: "PREPARING" }).success).toBe(false);
   });
+  it("지급완료인데 지급일이 없으면 거부한다", () => {
+    const r = paymentRequestUpdateSchema.safeParse({
+      entity: "HUNO", clientId: "c1", payeeId: "p1", payDate: "", status: "COMPLETED",
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe("지급완료 처리하려면 지급일을 입력해야 합니다.");
+  });
+  it("지급준비 상태면 지급일이 없어도 통과한다", () => {
+    const r = paymentRequestUpdateSchema.safeParse({
+      entity: "HUNO", clientId: "c1", payeeId: "p1", payDate: "", status: "PREPARING",
+    });
+    expect(r.success).toBe(true);
+  });
 });
 
 describe("paymentRequestUpdatePmSchema (PM 상세수정)", () => {
@@ -302,5 +315,14 @@ describe("paymentRequestBulkUpdateSchema (일괄수정)", () => {
     const r = paymentRequestBulkUpdateSchema.safeParse({ payDate: "", status: "PREPARING" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.payDate).toBeNull();
+  });
+  it("지급완료인데 지급일이 없으면 거부한다", () => {
+    const r = paymentRequestBulkUpdateSchema.safeParse({ payDate: "", status: "COMPLETED" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe("지급완료 처리하려면 지급일을 입력해야 합니다.");
+  });
+  it("지급준비 상태면 지급일이 없어도 통과한다", () => {
+    const r = paymentRequestBulkUpdateSchema.safeParse({ payDate: "", status: "PREPARING" });
+    expect(r.success).toBe(true);
   });
 });

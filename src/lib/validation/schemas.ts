@@ -160,12 +160,16 @@ export const paymentRequestRowSchema = z.object({
 });
 
 // 지급요청 인라인 수정(정산담당자) — 지급명의/고객사/사업자명/지급일/지급여부.
+// 지급완료인데 지급일이 없는 조합은 엑셀 재업로드 경로(payment-request-upload.ts)와
+// 동일하게 거부한다 — payDate를 조용히 null로 저장하지 않는다.
 export const paymentRequestUpdateSchema = z.object({
   entity: z.enum(["HUNO", "HUNO_INC"]),
   clientId: z.string().min(1),
   payeeId: z.string().min(1),
   payDate: z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.date().nullable()),
   status: z.enum(["PREPARING", "COMPLETED"]),
+}).refine((v) => !(v.status === "COMPLETED" && v.payDate === null), {
+  message: "지급완료 처리하려면 지급일을 입력해야 합니다.",
 });
 
 // 지급요청 상세수정(PM) — 등록 시 작성한 항목 전체(지급일/지급여부 제외, 정산담당자 전담).
@@ -181,7 +185,10 @@ export const paymentRequestUpdatePmSchema = z.object({
 });
 
 // 지급요청 일괄수정 — 선택된 건들에 동일하게 적용할 지급일/지급여부.
+// 지급완료인데 지급일이 없는 조합은 엑셀 재업로드 경로와 동일하게 거부한다.
 export const paymentRequestBulkUpdateSchema = z.object({
   payDate: z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.date().nullable()),
   status: z.enum(["PREPARING", "COMPLETED"]),
+}).refine((v) => !(v.status === "COMPLETED" && v.payDate === null), {
+  message: "지급완료 처리하려면 지급일을 입력해야 합니다.",
 });
