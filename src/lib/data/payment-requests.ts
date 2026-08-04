@@ -52,6 +52,7 @@ export type PaymentRequestRow = {
   entity: PaymentRequestEntity;
   clientId: string;
   clientName: string;
+  payeeId: string | null;
   bizName: string;
   unitPrice: number;
   transportFee: number;
@@ -122,6 +123,7 @@ export async function listPaymentRequests(
     entity: r.entity,
     clientId: r.clientId,
     clientName: r.client.name,
+    payeeId: r.payeeId,
     bizName: r.bizName,
     unitPrice: r.unitPrice,
     transportFee: r.transportFee,
@@ -283,4 +285,153 @@ export async function updatePaymentRequestsBulk(
     }
     return { updated, notFoundSeqNos };
   });
+}
+
+export type PaymentRequestSettlementUpdateInput = {
+  entity: PaymentRequestEntity;
+  clientId: string;
+  payeeId: string;
+  payDate: Date | null;
+  status: PaymentRequestStatus;
+};
+
+// 정산담당자 인라인 수정. payeeId로 Payee를 다시 조회해 bizName/taxType을 스냅샷으로
+// 갱신한다(클라이언트가 보낸 이름은 신뢰하지 않음 — 등록 때와 동일 원칙). 상태 무관하게
+// 항상 수정 가능(정산담당자는 최고 권한).
+export async function updatePaymentRequest(
+  ctx: RlsContext,
+  id: string,
+  input: PaymentRequestSettlementUpdateInput,
+): Promise<ActionState> {
+  return withRLS(ctx, async (tx) => {
+    const payee = await tx.payee.findFirst({
+      where: { id: input.payeeId, deletedAt: null },
+      select: { bizName: true, taxType: true },
+    });
+    if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
+
+    await tx.paymentRequest.update({
+      where: { id },
+      data: {
+        entity: input.entity,
+        clientId: input.clientId,
+        payeeId: input.payeeId,
+        bizName: payee.bizName,
+        taxType: payee.taxType,
+        payDate: input.payDate,
+        status: input.status,
+      },
+    });
+    return { ok: true };
+  });
+}
+
+export type PaymentRequestPmUpdateInput = {
+  entity: PaymentRequestEntity;
+  clientId: string;
+  payeeId: string;
+  unitPrice: number;
+  transportFee: number;
+  materialFee: number;
+  count: number;
+  memo: string;
+};
+
+// PM 상세수정. 지급준비 상태 + 본인 신청 건인지를 이 함수가 직접 재검증한다 — DB RLS
+// (payment_request_update_pm)는 requesterId만 검사하고 상태는 걸러주지 않으므로, 이
+// 앱 레이어 체크가 없으면 PM이 지급완료 건도 수정할 수 있게 된다. amount는 서버가
+// (unitPrice+transportFee+materialFee)*count로 재계산한다.
+export async function updatePaymentRequestPmFields(
+  ctx: RlsContext,
+  id: string,
+  input: PaymentRequestPmUpdateInput,
+): Promise<ActionState> {
+  return withRLS(ctx, async (tx) => {
+    const current = await tx.paymentRequest.findFirst({
+      where: { id, deletedAt: null },
+      select: { status: true, requesterId: true },
+    });
+    if (!current || current.status !== "PREPARING" || current.requesterId !== ctx.userId) {
+      return { ok: false, error: "수정할 수 없는 건입니다." };
+    }
+
+    const payee = await tx.payee.findFirst({
+      where: { id: input.payeeId, deletedAt: null },
+      select: { bizName: true, taxType: true },
+    });
+    if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
+
+    const amount = (input.unitPrice + input.transportFee + input.materialFee) * input.count;
+    await tx.paymentRequest.update({
+      where: { id },
+      data: {
+        entity: input.entity,
+        clientId: input.clientId,
+        payeeId: input.payeeId,
+        bizName: payee.bizName,
+        taxType: payee.taxType,
+        unitPrice: input.unitPrice,
+        transportFee: input.transportFee,
+        materialFee: input.materialFee,
+        count: input.count,
+        amount,
+        memo: input.memo,
+      },
+    });
+    return { ok: true };
+  });
+}
+
+// 일괄수정(체크박스 선택 → 지급일/지급여부 동일 적용). id 기반이라 엑셀 재업로드용
+// updatePaymentRequestsBulk(seqNo 기반, "찾은 것만 갱신")와는 별개다.
+export async function updatePaymentRequestsByIds(
+  ctx: RlsContext,
+  ids: string[],
+  input: { payDate: Date | null; status: PaymentRequestStatus },
+): Promise<ActionState> {
+  return withRLS(ctx, async (tx) => {
+    const result = await tx.paymentRequest.updateMany({
+      where: { id: { in: ids }, deletedAt: null },
+      data: { payDate: input.payDate, status: input.status },
+    });
+    if (result.count === 0) return { ok: false, error: "수정할 항목을 찾을 수 없습니다." };
+    return { ok: true };
+  });
+}
+
+// 소프트 삭제. Payee의 softDeletePayees와 동일한 updateMany 패턴. opts.statusIn이 있으면
+// 그 상태의 행만 대상으로 삼는다(PM 삭제 시 ["PREPARING"]을 넘겨 지급완료 건이 섞여도
+// 삭제되지 않게 막는다). 매칭된 count가 ids.length보다 작으면(권한 없는 행이나 상태가
+// 안 맞는 행이 섞여 있었다는 뜻) 부분삭제 대신 전체 실패로 처리한다 — 조용한 부분성공보다
+// 명확한 에러가 낫다.
+class PartialDeleteError extends Error {}
+
+export async function softDeletePaymentRequests(
+  ctx: RlsContext,
+  ids: string[],
+  opts?: { statusIn?: PaymentRequestStatus[] },
+): Promise<ActionState> {
+  // updateMany 전에 SELECT 기준(count)으로 매칭 건수를 미리 확인하는 방식은 쓸 수 없다 —
+  // PaymentRequest의 SELECT RLS 정책(payment_request_select)은 PM이 "담당 고객사의 모든
+  // 건"을 볼 수 있게 허용하지만, UPDATE 정책(payment_request_update_pm)은 그보다 좁게
+  // "본인이 신청한 건"만 허용한다. 즉 count()로는 보이는데 실제 updateMany는 아무 것도
+  // 바꾸지 못하는 행이 있을 수 있어, count 결과가 실제 삭제 가능 여부와 다를 수 있다.
+  // 그래서 updateMany를 먼저 실행해 실제 영향받은 행 수를 확인하되, 부분 매칭(count가
+  // ids.length보다 작음)이면 예외를 던져 트랜잭션 자체를 롤백시킨다 — withRLS(=$transaction)는
+  // 콜백이 정상 반환하면 그대로 커밋하므로, { ok: false }를 그냥 반환하는 것만으로는 이미
+  // 실행된 부분 삭제가 커밋되어 all-or-nothing이 깨진다.
+  try {
+    return await withRLS(ctx, async (tx) => {
+      const where: Prisma.PaymentRequestWhereInput = { id: { in: ids }, deletedAt: null };
+      if (opts?.statusIn) where.status = { in: opts.statusIn };
+
+      const result = await tx.paymentRequest.updateMany({ where, data: { deletedAt: new Date() } });
+      if (result.count === 0) return { ok: false, error: "삭제할 항목을 찾을 수 없습니다." };
+      if (result.count < ids.length) throw new PartialDeleteError();
+      return { ok: true };
+    });
+  } catch (e) {
+    if (e instanceof PartialDeleteError) return { ok: false, error: "삭제할 수 없는 항목이 포함되어 있습니다." };
+    throw e;
+  }
 }
