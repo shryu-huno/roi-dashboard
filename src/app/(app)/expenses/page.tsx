@@ -246,6 +246,7 @@ async function PaymentRequestTab({
       page={result.page}
       totalPages={result.totalPages}
       clients={clients.map((c) => ({ id: c.id, name: c.name, businessType: c.businessType }))}
+      payees={payees}
       bizNames={bizNames}
       filterValues={{
         payDateFrom: sp.payDateFrom ?? "",
