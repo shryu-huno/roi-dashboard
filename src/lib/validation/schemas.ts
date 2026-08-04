@@ -91,7 +91,13 @@ export const performanceBatchSchema = z.object({
   clientId: z.string().min(1),
   year,
   month,
-  rows: z.array(z.object({ taskId: z.string().min(1), count: nonNegInt })),
+  // 과업별로 횟수 또는 금액 중 정확히 하나만 입력(택일). 둘 다 오거나 둘 다 비면 거부.
+  rows: z.array(
+    z.object({ taskId: z.string().min(1), count: nullableAmount, amount: nullableAmount })
+      .refine((r) => (r.count != null) !== (r.amount != null), {
+        message: "횟수 또는 금액 중 하나만 입력하세요.",
+      }),
+  ),
 });
 
 export const expenseSchema = z.object({

@@ -33,14 +33,14 @@ describe("metrics: period totals & contract total", () => {
     clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
     taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
     // A사: 3월 실적 4회(40000), 지출 3월 5000, 청구 3월 30000, 입금 3월 20000
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
     await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
     await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
     // A사: 8월 실적 2회(20000) — 하반기
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 8, rows: [{ taskId: taskA, count: 2 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 8, rows: [{ taskId: taskA, count: 2, amount: null }] });
     // B사: 3월 실적 1회(20000)
-    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1, amount: null }] });
   });
 
   it("ADMIN sees all clients' totals for H1", async () => {
@@ -103,7 +103,7 @@ describe("metrics: trend & expense breakdown", () => {
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000 })).id;
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_TRANSPORT", amount: 3000 });
   });
@@ -133,9 +133,9 @@ describe("metrics: client & PM summaries", () => {
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
     clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
     taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
-    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1, amount: null }] });
   });
 
   it("client summaries per client (ADMIN)", async () => {
@@ -193,7 +193,7 @@ describe("metrics: client detail", () => {
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
     await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
   });
