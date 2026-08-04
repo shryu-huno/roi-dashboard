@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CYCLE_VALUES } from "@/lib/clients/summary-view";
-import { TAX_TYPE_LABELS } from "@/lib/labels";
+import { PAYMENT_REQUEST_ENTITY_LABELS, TAX_TYPE_LABELS } from "@/lib/labels";
 
 export const EXPENSE_CATEGORIES = [
   "CORPORATE_CARD", "PERSONAL_CARD", "LABOR_COUNSELOR", "LABOR_INSTRUCTOR",
@@ -157,6 +157,40 @@ export const paymentRequestRowSchema = z.object({
   materialFee: z.coerce.number().int().min(0),
   count: z.coerce.number().int().min(1),
   memo: z.string(),
+});
+
+// 사업자번호(선택) — 값이 있으면 10/13자리(하이픈 허용), 없으면(빈 문자열) 통과.
+// 필수 버전(bizNumberDigits, 107~112행)과 자릿수 검증 로직은 같고 "0자리 허용"만 다르다.
+const optionalBizNumberDigits = z.preprocess(
+  (v) => (typeof v === "string" ? v.replace(/\D/g, "") : v),
+  z.string().refine((s) => s.length === 0 || s.length === 10 || s.length === 13,
+    "사업자번호는 10자리(사업자) 또는 13자리(주민등록번호)여야 합니다."),
+);
+
+// PM 엑셀 대량 등록 한 행. 고유번호/사업자번호 중 하나라도 있으면 지급 리스트와 연동되는
+// "연동 행"으로 보고 사업자명/청구방식을 검사하지 않는다(매칭된 Payee 값으로 서버가 덮어씀).
+// 둘 다 없으면 "예외 행"으로 보고 사업자명/청구방식이 직접 저장되므로 필수로 검사한다.
+export const paymentRequestUploadRowSchema = z.object({
+  entity: z.enum(PAYMENT_REQUEST_ENTITY_LABELS),
+  clientName: z.string().trim().min(1, "고객사명을 입력하세요."),
+  bizNameRaw: z.string().trim(),
+  keyId: z.string().trim(),
+  bizNumberDigits: optionalBizNumberDigits,
+  unitPrice: z.coerce.number().int().min(1),
+  transportFee: z.coerce.number().int().min(0),
+  materialFee: z.coerce.number().int().min(0),
+  count: z.coerce.number().int().min(1),
+  taxTypeRaw: z.string().trim(),
+  memo: z.string(),
+}).superRefine((v, ctx) => {
+  const hasMatchKey = v.keyId.length > 0 || v.bizNumberDigits.length > 0;
+  if (hasMatchKey) return;
+  if (v.bizNameRaw.length === 0) {
+    ctx.addIssue({ code: "custom", path: ["bizNameRaw"], message: "사업자명을 입력하세요(지급 리스트에 없는 경우 필수)." });
+  }
+  if (!(TAX_TYPE_LABELS as readonly string[]).includes(v.taxTypeRaw)) {
+    ctx.addIssue({ code: "custom", path: ["taxTypeRaw"], message: "청구방식을 선택하세요(지급 리스트에 없는 경우 필수)." });
+  }
 });
 
 // 지급요청 인라인 수정(정산담당자) — 지급명의/고객사/사업자명/지급일/지급여부.

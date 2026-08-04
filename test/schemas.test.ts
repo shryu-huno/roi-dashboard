@@ -9,6 +9,7 @@ import {
   payeeUpdateSchema,
   payeeUpdatePmSchema,
   paymentRequestRowSchema,
+  paymentRequestUploadRowSchema,
   paymentRequestUpdateSchema,
   paymentRequestUpdatePmSchema,
   paymentRequestBulkUpdateSchema,
@@ -324,5 +325,85 @@ describe("paymentRequestBulkUpdateSchema (일괄수정)", () => {
   it("지급준비 상태면 지급일이 없어도 통과한다", () => {
     const r = paymentRequestBulkUpdateSchema.safeParse({ payDate: "", status: "PREPARING" });
     expect(r.success).toBe(true);
+  });
+});
+
+describe("paymentRequestUploadRowSchema", () => {
+  function row(overrides: Partial<{
+    entity: string; clientName: string; bizNameRaw: string; keyId: string;
+    bizNumberDigits: string; unitPrice: string; transportFee: string;
+    materialFee: string; count: string; taxTypeRaw: string; memo: string;
+  }> = {}) {
+    return {
+      entity: "휴노", clientName: "A사", bizNameRaw: "", keyId: "a001",
+      bizNumberDigits: "", unitPrice: "10000", transportFee: "0",
+      materialFee: "0", count: "1", taxTypeRaw: "", memo: "",
+      ...overrides,
+    };
+  }
+
+  it("고유번호가 있으면 사업자명/청구방식이 빈 문자열이어도 통과한다", () => {
+    expect(paymentRequestUploadRowSchema.safeParse(row()).success).toBe(true);
+  });
+
+  it("사업자번호가 있으면(고유번호 없이) 사업자명/청구방식이 빈 문자열이어도 통과한다", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(
+      row({ keyId: "", bizNumberDigits: "1234567890" }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("고유번호·사업자번호가 둘 다 없으면 사업자명이 필수다", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(
+      row({ keyId: "", bizNumberDigits: "", bizNameRaw: "", taxTypeRaw: "세금계산서" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("고유번호·사업자번호가 둘 다 없으면 청구방식이 필수다", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(
+      row({ keyId: "", bizNumberDigits: "", bizNameRaw: "홍길동", taxTypeRaw: "" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("고유번호·사업자번호가 둘 다 없어도 사업자명+유효한 청구방식이 있으면 통과한다", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(
+      row({ keyId: "", bizNumberDigits: "", bizNameRaw: "홍길동", taxTypeRaw: "세금계산서" }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("사업자번호 형식이 9자리면 오류", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(
+      row({ keyId: "", bizNumberDigits: "123456789" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("지급명의가 휴노/휴노INC가 아니면 오류", () => {
+    expect(paymentRequestUploadRowSchema.safeParse(row({ entity: "다른회사" })).success).toBe(false);
+  });
+
+  it("고객사명이 비어있으면 오류", () => {
+    expect(paymentRequestUploadRowSchema.safeParse(row({ clientName: "" })).success).toBe(false);
+  });
+
+  it("단가가 0이면 오류, 교통비/재료비는 0이어도 통과", () => {
+    expect(paymentRequestUploadRowSchema.safeParse(row({ unitPrice: "0" })).success).toBe(false);
+    expect(paymentRequestUploadRowSchema.safeParse(row({ transportFee: "0", materialFee: "0" })).success).toBe(true);
+  });
+
+  it("횟수가 0이면 오류", () => {
+    expect(paymentRequestUploadRowSchema.safeParse(row({ count: "0" })).success).toBe(false);
+  });
+
+  it("교통비/재료비가 빈 문자열이면 0으로 처리된다", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(row({ transportFee: "", materialFee: "" }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.transportFee).toBe(0);
+      expect(result.data.materialFee).toBe(0);
+    }
   });
 });
