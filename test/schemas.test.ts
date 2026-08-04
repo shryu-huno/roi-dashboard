@@ -9,6 +9,9 @@ import {
   payeeUpdateSchema,
   payeeUpdatePmSchema,
   paymentRequestRowSchema,
+  paymentRequestUpdateSchema,
+  paymentRequestUpdatePmSchema,
+  paymentRequestBulkUpdateSchema,
 } from "@/lib/validation/schemas";
 
 describe("performanceBatchSchema", () => {
@@ -236,5 +239,68 @@ describe("paymentRequestRowSchema", () => {
   it("고객사/사업자 id가 비어있으면 실패한다", () => {
     expect(paymentRequestRowSchema.safeParse({ ...valid, clientId: "" }).success).toBe(false);
     expect(paymentRequestRowSchema.safeParse({ ...valid, payeeId: "" }).success).toBe(false);
+  });
+});
+
+describe("paymentRequestUpdateSchema (정산담당자 인라인 수정)", () => {
+  it("정상 입력을 통과시킨다", () => {
+    const r = paymentRequestUpdateSchema.safeParse({
+      entity: "HUNO", clientId: "c1", payeeId: "p1", payDate: "2026-08-05", status: "COMPLETED",
+    });
+    expect(r.success).toBe(true);
+  });
+  it("빈 지급일은 null이 된다", () => {
+    const r = paymentRequestUpdateSchema.safeParse({
+      entity: "HUNO", clientId: "c1", payeeId: "p1", payDate: "", status: "PREPARING",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.payDate).toBeNull();
+  });
+  it("알 수 없는 entity/status는 거부한다", () => {
+    expect(paymentRequestUpdateSchema.safeParse({ entity: "NOPE", clientId: "c1", payeeId: "p1", payDate: "", status: "PREPARING" }).success).toBe(false);
+    expect(paymentRequestUpdateSchema.safeParse({ entity: "HUNO", clientId: "c1", payeeId: "p1", payDate: "", status: "NOPE" }).success).toBe(false);
+  });
+  it("clientId/payeeId가 비어있으면 거부한다", () => {
+    expect(paymentRequestUpdateSchema.safeParse({ entity: "HUNO", clientId: "", payeeId: "p1", payDate: "", status: "PREPARING" }).success).toBe(false);
+    expect(paymentRequestUpdateSchema.safeParse({ entity: "HUNO", clientId: "c1", payeeId: "", payDate: "", status: "PREPARING" }).success).toBe(false);
+  });
+});
+
+describe("paymentRequestUpdatePmSchema (PM 상세수정)", () => {
+  it("정상 입력을 통과시킨다", () => {
+    const r = paymentRequestUpdatePmSchema.safeParse({
+      entity: "HUNO_INC", clientId: "c1", payeeId: "p1",
+      unitPrice: "100000", transportFee: "0", materialFee: "0", count: "1", memo: "메모",
+    });
+    expect(r.success).toBe(true);
+  });
+  it("단가/횟수가 0이면 거부한다", () => {
+    expect(paymentRequestUpdatePmSchema.safeParse({
+      entity: "HUNO", clientId: "c1", payeeId: "p1",
+      unitPrice: "0", transportFee: "0", materialFee: "0", count: "1", memo: "",
+    }).success).toBe(false);
+    expect(paymentRequestUpdatePmSchema.safeParse({
+      entity: "HUNO", clientId: "c1", payeeId: "p1",
+      unitPrice: "1", transportFee: "0", materialFee: "0", count: "0", memo: "",
+    }).success).toBe(false);
+  });
+  it("교통비/재료비는 0을 허용한다", () => {
+    const r = paymentRequestUpdatePmSchema.safeParse({
+      entity: "HUNO", clientId: "c1", payeeId: "p1",
+      unitPrice: "1", transportFee: "0", materialFee: "0", count: "1", memo: "",
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("paymentRequestBulkUpdateSchema (일괄수정)", () => {
+  it("정상 입력을 통과시킨다", () => {
+    const r = paymentRequestBulkUpdateSchema.safeParse({ payDate: "2026-08-05", status: "COMPLETED" });
+    expect(r.success).toBe(true);
+  });
+  it("빈 지급일은 null이 된다", () => {
+    const r = paymentRequestBulkUpdateSchema.safeParse({ payDate: "", status: "PREPARING" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.payDate).toBeNull();
   });
 });

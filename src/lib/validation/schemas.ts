@@ -158,3 +158,30 @@ export const paymentRequestRowSchema = z.object({
   count: z.coerce.number().int().min(1),
   memo: z.string(),
 });
+
+// 지급요청 인라인 수정(정산담당자) — 지급명의/고객사/사업자명/지급일/지급여부.
+export const paymentRequestUpdateSchema = z.object({
+  entity: z.enum(["HUNO", "HUNO_INC"]),
+  clientId: z.string().min(1),
+  payeeId: z.string().min(1),
+  payDate: z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.date().nullable()),
+  status: z.enum(["PREPARING", "COMPLETED"]),
+});
+
+// 지급요청 상세수정(PM) — 등록 시 작성한 항목 전체(지급일/지급여부 제외, 정산담당자 전담).
+export const paymentRequestUpdatePmSchema = z.object({
+  entity: z.enum(["HUNO", "HUNO_INC"]),
+  clientId: z.string().min(1),
+  payeeId: z.string().min(1),
+  unitPrice: z.coerce.number().int().min(1),
+  transportFee: z.coerce.number().int().min(0),
+  materialFee: z.coerce.number().int().min(0),
+  count: z.coerce.number().int().min(1),
+  memo: z.string(),
+});
+
+// 지급요청 일괄수정 — 선택된 건들에 동일하게 적용할 지급일/지급여부.
+export const paymentRequestBulkUpdateSchema = z.object({
+  payDate: z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.date().nullable()),
+  status: z.enum(["PREPARING", "COMPLETED"]),
+});
