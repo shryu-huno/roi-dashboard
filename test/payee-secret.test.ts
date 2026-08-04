@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   encrypt, decrypt, blindIndex, digitsOnly, derivePayeeType, maskBizNumber, maskAccountNumber,
+  maskPhone, maskFully,
   PayeeKeyConfigError,
 } from "@/lib/crypto/payee-secret";
 
@@ -34,5 +35,15 @@ describe("payee-secret", () => {
     } finally {
       process.env.PAYEE_ENC_KEY = saved;
     }
+  });
+  it("maskPhone: 뒤 4자리 앞까지 중간 4자리만 마스킹", () => {
+    expect(maskPhone("01012345678")).toBe("010-****-5678"); // 11자리(휴대폰)
+    expect(maskPhone("0212345678")).toBe("02-****-5678");   // 10자리(서울 유선)
+    expect(maskPhone("021234567")).toBe("0-****-4567");     // 9자리(최소 자릿수)
+  });
+  it("maskFully: 값 길이만큼 전체 마스킹", () => {
+    expect(maskFully("국민은행")).toBe("****");
+    expect(maskFully("110123456789")).toBe("************");
+    expect(maskFully("예금주")).toBe("***");
   });
 });

@@ -66,3 +66,14 @@ export function maskBizNumber(digits: string, type: PayeeType): string {
 export function maskAccountNumber(digits: string): string {
   return `****${digits.slice(-4)}`;
 }
+
+// 연락처: 뒤 4자리 앞까지는 그대로 두고 중간 4자리만 마스킹. 010-****-5678
+export function maskPhone(digits: string): string {
+  const headLen = Math.max(digits.length - 8, 0);
+  return `${digits.slice(0, headLen)}-****-${digits.slice(-4)}`;
+}
+
+// 길이 기반 전체 마스킹(은행명/계좌번호/예금주 공용). 값이 있었다는 사실 외에는 아무 정보도 남기지 않는다.
+export function maskFully(value: string): string {
+  return "*".repeat(value.length);
+}

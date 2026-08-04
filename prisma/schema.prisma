@@ -249,6 +249,7 @@ model Payee {
   taxType             TaxType            // 청구방식
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?          // 소프트 삭제. null=활성, 값=삭제됨(목록에서 숨김).
 
   attachments         PayeeAttachment[]
 
@@ -256,7 +257,7 @@ model Payee {
   @@index([payeeType])
 }
 
-// 지급 대상 첨부(사업자등록증/통장사본). 실제 업로드 흐름은 추후 단계.
+// 지급 대상 첨부(사업자등록증/통장사본).
 model PayeeAttachment {
   id         String        @id @default(cuid())
   payeeId    String
@@ -266,6 +267,7 @@ model PayeeAttachment {
   fileName   String
   uploadedAt DateTime      @default(now())
 
+  @@unique([payeeId, fileType])
   @@index([payeeId])
 }
 

@@ -2,52 +2,44 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { PayeeRow as PayeeRowData, PayeeSearchField } from "@/lib/data/payees";
+import type { PayeePmRow as PayeePmRowData, PayeePmSearchField } from "@/lib/data/payees";
 import { deletePayeesAction } from "./payees/actions";
 import { PayeeUploadModal } from "./PayeeUploadModal";
 import { PayeeAttachmentModal } from "./PayeeAttachmentModal";
 import { PayeeDeleteConfirmModal } from "./PayeeDeleteConfirmModal";
-import { PayeeRow } from "./PayeeRow";
+import { PayeePmRow } from "./PayeePmRow";
 import { PayeePager } from "./PayeePager";
 
-const SEARCH_FIELD_OPTIONS: { value: PayeeSearchField; label: string }[] = [
+const SEARCH_FIELD_OPTIONS: { value: PayeePmSearchField; label: string }[] = [
   { value: "bizName", label: "사업자명(이름)" },
-  { value: "bizNumber", label: "사업자번호" },
   { value: "keyId", label: "고유번호" },
+  { value: "phone", label: "연락처" },
 ];
 
-export function PayeeListPanel({
+export function PayeePmListPanel({
   rows,
   field,
   q,
   page,
   totalPages,
 }: {
-  rows: PayeeRowData[];
-  field: PayeeSearchField;
+  rows: PayeePmRowData[];
+  field: PayeePmSearchField;
   q: string;
   page: number;
   totalPages: number;
 }) {
   const router = useRouter();
-  // 체크박스 선택 행(선택만 — 편집과 무관). 다음 단계에서 일괄 작업 연결.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  // 편집 모드 행(관리 연필 아이콘으로 진입).
   const [editing, setEditing] = useState<Set<string>>(new Set());
   const [uploadOpen, setUploadOpen] = useState(false);
   const [attachmentTarget, setAttachmentTarget] = useState<{ id: string; keyId: string; bizName: string } | null>(null);
-  const [searchField, setSearchField] = useState<PayeeSearchField>(field);
-  // 삭제 확인 대상 id 목록. null=모달 닫힘. 개별 삭제는 [id] 하나, 일괄 삭제는 selected 전체.
+  const [searchField, setSearchField] = useState<PayeePmSearchField>(field);
   const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
-  // 체크된 행이 있으면 그 항목만, 없으면 현재 검색/필터 결과 전체를 다운로드 대상으로 삼는다.
-  const selectedKeyIds = rows.filter((r) => selected.has(r.id)).map((r) => r.keyId);
-  const exportHref = selectedKeyIds.length > 0
-    ? `/expenses/payees/export?keyIds=${encodeURIComponent(selectedKeyIds.join(","))}`
-    : `/expenses/payees/export?field=${field}&q=${encodeURIComponent(q)}`;
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -96,7 +88,6 @@ export function PayeeListPanel({
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      {/* 상단 바: 좌측 검색 / 우측 액션. 우측 액션 로직은 다음 단계. */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <form method="get" className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="tab" value="payment-list" />
@@ -104,7 +95,7 @@ export function PayeeListPanel({
           <select
             name="field"
             value={searchField}
-            onChange={(e) => setSearchField(e.target.value as PayeeSearchField)}
+            onChange={(e) => setSearchField(e.target.value as PayeePmSearchField)}
             className="rounded border border-[var(--color-border)] px-3 py-2 text-sm"
           >
             {SEARCH_FIELD_OPTIONS.map((opt) => (
@@ -115,8 +106,7 @@ export function PayeeListPanel({
             type="text"
             name="q"
             defaultValue={q}
-            maxLength={searchField === "bizNumber" ? 8 : undefined}
-            placeholder="검색어 입력 (하이픈 제외 가능)"
+            placeholder="검색어 입력"
             className="w-64 rounded border border-[var(--color-border)] px-3 py-2 text-sm"
           />
           <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">
@@ -124,23 +114,6 @@ export function PayeeListPanel({
           </button>
         </form>
         <div className="flex items-center gap-2">
-          {rows.length > 0 ? (
-            <a
-              href={exportHref}
-              className="rounded border border-[var(--color-border)] px-4 py-2 text-sm"
-            >
-              📗 엑셀 다운로드{selectedKeyIds.length > 0 ? ` (${selectedKeyIds.length}건 선택)` : ""}
-            </a>
-          ) : (
-            <button
-              type="button"
-              disabled
-              title="다운로드할 데이터가 없습니다"
-              className="cursor-not-allowed rounded border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-muted)] opacity-50"
-            >
-              📗 엑셀 다운로드
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setDeleteTarget(Array.from(selected))}
@@ -159,7 +132,6 @@ export function PayeeListPanel({
         </div>
       </div>
 
-      {/* 목록 테이블 — 헤더/내용 모두 가운데 정렬 */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-center text-sm">
           <thead>
@@ -169,7 +141,7 @@ export function PayeeListPanel({
               </th>
               <th className="whitespace-nowrap px-3 py-2">고유번호</th>
               <th className="whitespace-nowrap px-3 py-2">사업자명(이름)</th>
-              <th className="whitespace-nowrap px-3 py-2">사업자번호(주민등록번호)</th>
+              <th className="whitespace-nowrap px-3 py-2">연락처</th>
               <th className="whitespace-nowrap px-3 py-2">은행명</th>
               <th className="whitespace-nowrap px-3 py-2">계좌번호</th>
               <th className="whitespace-nowrap px-3 py-2">예금주</th>
@@ -180,7 +152,7 @@ export function PayeeListPanel({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <PayeeRow
+              <PayeePmRow
                 key={r.id}
                 row={r}
                 isEditing={editing.has(r.id)}
@@ -211,6 +183,8 @@ export function PayeeListPanel({
           payeeId={attachmentTarget.id}
           keyId={attachmentTarget.keyId}
           bizName={attachmentTarget.bizName}
+          canDownload={false}
+          canDelete={false}
           onClose={() => setAttachmentTarget(null)}
         />
       )}
