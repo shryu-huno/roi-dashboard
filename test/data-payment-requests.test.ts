@@ -6,9 +6,10 @@ import {
   parsePaymentRequestStatus, parsePaymentRequestDateParam, PAYMENT_REQUEST_PAGE_SIZE,
   createPaymentRequestsBulk, listPaymentRequestsForExport, updatePaymentRequestsBulk,
   updatePaymentRequest, updatePaymentRequestPmFields, updatePaymentRequestsByIds,
-  softDeletePaymentRequests,
+  softDeletePaymentRequests, createPaymentRequestsFromUpload,
 } from "@/lib/data/payment-requests";
 import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
+import type { ParsedRegistrationRow } from "@/lib/data/payment-request-registration-upload";
 import { createPayeesBulk } from "@/lib/data/payees";
 import { encrypt, blindIndex, maskBizNumber, maskAccountNumber } from "@/lib/crypto/payee-secret";
 
@@ -826,6 +827,139 @@ describe("payment-requests 데이터 계층", () => {
       const deleted = await withRLS(ADMIN, (tx) => tx.paymentRequest.findUnique({ where: { id: created.id } }));
       expect(deleted?.deletedAt).not.toBeNull();
       expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+  });
+
+  describe("createPaymentRequestsFromUpload", () => {
+    function uploadRow(row: number, overrides: Partial<ParsedRegistrationRow> = {}) {
+      return {
+        row,
+        data: {
+          entity: "HUNO" as const,
+          clientName: "A사",
+          bizNameRaw: "",
+          keyId: null,
+          bizNumberDigits: null,
+          taxTypeRaw: null,
+          unitPrice: 10000,
+          transportFee: 0,
+          materialFee: 0,
+          count: 1,
+          memo: "",
+          ...overrides,
+        },
+      };
+    }
+
+    it("고유번호로 매칭되면 payeeId 연동 + bizName/taxType은 Payee 스냅샷을 저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1111111111", "업체A", "TAX_INVOICE");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, keyId: payee.keyId }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.payeeId).toBe(payee.id);
+      expect(row.bizName).toBe("업체A");
+      expect(row.taxType).toBe("TAX_INVOICE");
+    });
+
+    it("사업자번호로도 매칭한다(고유번호 없을 때)", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1101234567", "김강사", "BUSINESS_INCOME");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, keyId: null, bizNumberDigits: "1101234567" }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.payeeId).toBe(payee.id);
+      expect(row.bizName).toBe("김강사");
+      expect(row.taxType).toBe("BUSINESS_INCOME");
+    });
+
+    it("고유번호가 있는데 매칭되지 않으면 오류를 반환하고 미저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, keyId: "존재하지않는키" }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("사업자번호가 있는데 매칭되지 않으면 오류를 반환하고 미저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, keyId: null, bizNumberDigits: "9999999999" }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("고유번호·사업자번호가 둘 다 없으면 예외 행으로 저장한다(payeeId null, 입력값 그대로)", async () => {
+      const { pmA, clientA } = await seed();
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, bizNameRaw: "홍길동", taxTypeRaw: "세금계산서" }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.payeeId).toBeNull();
+      expect(row.bizName).toBe("홍길동");
+      expect(row.taxType).toBe("TAX_INVOICE");
+    });
+
+    it("등록되지 않은 고객사명이면 오류를 반환하고 미저장한다", async () => {
+      const { pmA } = await seed();
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: "존재하지않는고객사", bizNameRaw: "홍길동", taxTypeRaw: "세금계산서" }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("동일한 이름의 고객사가 여러 건이면 오류를 반환한다", async () => {
+      const { pmA, clientA } = await seed();
+      // Client SELECT RLS는 PM에게 담당 고객사만 보여준다(clientmanager_rls) — 중복 매칭을
+      // 재현하려면 두 번째 동명 고객사도 pmA가 담당하도록 만들어야 findMany가 둘 다 반환한다.
+      await withRLS(ADMIN, (tx) => tx.client.create({
+        data: { name: clientA.name, businessType: "휴노", managers: { create: [{ userId: pmA.id }] } },
+      }));
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, bizNameRaw: "홍길동", taxTypeRaw: "세금계산서" }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("여러 행 중 하나라도 오류면 전체를 저장하지 않는다(all-or-nothing)", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1111111111", "업체A");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, keyId: payee.keyId }),
+        uploadRow(3, { clientName: clientA.name, keyId: "존재하지않는키" }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("지급액을 서버가 재계산한다", async () => {
+      const { pmA, clientA } = await seed();
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, {
+          clientName: clientA.name, bizNameRaw: "홍길동", taxTypeRaw: "세금계산서",
+          unitPrice: 100000, transportFee: 5000, materialFee: 2000, count: 3,
+        }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.amount).toBe((100000 + 5000 + 2000) * 3);
     });
   });
 });

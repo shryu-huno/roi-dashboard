@@ -2,7 +2,9 @@ import type { PaymentRequestEntity, PaymentRequestStatus, Prisma, TaxType } from
 import { withRLS, type RlsContext } from "@/lib/rls";
 import type { ActionState } from "@/lib/action-state";
 import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
-import { decrypt } from "@/lib/crypto/payee-secret";
+import { decrypt, blindIndex } from "@/lib/crypto/payee-secret";
+import { TAX_TYPE_BY_LABEL } from "@/lib/labels";
+import type { ParsedRegistrationRow } from "./payment-request-registration-upload";
 
 export const PAYMENT_REQUEST_PAGE_SIZE = 50;
 
@@ -464,4 +466,92 @@ export async function softDeletePaymentRequests(
     if (e instanceof PartialDeleteError) return { ok: false, error: "삭제할 수 없는 항목이 포함되어 있습니다." };
     throw e;
   }
+}
+
+export type PaymentRequestUploadCreateResult =
+  | { ok: true; created: number }
+  | { ok: false; errors: { row: number; message: string }[] };
+
+// PM 엑셀 대량 등록 전용. 각 행의 고객사명/고유번호/사업자번호를 조회해 매칭한다. 매칭 오류가
+// 하나라도 있으면 아직 insert 전이므로 그대로 반환한다(all-or-nothing — 이미 쓴 것을 롤백할
+// 필요가 없다, softDeletePaymentRequests의 PartialDeleteError 패턴과 달리 여기선 "쓰기 전에
+// 미리 전부 확인"하는 방식이라 트랜잭션 예외를 던질 필요가 없다).
+export async function createPaymentRequestsFromUpload(
+  ctx: RlsContext,
+  requesterId: string,
+  rows: { row: number; data: ParsedRegistrationRow }[],
+): Promise<PaymentRequestUploadCreateResult> {
+  return withRLS(ctx, async (tx) => {
+    const errors: { row: number; message: string }[] = [];
+    const resolved: {
+      entity: PaymentRequestEntity; clientId: string; payeeId: string | null;
+      bizName: string; taxType: TaxType; unitPrice: number; transportFee: number;
+      materialFee: number; count: number; memo: string;
+    }[] = [];
+
+    for (const { row, data } of rows) {
+      const clients = await tx.client.findMany({
+        where: { name: data.clientName, deletedAt: null },
+        select: { id: true },
+      });
+      if (clients.length === 0) {
+        errors.push({ row, message: `등록되지 않은 고객사명입니다: ${data.clientName}` });
+        continue;
+      }
+      if (clients.length > 1) {
+        errors.push({ row, message: `동일한 이름의 고객사가 여러 건 있어 자동 선택할 수 없습니다: ${data.clientName}` });
+        continue;
+      }
+
+      let payee: { id: string; bizName: string; taxType: TaxType } | null = null;
+      if (data.keyId) {
+        payee = await tx.payee.findFirst({
+          where: { keyId: data.keyId, deletedAt: null },
+          select: { id: true, bizName: true, taxType: true },
+        });
+        if (!payee) {
+          errors.push({ row, message: `고유번호에 해당하는 지급 대상을 찾을 수 없습니다: ${data.keyId}` });
+          continue;
+        }
+      } else if (data.bizNumberDigits) {
+        payee = await tx.payee.findFirst({
+          where: { bizNumberBidx: blindIndex(data.bizNumberDigits), deletedAt: null },
+          select: { id: true, bizName: true, taxType: true },
+        });
+        if (!payee) {
+          errors.push({ row, message: "사업자번호에 해당하는 지급 대상을 찾을 수 없습니다." });
+          continue;
+        }
+      }
+
+      // payee가 null이면 파서(Task 2)가 이미 taxTypeRaw를 유효한 라벨로 검증해뒀다(예외 행).
+      const taxType = payee ? payee.taxType : TAX_TYPE_BY_LABEL[data.taxTypeRaw as keyof typeof TAX_TYPE_BY_LABEL];
+      resolved.push({
+        entity: data.entity,
+        clientId: clients[0].id,
+        payeeId: payee?.id ?? null,
+        bizName: payee?.bizName ?? data.bizNameRaw,
+        taxType,
+        unitPrice: data.unitPrice,
+        transportFee: data.transportFee,
+        materialFee: data.materialFee,
+        count: data.count,
+        memo: data.memo,
+      });
+    }
+
+    if (errors.length > 0) return { ok: false, errors };
+
+    for (const r of resolved) {
+      const amount = (r.unitPrice + r.transportFee + r.materialFee) * r.count;
+      await tx.paymentRequest.create({
+        data: {
+          requesterId, entity: r.entity, clientId: r.clientId, payeeId: r.payeeId,
+          bizName: r.bizName, unitPrice: r.unitPrice, transportFee: r.transportFee,
+          materialFee: r.materialFee, count: r.count, amount, taxType: r.taxType, memo: r.memo,
+        },
+      });
+    }
+    return { ok: true, created: resolved.length };
+  });
 }
