@@ -149,5 +149,11 @@ describe("payment-request registration template xlsx", () => {
     const taxTypeCell = ws.getCell(2, taxTypeCol);
     expect(entityCell.dataValidation?.type).toBe("list");
     expect(taxTypeCell.dataValidation?.type).toBe("list");
+    // exceljs는 allowBlank: false를 serialize하지 않으므로, 읽을 때 undefined로 돌아온다.
+    // 지급명의(allowBlank: false) 셀은 allowBlank가 undefined이고,
+    // 청구방식(allowBlank: true) 셀은 allowBlank가 true다.
+    // 이 비대칭성으로 두 값이 실수로 같아지거나 뒤바뀌는 regression을 감지할 수 있다.
+    expect(entityCell.dataValidation?.allowBlank).not.toBe(true);
+    expect(taxTypeCell.dataValidation?.allowBlank).toBe(true);
   });
 });
