@@ -604,6 +604,36 @@ describe("payment-requests 데이터 계층", () => {
       });
       expect(result.ok).toBe(true);
     });
+
+    it("존재하지 않는 id로 수정하면 예외를 던지지 않고 거부한다", async () => {
+      const { clientA } = await seed();
+      const result = await updatePaymentRequest(ADMIN, "존재하지않는아이디", {
+        entity: "HUNO", clientId: clientA.id, payeeId: "존재하지않는아이디",
+        payDate: null, status: "PREPARING",
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it("payeeId가 변경되지 않았다면 그 사업자가 소프트 삭제되어도 다른 필드는 수정할 수 있고 bizName/taxType은 유지된다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1111111111", "업체A", "TAX_INVOICE");
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: { ...baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "업체A", taxType: "TAX_INVOICE" }), payeeId: payee.id },
+      }));
+      await withRLS(ADMIN, (tx) => tx.payee.update({ where: { id: payee.id }, data: { deletedAt: new Date() } }));
+
+      const result = await updatePaymentRequest(ADMIN, created.id, {
+        entity: "HUNO", clientId: clientA.id, payeeId: payee.id,
+        payDate: new Date("2026-08-10"), status: "COMPLETED",
+      });
+      expect(result.ok).toBe(true);
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.payDate).toEqual(new Date("2026-08-10"));
+      expect(row.status).toBe("COMPLETED");
+      expect(row.bizName).toBe("업체A");
+      expect(row.taxType).toBe("TAX_INVOICE");
+    });
   });
 
   describe("updatePaymentRequestPmFields (PM 상세수정)", () => {
@@ -676,6 +706,26 @@ describe("payment-requests 데이터 계층", () => {
         unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "",
       });
       expect(result.ok).toBe(false);
+    });
+
+    it("payeeId가 변경되지 않았다면 그 사업자가 소프트 삭제되어도 다른 필드는 수정할 수 있고 bizName/taxType은 유지된다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1111111111", "업체A", "TAX_INVOICE");
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: { ...baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "업체A", taxType: "TAX_INVOICE", unitPrice: 10000, count: 1 }), payeeId: payee.id },
+      }));
+      await withRLS(ADMIN, (tx) => tx.payee.update({ where: { id: payee.id }, data: { deletedAt: new Date() } }));
+
+      const result = await updatePaymentRequestPmFields({ userId: pmA.id, role: "PM" }, created.id, {
+        entity: "HUNO", clientId: clientA.id, payeeId: payee.id,
+        unitPrice: 200000, transportFee: 0, materialFee: 0, count: 1, memo: "메모수정",
+      });
+      expect(result.ok).toBe(true);
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      expect(row.unitPrice).toBe(200000);
+      expect(row.bizName).toBe("업체A");
+      expect(row.taxType).toBe("TAX_INVOICE");
     });
   });
 
@@ -764,6 +814,18 @@ describe("payment-requests 데이터 계층", () => {
       const result = await softDeletePaymentRequests({ userId: pmA.id, role: "PM" }, [created.id], { statusIn: ["PREPARING"] });
       expect(result.ok).toBe(false);
       expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(1);
+    });
+
+    it("PM은 본인이 신청한 지급준비 건을 삭제할 수 있다", async () => {
+      const { pmA, clientA } = await seed();
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({ data: baseInput({ requesterId: pmA.id, clientId: clientA.id, status: "PREPARING" }) }));
+
+      const result = await softDeletePaymentRequests({ userId: pmA.id, role: "PM" }, [created.id], { statusIn: ["PREPARING"] });
+      expect(result.ok).toBe(true);
+
+      const deleted = await withRLS(ADMIN, (tx) => tx.paymentRequest.findUnique({ where: { id: created.id } }));
+      expect(deleted?.deletedAt).not.toBeNull();
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
     });
   });
 });

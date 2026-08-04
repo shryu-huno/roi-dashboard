@@ -298,17 +298,36 @@ export type PaymentRequestSettlementUpdateInput = {
 // 정산담당자 인라인 수정. payeeId로 Payee를 다시 조회해 bizName/taxType을 스냅샷으로
 // 갱신한다(클라이언트가 보낸 이름은 신뢰하지 않음 — 등록 때와 동일 원칙). 상태 무관하게
 // 항상 수정 가능(정산담당자는 최고 권한).
+// payeeId가 기존 값과 동일(미변경)한데 그 Payee가 이후 소프트 삭제된 경우, 존재하지 않는
+// 사업자로 취급해 저장을 막으면 정산담당자가 지급일/지급여부만 고치고 싶어도 손을 못 대게
+// 된다. 이 경우엔 Payee를 다시 조회하지 않고 현재 행의 bizName/taxType을 그대로 유지한다.
+// payeeId를 실제로 다른 값으로 바꾸는 경우엔 기존과 동일하게 소프트 삭제되지 않은 Payee만 허용한다.
 export async function updatePaymentRequest(
   ctx: RlsContext,
   id: string,
   input: PaymentRequestSettlementUpdateInput,
 ): Promise<ActionState> {
   return withRLS(ctx, async (tx) => {
-    const payee = await tx.payee.findFirst({
-      where: { id: input.payeeId, deletedAt: null },
-      select: { bizName: true, taxType: true },
+    const current = await tx.paymentRequest.findFirst({
+      where: { id, deletedAt: null },
+      select: { payeeId: true, bizName: true, taxType: true },
     });
-    if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
+    if (!current) return { ok: false, error: "수정할 항목을 찾을 수 없습니다." };
+
+    let bizName: string;
+    let taxType: TaxType;
+    if (input.payeeId === current.payeeId) {
+      bizName = current.bizName;
+      taxType = current.taxType;
+    } else {
+      const payee = await tx.payee.findFirst({
+        where: { id: input.payeeId, deletedAt: null },
+        select: { bizName: true, taxType: true },
+      });
+      if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
+      bizName = payee.bizName;
+      taxType = payee.taxType;
+    }
 
     await tx.paymentRequest.update({
       where: { id },
@@ -316,8 +335,8 @@ export async function updatePaymentRequest(
         entity: input.entity,
         clientId: input.clientId,
         payeeId: input.payeeId,
-        bizName: payee.bizName,
-        taxType: payee.taxType,
+        bizName,
+        taxType,
         payDate: input.payDate,
         status: input.status,
       },
@@ -349,17 +368,28 @@ export async function updatePaymentRequestPmFields(
   return withRLS(ctx, async (tx) => {
     const current = await tx.paymentRequest.findFirst({
       where: { id, deletedAt: null },
-      select: { status: true, requesterId: true },
+      select: { status: true, requesterId: true, payeeId: true, bizName: true, taxType: true },
     });
     if (!current || current.status !== "PREPARING" || current.requesterId !== ctx.userId) {
       return { ok: false, error: "수정할 수 없는 건입니다." };
     }
 
-    const payee = await tx.payee.findFirst({
-      where: { id: input.payeeId, deletedAt: null },
-      select: { bizName: true, taxType: true },
-    });
-    if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
+    // payeeId가 기존과 동일한데 그 Payee가 이후 소프트 삭제된 경우엔 재조회 없이 기존
+    // bizName/taxType을 유지한다(updatePaymentRequest와 동일 원칙 — Important #1 참고).
+    let bizName: string;
+    let taxType: TaxType;
+    if (input.payeeId === current.payeeId) {
+      bizName = current.bizName;
+      taxType = current.taxType;
+    } else {
+      const payee = await tx.payee.findFirst({
+        where: { id: input.payeeId, deletedAt: null },
+        select: { bizName: true, taxType: true },
+      });
+      if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
+      bizName = payee.bizName;
+      taxType = payee.taxType;
+    }
 
     const amount = (input.unitPrice + input.transportFee + input.materialFee) * input.count;
     await tx.paymentRequest.update({
@@ -368,8 +398,8 @@ export async function updatePaymentRequestPmFields(
         entity: input.entity,
         clientId: input.clientId,
         payeeId: input.payeeId,
-        bizName: payee.bizName,
-        taxType: payee.taxType,
+        bizName,
+        taxType,
         unitPrice: input.unitPrice,
         transportFee: input.transportFee,
         materialFee: input.materialFee,

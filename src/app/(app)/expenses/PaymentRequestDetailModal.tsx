@@ -51,6 +51,13 @@ export function PaymentRequestDetailModal({
 
   const previewTotal = ((Number(unitPrice) || 0) + (Number(transportFee) || 0) + (Number(materialFee) || 0)) * (Number(count) || 0);
 
+  // 이 행의 payeeId가 payees(비삭제 목록)에 없으면(소프트 삭제된 사업자) 콤보박스가 빈
+  // 입력칸으로 보이는 것을 막기 위해, 이미 알고 있는 값(row.bizName/taxType)으로 합성
+  // 엔트리를 만들어 목록에 얹는다. 저장 로직에는 영향 없음(payeeId 값 자체는 그대로 사용).
+  const comboboxPayees = row.payeeId && !payees.some((p) => p.id === row.payeeId)
+    ? [...payees, { id: row.payeeId, keyId: "", bizName: row.bizName, taxType: row.taxType }]
+    : payees;
+
   function handleSave() {
     if (!payeeId) {
       setError("사업자명을 선택하세요.");
@@ -120,7 +127,7 @@ export function PaymentRequestDetailModal({
             사업자명(이름)
             {canEditPmFields ? (
               <PayeeCombobox
-                payees={payees}
+                payees={comboboxPayees}
                 selectedId={payeeId}
                 onSelect={(p) => { setPayeeId(p?.id ?? null); setTaxType(p?.taxType ?? row.taxType); }}
               />
