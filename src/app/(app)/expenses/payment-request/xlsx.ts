@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
-import { paymentRequestEntityLabel, taxTypeLabel, paymentRequestStatusLabel, PAYMENT_REQUEST_STATUS_LABELS } from "@/lib/labels";
+import { paymentRequestEntityLabel, taxTypeLabel, paymentRequestStatusLabel, PAYMENT_REQUEST_STATUS_LABELS, PAYMENT_REQUEST_ENTITY_LABELS, TAX_TYPE_LABELS } from "@/lib/labels";
 import type { PaymentRequestExportRow } from "@/lib/data/payment-requests";
+import { REGISTRATION_TEMPLATE_HEADERS } from "@/lib/data/payment-request-registration-upload";
 
 // 열 너비 계산용 — 한글(전각) 1자를 폭 2로, 그 외 1자를 폭 1로 취급.
 function displayWidth(text: string): number {
@@ -118,5 +119,72 @@ export async function buildPaymentRequestExportXlsxBuffer(rows: PaymentRequestEx
     });
   }
 
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+const REGISTRATION_TEMPLATE_DATA_ROWS = 1000;
+
+const REGISTRATION_HEADER_NOTES: Partial<Record<(typeof REGISTRATION_TEMPLATE_HEADERS)[number], string>> = {
+  "사업자명(이름)": "지급 리스트에 이미 등록된 대상(고유번호 또는 사업자번호 입력)은 비워도 됩니다.",
+  "연락처": "참고용 — 저장되지 않습니다.",
+  "은행명": "참고용 — 저장되지 않습니다.",
+  "계좌번호": "참고용 — 저장되지 않습니다.",
+  "예금주": "참고용 — 저장되지 않습니다.",
+  "청구방식": "지급 리스트에 이미 등록된 대상(고유번호 또는 사업자번호 입력)은 비워도 됩니다.",
+};
+
+// PM 엑셀 대량 등록용 빈 서식. payees/xlsx.ts의 buildTemplateXlsxBuffer와 같은 패턴
+// (헤더 고정 + 드롭다운 + 시트 보호)을 이 파일 전용 컬럼(15개)으로 적용한다.
+export async function buildPaymentRequestRegistrationTemplateXlsxBuffer(): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("지급요청등록");
+  ws.addRow([...REGISTRATION_TEMPLATE_HEADERS]);
+
+  const TEXT_COLUMNS = ["사업자번호(주민등록번호)", "계좌번호"] as const;
+  TEXT_COLUMNS.forEach((h) => { ws.getColumn(REGISTRATION_TEMPLATE_HEADERS.indexOf(h) + 1).numFmt = "@"; });
+
+  const COLUMN_WIDTH_PADDING = 4;
+  REGISTRATION_TEMPLATE_HEADERS.forEach((header, i) => {
+    const candidates = header === "청구방식" ? [header, ...TAX_TYPE_LABELS]
+      : header === "지급명의" ? [header, ...PAYMENT_REQUEST_ENTITY_LABELS]
+      : [header];
+    ws.getColumn(i + 1).width = Math.max(...candidates.map(displayWidth)) + COLUMN_WIDTH_PADDING;
+  });
+
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+
+  const thinBorder: Partial<ExcelJS.Borders> = {
+    top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
+  };
+  for (let r = 1; r <= REGISTRATION_TEMPLATE_DATA_ROWS + 1; r++) {
+    const isHeader = r === 1;
+    for (let c = 1; c <= REGISTRATION_TEMPLATE_HEADERS.length; c++) {
+      const cell = ws.getCell(r, c);
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = thinBorder;
+      cell.protection = { locked: isHeader };
+      if (isHeader) {
+        cell.font = { bold: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E1F2" } };
+        const note = REGISTRATION_HEADER_NOTES[REGISTRATION_TEMPLATE_HEADERS[c - 1]];
+        if (note) cell.note = note;
+      }
+    }
+  }
+
+  // exceljs 타입 정의에 Worksheet.dataValidations가 누락돼 있어 unknown 경유로 우회.
+  const dataValidations = (ws as unknown as {
+    dataValidations: { add: (address: string, dv: ExcelJS.DataValidation) => void };
+  }).dataValidations;
+  const entityCol = colLetter(REGISTRATION_TEMPLATE_HEADERS.indexOf("지급명의") + 1);
+  dataValidations.add(`${entityCol}2:${entityCol}${REGISTRATION_TEMPLATE_DATA_ROWS + 1}`, {
+    type: "list", allowBlank: false, formulae: [`"${PAYMENT_REQUEST_ENTITY_LABELS.join(",")}"`],
+  });
+  const taxTypeCol = colLetter(REGISTRATION_TEMPLATE_HEADERS.indexOf("청구방식") + 1);
+  dataValidations.add(`${taxTypeCol}2:${taxTypeCol}${REGISTRATION_TEMPLATE_DATA_ROWS + 1}`, {
+    type: "list", allowBlank: true, formulae: [`"${TAX_TYPE_LABELS.join(",")}"`],
+  });
+
+  await ws.protect("", {});
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

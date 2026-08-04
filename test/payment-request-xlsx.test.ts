@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { parseXlsxToRows } from "@/app/(app)/expenses/payees/xlsx";
-import { buildPaymentRequestExportXlsxBuffer, EXPORT_HEADERS } from "@/app/(app)/expenses/payment-request/xlsx";
+import {
+  buildPaymentRequestExportXlsxBuffer,
+  buildPaymentRequestRegistrationTemplateXlsxBuffer,
+  EXPORT_HEADERS,
+} from "@/app/(app)/expenses/payment-request/xlsx";
 import type { PaymentRequestExportRow } from "@/lib/data/payment-requests";
 import { buildPaymentRequestUpdatesFromRows } from "@/lib/data/payment-request-upload";
+import { REGISTRATION_TEMPLATE_HEADERS } from "@/lib/data/payment-request-registration-upload";
 
 describe("payment-request export xlsx", () => {
   const row: PaymentRequestExportRow = {
@@ -112,5 +117,37 @@ describe("payment-request export xlsx", () => {
     expect(dv?.type).toBe("list");
     expect(dv?.formulae?.[0]).toContain("지급준비");
     expect(dv?.formulae?.[0]).toContain("지급완료");
+  });
+});
+
+describe("payment-request registration template xlsx", () => {
+  it("헤더 15개가 지정된 순서로 생성된다", async () => {
+    const buf = await buildPaymentRequestRegistrationTemplateXlsxBuffer();
+    const rows = await parseXlsxToRows(buf);
+    expect(rows[0]).toEqual([...REGISTRATION_TEMPLATE_HEADERS]);
+  });
+
+  it("사업자번호·계좌번호 컬럼은 텍스트 서식이다", async () => {
+    const buf = await buildPaymentRequestRegistrationTemplateXlsxBuffer();
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const ws = wb.worksheets[0];
+    expect(ws.getColumn(REGISTRATION_TEMPLATE_HEADERS.indexOf("사업자번호(주민등록번호)") + 1).numFmt).toBe("@");
+    expect(ws.getColumn(REGISTRATION_TEMPLATE_HEADERS.indexOf("계좌번호") + 1).numFmt).toBe("@");
+  });
+
+  it("지급명의/청구방식 컬럼에 드롭다운(목록 유효성 검사)이 적용된다", async () => {
+    const buf = await buildPaymentRequestRegistrationTemplateXlsxBuffer();
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const ws = wb.worksheets[0];
+    const entityCol = REGISTRATION_TEMPLATE_HEADERS.indexOf("지급명의") + 1;
+    const taxTypeCol = REGISTRATION_TEMPLATE_HEADERS.indexOf("청구방식") + 1;
+    const entityCell = ws.getCell(2, entityCol);
+    const taxTypeCell = ws.getCell(2, taxTypeCol);
+    expect(entityCell.dataValidation?.type).toBe("list");
+    expect(taxTypeCell.dataValidation?.type).toBe("list");
   });
 });
