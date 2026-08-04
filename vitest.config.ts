@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
 
 function loadEnvTest(): Record<string, string> {
-  const parsed = loadDotenv({ path: ".env.test" }).parsed ?? {};
+  const parsed = loadDotenv({ path: ".env.test", quiet: true }).parsed ?? {};
   return parsed;
 }
 
