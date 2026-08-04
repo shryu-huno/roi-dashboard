@@ -7,6 +7,7 @@ import type { PayeeOption } from "@/lib/data/payees";
 import { PaymentRequestRowsTable, newDraftRow, type DraftRow } from "./PaymentRequestRowsTable";
 import { createPaymentRequests } from "./actions";
 import { validateDraftRows, toPaymentRequestCreateInputs } from "@/lib/payment-request-validation";
+import { PaymentRequestExcelRegisterModal } from "./PaymentRequestExcelRegisterModal";
 
 // PM 전용 지급요청 등록 화면. 저장 전 클라이언트에서 행별 필수값을 먼저 검증해 하나라도
 // 빠지면 전체 저장을 막고 문제 행을 강조한다. 통과하면 서버 액션을 호출하고, 성공하면
@@ -25,6 +26,7 @@ export function PaymentRequestNewForm({
   const [rowErrors, setRowErrors] = useState<ReturnType<typeof validateDraftRows>>(new Map());
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   async function handleSave() {
     if (rows.length === 0) {
@@ -50,16 +52,12 @@ export function PaymentRequestNewForm({
     router.push("/expenses?tab=payment-request");
   }
 
-  function handleExcelUpload() {
-    alert("추후 구현 예정입니다.");
-  }
-
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-lg font-semibold">지급요청 등록</h1>
         <div className="flex gap-2">
-          <button type="button" onClick={handleExcelUpload} className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
+          <button type="button" onClick={() => setIsUploadOpen(true)} className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
             엑셀 업로드
           </button>
           <Link href="/expenses?tab=payment-request" className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
@@ -74,6 +72,8 @@ export function PaymentRequestNewForm({
       {saveError && <p className="mb-3 text-sm text-[var(--color-danger)]">{saveError}</p>}
 
       <PaymentRequestRowsTable rows={rows} onRowsChange={setRows} clients={clients} payees={payees} rowErrors={rowErrors} />
+
+      <PaymentRequestExcelRegisterModal open={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
     </div>
   );
 }
