@@ -96,7 +96,7 @@ export function PayeeCombobox({
         autoComplete="off"
         role="combobox"
         aria-expanded={open}
-        className={`w-full rounded border ${hasError ? "border-[var(--color-danger)]" : "border-[var(--color-border)]"} px-2 py-1.5 text-sm`}
+        className={`w-full rounded border ${hasError ? "border-[var(--color-danger)]" : "border-[var(--color-border)]"} px-2 py-1.5 text-center text-sm`}
       />
       {hover && selected && (
         <div className="absolute -top-8 left-0 z-20 whitespace-nowrap rounded bg-[var(--color-fg)] px-2 py-1 text-xs text-[var(--color-surface)] shadow-lg">

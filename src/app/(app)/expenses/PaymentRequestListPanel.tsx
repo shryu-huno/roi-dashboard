@@ -6,6 +6,8 @@ import Link from "next/link";
 import type { PaymentRequestRow } from "@/lib/data/payment-requests";
 import type { AppRole } from "@/lib/auth/rbac";
 import { ClientCombobox } from "@/components/ClientCombobox";
+import { SelectDropdown } from "@/components/SelectDropdown";
+import { SuggestInput } from "@/components/SuggestInput";
 import { PaymentRequestPager } from "./PaymentRequestPager";
 import { PaymentRequestNoticeBanner } from "./PaymentRequestNoticeBanner";
 import { PaymentRequestDetailModal } from "./PaymentRequestDetailModal";
@@ -32,6 +34,7 @@ export function PaymentRequestListPanel({
   page,
   totalPages,
   clients,
+  bizNames,
   filterValues,
   role,
   currentUserId,
@@ -40,6 +43,7 @@ export function PaymentRequestListPanel({
   page: number;
   totalPages: number;
   clients: { id: string; name: string; businessType: string | null }[];
+  bizNames: string[];
   filterValues: FilterValues;
   role: AppRole;
   currentUserId: string;
@@ -84,39 +88,55 @@ export function PaymentRequestListPanel({
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-hover)] p-4">
         <input type="hidden" name="tab" value="payment-request" />
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          지급일
-          <span className="mt-1 flex items-center gap-1">
-            <input type="date" name="payDateFrom" defaultValue={filterValues.payDateFrom} className="w-40 rounded border border-[var(--color-border)] px-2 py-2 text-sm" />
-            ~
-            <input type="date" name="payDateTo" defaultValue={filterValues.payDateTo} className="w-40 rounded border border-[var(--color-border)] px-2 py-2 text-sm" />
-          </span>
-        </label>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          고객사
-          <ClientCombobox clients={clients} defaultClientId={filterValues.clientId || undefined} className="mt-1 w-48" />
-        </label>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          지급명의
-          <select name="entity" defaultValue={filterValues.entity} className="mt-1 w-32 rounded border border-[var(--color-border)] px-2 py-2 text-sm">
-            <option value="">전체</option>
-            {PAYMENT_REQUEST_ENTITY_LABELS.map((label) => (
-              <option key={label} value={PAYMENT_REQUEST_ENTITY_BY_LABEL[label]}>{label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          지급여부
-          <select name="status" defaultValue={filterValues.status} className="mt-1 w-32 rounded border border-[var(--color-border)] px-2 py-2 text-sm">
-            <option value="">전체</option>
-            <option value="PREPARING">{PAYMENT_REQUEST_STATUS_LABELS[0]}</option>
-            <option value="COMPLETED">{PAYMENT_REQUEST_STATUS_LABELS[1]}</option>
-          </select>
-        </label>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          사업자명(이름)
-          <input type="text" name="bizName" defaultValue={filterValues.bizName} placeholder="검색어 입력" className="mt-1 w-40 rounded border border-[var(--color-border)] px-2 py-2 text-sm" />
-        </label>
+        <div className="flex flex-1 flex-wrap items-end justify-center gap-3">
+          <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
+            지급명의
+            <SelectDropdown
+              name="entity"
+              defaultValue={filterValues.entity}
+              options={[
+                { value: "", label: "전체" },
+                ...PAYMENT_REQUEST_ENTITY_LABELS.map((label) => ({ value: PAYMENT_REQUEST_ENTITY_BY_LABEL[label], label })),
+              ]}
+              className="mt-1 w-24"
+            />
+          </label>
+          <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
+            고객사
+            <ClientCombobox clients={clients} defaultClientId={filterValues.clientId || undefined} className="mt-1 w-64" />
+          </label>
+          <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
+            사업자명(이름)
+            <SuggestInput
+              name="bizName"
+              defaultValue={filterValues.bizName}
+              suggestions={bizNames}
+              placeholder="사업자명(이름) 검색"
+              className="mt-1 w-56"
+            />
+          </label>
+          <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
+            지급일
+            <span className="mt-1 flex items-center gap-1">
+              <input type="date" name="payDateFrom" defaultValue={filterValues.payDateFrom} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm" />
+              ~
+              <input type="date" name="payDateTo" defaultValue={filterValues.payDateTo} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm" />
+            </span>
+          </label>
+          <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
+            지급여부
+            <SelectDropdown
+              name="status"
+              defaultValue={filterValues.status}
+              options={[
+                { value: "", label: "전체" },
+                { value: "PREPARING", label: PAYMENT_REQUEST_STATUS_LABELS[0] },
+                { value: "COMPLETED", label: PAYMENT_REQUEST_STATUS_LABELS[1] },
+              ]}
+              className="mt-1 w-24"
+            />
+          </label>
+        </div>
         <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">🔍 조회</button>
       </form>
 
