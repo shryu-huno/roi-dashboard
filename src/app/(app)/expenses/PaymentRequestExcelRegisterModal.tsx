@@ -12,11 +12,12 @@ export function PaymentRequestExcelRegisterModal({ open, onClose }: { open: bool
   const router = useRouter();
   const [state, formAction, pending] = useActionState(uploadPaymentRequestCreatesAction, PAYMENT_REQUEST_CREATE_UPLOAD_INIT);
 
-  // 등록이 1건이라도 성공하면 목록 갱신 + 모달 닫기(all-or-nothing이라 성공하면 오류 목록이 없다).
+  // 등록이 1건이라도 성공하면 목록을 갱신한다. 모달은 닫지 않고 성공 메시지를
+  // 사용자가 직접 확인 후 헤더의 ✕ 버튼으로 닫도록 둔다(성공 메시지가 한 프레임만
+  // 보이고 사라지는 문제 방지).
   useEffect(() => {
     if (state.ok && state.created && state.created > 0) {
       router.refresh();
-      onClose();
     }
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 

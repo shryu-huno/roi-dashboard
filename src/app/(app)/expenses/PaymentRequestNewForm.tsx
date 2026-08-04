@@ -73,7 +73,9 @@ export function PaymentRequestNewForm({
 
       <PaymentRequestRowsTable rows={rows} onRowsChange={setRows} clients={clients} payees={payees} rowErrors={rowErrors} />
 
-      <PaymentRequestExcelRegisterModal open={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
+      {isUploadOpen && (
+        <PaymentRequestExcelRegisterModal open onClose={() => setIsUploadOpen(false)} />
+      )}
     </div>
   );
 }
