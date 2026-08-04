@@ -20,7 +20,7 @@ export type ExpenseTab = {
 };
 
 export const EXPENSE_TABS: readonly ExpenseTab[] = [
-  { key: "all", label: "전체 내역", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  { key: "all", label: "메뉴얼", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
   // 지급 리스트는 고객사 구분이 없는 전사 공용 원장이라 PM에 열지 않는다(전 지급 대상 노출 방지).
   { key: "payment-list", label: "지급 리스트", roles: ["ADMIN", "SETTLEMENT"] },
   { key: "payment-request", label: "지급 요청", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },

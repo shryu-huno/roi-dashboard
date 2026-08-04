@@ -17,7 +17,7 @@ export function PerformanceGrid({
     Object.fromEntries(tasks.map((t) => [t.id, initialCounts[t.id]?.toString() ?? ""])),
   );
   const [amounts, setAmounts] = useState<Record<string, string>>(
-    Object.fromEntries(tasks.map((t) => [t.id, initialAmounts[t.id]?.toString() ?? ""])),
+    Object.fromEntries(tasks.map((t) => [t.id, initialAmounts[t.id]?.toLocaleString() ?? ""])),
   );
 
   // 행별 유효 금액: 금액 직접입력이면 그 값, 아니면 단가×횟수 파생.
@@ -65,7 +65,7 @@ export function PerformanceGrid({
             const n = Number(counts[t.id]);
             const derived = countFilled && Number.isFinite(n) ? t.unitPrice * n : 0;
             return (
-              <tr key={t.id} className="border-b border-[var(--color-border)]">
+              <tr key={t.id} className="border-b border-[var(--color-border)] transition-colors hover:bg-white">
                 <td className="py-2">{t.name}</td>
                 <td>{t.unitPrice.toLocaleString()}</td>
                 <td>
@@ -81,7 +81,10 @@ export function PerformanceGrid({
                     type="text" inputMode="numeric" name={`amount_${t.id}`}
                     value={countFilled ? derived.toLocaleString() : amounts[t.id]}
                     disabled={countFilled}
-                    onChange={(e) => setAmounts((a) => ({ ...a, [t.id]: e.target.value }))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^\d]/g, "");
+                      setAmounts((a) => ({ ...a, [t.id]: digits === "" ? "" : Number(digits).toLocaleString() }));
+                    }}
                     className="w-32 rounded border border-[var(--color-border)] px-2 py-1 disabled:bg-[var(--color-border)] disabled:text-[var(--color-muted)]"
                   />
                 </td>
