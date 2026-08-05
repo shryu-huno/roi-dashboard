@@ -33,6 +33,18 @@ describe("payee xlsx 유틸", () => {
     expect(rows[0]).toEqual([...TEMPLATE_HEADERS]);
     expect(rows).toHaveLength(1001);
   });
+
+  it("실제 Date 타입 셀은 표시 서식과 무관하게 UTC 기준 YYYY-MM-DD로 정규화된다", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("s");
+    ws.addRow(["헤더"]);
+    const row = ws.addRow([new Date(Date.UTC(2026, 7, 15))]); // 8월 15일(UTC)
+    row.getCell(1).numFmt = "m/d/yyyy"; // 표시 서식은 다르게 설정
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    const rows = await parseXlsxToRows(buf);
+    expect(rows[1][0]).toBe("2026-08-15");
+  });
 });
 
 describe("payee export xlsx", () => {

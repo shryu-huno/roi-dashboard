@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-config({ path: ".env.test" });
+config({ path: ".env.test", quiet: true });
 
 import { execSync } from "node:child_process";
 

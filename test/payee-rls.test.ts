@@ -25,6 +25,7 @@ function samplePayee(keyId: string) {
     bankName: "국민",
     accountNumberEnc: "enc2",
     accountNumberMasked: "****1234",
+    accountNumberBidx: "acct-bidx",
     accountHolder: "홍길동",
     taxType: "TAX_INVOICE" as const,
   };

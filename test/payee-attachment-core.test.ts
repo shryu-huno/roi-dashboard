@@ -46,6 +46,7 @@ async function seedPayee(): Promise<string> {
     bankName: "국민",
     accountNumberEnc: encrypt("110123456789"),
     accountNumberMasked: maskAccountNumber("110123456789"),
+    accountNumberBidx: blindIndex("110123456789"),
     accountHolder: "예금주",
     taxType: "TAX_INVOICE",
   }]);

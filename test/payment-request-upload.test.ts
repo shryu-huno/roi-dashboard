@@ -1,0 +1,216 @@
+import { describe, it, expect, vi } from "vitest";
+import { buildPaymentRequestUpdatesFromRows } from "@/lib/data/payment-request-upload";
+import { parseXlsxToRows } from "@/app/(app)/expenses/payees/xlsx";
+
+const HEADER = ["No", "지급일", "지급여부"];
+
+describe("buildPaymentRequestUpdatesFromRows", () => {
+  it("정상 행을 파싱한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([
+      HEADER,
+      ["1", "2026-08-05", "지급완료"],
+      ["2", "", "지급준비"],
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2026-08-05T00:00:00.000Z"), status: "COMPLETED" },
+      { row: 3, seqNo: 2, payDate: null, status: "PREPARING" },
+    ]);
+  });
+
+  it("No가 정수가 아니면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["abc", "2026-08-05", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors).toEqual([{ row: 2, message: "No 값이 올바르지 않습니다." }]);
+  });
+
+  it("No가 공란이면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["", "2026-08-05", "지급완료"]]);
+    expect(result.errors).toEqual([{ row: 2, message: "No 값이 올바르지 않습니다." }]);
+  });
+
+  it("No가 지수 표기(1e3)면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1e3", "2026-08-05", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors).toEqual([{ row: 2, message: "No 값이 올바르지 않습니다." }]);
+  });
+
+  it("No가 16진수 표기(0x10)면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["0x10", "2026-08-05", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors).toEqual([{ row: 2, message: "No 값이 올바르지 않습니다." }]);
+  });
+
+  it("지급여부가 지급준비/지급완료가 아니면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-08-05", "완료함"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급여부");
+  });
+
+  it("지급완료인데 지급일이 공란이면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors).toEqual([{ row: 2, message: "지급완료 처리하려면 지급일을 입력해야 합니다." }]);
+  });
+
+  it("지급준비인데 지급일이 공란이면 정상 처리(공란 허용)", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "", "지급준비"]]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([{ row: 2, seqNo: 1, payDate: null, status: "PREPARING" }]);
+  });
+
+  it("지급일이 한글 혼합 표기면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026년08월05일", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("완전히 빈 행은 건너뛴다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["", "", ""], ["1", "", "지급준비"]]);
+    expect(result.updates).toEqual([{ row: 3, seqNo: 1, payDate: null, status: "PREPARING" }]);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("헤더 누락 시 전체 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([["No", "지급여부"], ["1", "지급준비"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors).toEqual([{ row: 0, message: "헤더 누락: 지급일" }]);
+  });
+
+  it("빈 파일이면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([]);
+    expect(result.errors).toEqual([{ row: 0, message: "빈 파일입니다." }]);
+  });
+
+  it("여러 행 중 일부만 오류여도 나머지는 정상 반환된다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([
+      HEADER,
+      ["1", "2026-08-05", "지급완료"],
+      ["abc", "2026-08-05", "지급완료"],
+      ["2", "", "지급준비"],
+    ]);
+    expect(result.updates).toHaveLength(2);
+    expect(result.errors).toEqual([{ row: 3, message: "No 값이 올바르지 않습니다." }]);
+  });
+
+  // 달력 유효성 검증 (회귀 테스트)
+  it("달력상 유효하지 않은 날짜 2026-02-30은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-02-30", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("달력상 유효하지 않은 날짜 2026-04-31은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-04-31", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("평년의 2월 29일(2001-02-29)은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2001-02-29", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("윤년의 2월 29일(2024-02-29)은 정상 처리한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2024-02-29", "지급완료"]]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2024-02-29T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  it("2026-11-31(11월 31일)은 거부한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-11-31", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("지급일 구분자로 .과 /도 허용한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([
+      HEADER,
+      ["1", "2026.08.05", "지급완료"],
+      ["2", "2026/08/05", "지급완료"],
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2026-08-05T00:00:00.000Z"), status: "COMPLETED" },
+      { row: 3, seqNo: 2, payDate: new Date("2026-08-05T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  it("지급일에 월/일 앞자리 0을 생략해도 허용한다", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "2026-8-5", "지급완료"]]);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2026-08-05T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  it("지급일에 연도를 생략하면 파싱 시점의 KST 올해로 채운다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-01T00:00:00.000Z"));
+    try {
+      const result = buildPaymentRequestUpdatesFromRows([
+        HEADER,
+        ["1", "8/15", "지급완료"],
+        ["2", "8.15", "지급완료"],
+        ["3", "8-15", "지급완료"],
+      ]);
+      expect(result.errors).toEqual([]);
+      expect(result.updates).toEqual([
+        { row: 2, seqNo: 1, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+        { row: 3, seqNo: 2, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+        { row: 4, seqNo: 3, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("지급일이 일-월 순서(DD/MM)면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "31/7", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  it("지급일이 2자리 연도면 오류", () => {
+    const result = buildPaymentRequestUpdatesFromRows([HEADER, ["1", "26-8-15", "지급완료"]]);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+
+  // 실제 엑셀 Date 타입 셀 → parseXlsxToRows → buildPaymentRequestUpdatesFromRows 전체 경로 통합 테스트.
+  it("실제 엑셀 Date 타입 셀의 지급일을 재업로드 파이프라인 전체 경로로 정상 반영한다", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("s");
+    ws.addRow(HEADER);
+    ws.addRow(["1", new Date(Date.UTC(2026, 7, 15)), "지급완료"]); // 8월 15일(UTC)
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+
+    const rows = await parseXlsxToRows(buf);
+    const result = buildPaymentRequestUpdatesFromRows(rows);
+    expect(result.errors).toEqual([]);
+    expect(result.updates).toEqual([
+      { row: 2, seqNo: 1, payDate: new Date("2026-08-15T00:00:00.000Z"), status: "COMPLETED" },
+    ]);
+  });
+
+  // 시간 전용 셀(예: "8:15"를 잘못 입력) 회귀 테스트 — 1899-12-30(엑셀 기준일)으로 조용히
+  // 파싱되지 않고 오류로 처리되어야 한다.
+  it("시간 전용 셀(엑셀 기준일 1899-12-30)은 지급일로 조용히 반영되지 않고 오류 처리한다", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("s");
+    ws.addRow(HEADER);
+    const row = ws.addRow(["1", new Date(Date.UTC(1899, 11, 30, 8, 15)), "지급완료"]);
+    row.getCell(2).numFmt = "h:mm";
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+
+    const rows = await parseXlsxToRows(buf);
+    const result = buildPaymentRequestUpdatesFromRows(rows);
+    expect(result.updates).toEqual([]);
+    expect(result.errors[0].message).toContain("지급일 형식");
+  });
+});

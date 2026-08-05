@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CYCLE_VALUES } from "@/lib/clients/summary-view";
-import { TAX_TYPE_LABELS } from "@/lib/labels";
+import { PAYMENT_REQUEST_ENTITY_LABELS, TAX_TYPE_LABELS } from "@/lib/labels";
 
 export const EXPENSE_CATEGORIES = [
   "CORPORATE_CARD", "PERSONAL_CARD", "LABOR_COUNSELOR", "LABOR_INSTRUCTOR",
@@ -152,4 +152,76 @@ export const payeeUpdateSchema = z.object({
 export const payeeUpdatePmSchema = z.object({
   bizName: z.string().trim().min(1, "이름은 필수입니다."),
   taxType: z.enum(TAX_TYPE_LABELS),
+});
+
+// PM 등록 화면 행 하나. 단가/횟수는 0보다 커야 하고(0이면 무의미), 교통비/재료비는 0을 허용한다.
+// entity/payeeId/clientId는 화면에서 자동완성/드롭다운으로만 채워지므로 빈 문자열이면 거부한다.
+export const paymentRequestRowSchema = z.object({
+  entity: z.enum(["HUNO", "HUNO_INC"]),
+  clientId: z.string().min(1),
+  payeeId: z.string().min(1),
+  unitPrice: z.coerce.number().int().min(1),
+  transportFee: z.coerce.number().int().min(0),
+  materialFee: z.coerce.number().int().min(0),
+  count: z.coerce.number().int().min(1),
+  memo: z.string(),
+});
+
+// PM 엑셀 대량 등록 한 행. 사업자명+계좌번호가 지급 리스트와 모두 일치하면 자동 연동되고
+// (매칭된 Payee 값으로 서버가 덮어씀), 아니면 예외 건(신규 등록)으로 엑셀 값이 그대로 저장된다.
+// 매칭 성공 여부는 DB 조회 후에만 알 수 있으므로, 이 스키마 단계에서는 조건부 없이 항상 검사한다.
+// 청구방식/은행명/예금주는 매칭되면 자동 연동되므로 선택 입력(빈 문자열 허용) — 매칭 안 됐을 때만
+// 필수라는 조건부 규칙은 DB 조회가 필요해 createPaymentRequestsFromUpload에서 판정한다.
+export const paymentRequestUploadRowSchema = z.object({
+  entity: z.enum(PAYMENT_REQUEST_ENTITY_LABELS),
+  clientName: z.string().trim().min(1, "고객사명을 입력하세요."),
+  bizName: z.string().trim().min(1, "사업자명을 입력하세요."),
+  accountNumber: accountField,
+  bankName: z.string().trim(),
+  accountHolder: z.string().trim(),
+  unitPrice: z.coerce.number().int().min(1),
+  transportFee: z.coerce.number().int().min(0),
+  materialFee: z.coerce.number().int().min(0),
+  count: z.coerce.number().int().min(1),
+  taxType: z.union([z.literal(""), z.enum(TAX_TYPE_LABELS)]),
+  memo: z.string(),
+});
+
+// 지급요청 인라인 수정(정산담당자) — 지급명의/고객사/사업자명/지급일/지급여부.
+// 지급완료인데 지급일이 없는 조합은 엑셀 재업로드 경로(payment-request-upload.ts)와
+// 동일하게 거부한다 — payDate를 조용히 null로 저장하지 않는다.
+export const paymentRequestUpdateSchema = z.object({
+  entity: z.enum(["HUNO", "HUNO_INC"]),
+  clientId: z.string().min(1),
+  payeeId: z.string().min(1),
+  payDate: z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.date().nullable()),
+  status: z.enum(["PREPARING", "COMPLETED"]),
+}).refine((v) => !(v.status === "COMPLETED" && v.payDate === null), {
+  message: "지급완료 처리하려면 지급일을 입력해야 합니다.",
+});
+
+// 지급요청 상세수정(PM) — 등록 시 작성한 항목 전체(지급일/지급여부 제외, 정산담당자 전담).
+export const paymentRequestUpdatePmSchema = z.object({
+  entity: z.enum(["HUNO", "HUNO_INC"]),
+  clientId: z.string().min(1),
+  payeeId: z.string().min(1),
+  unitPrice: z.coerce.number().int().min(1),
+  transportFee: z.coerce.number().int().min(0),
+  materialFee: z.coerce.number().int().min(0),
+  count: z.coerce.number().int().min(1),
+  memo: z.string(),
+});
+
+// 지급요청 일괄수정 — 선택된 건들에 동일하게 적용할 지급일/지급여부.
+// 지급완료인데 지급일이 없는 조합은 엑셀 재업로드 경로와 동일하게 거부한다.
+export const paymentRequestBulkUpdateSchema = z.object({
+  payDate: z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.date().nullable()),
+  status: z.enum(["PREPARING", "COMPLETED"]),
+}).refine((v) => !(v.status === "COMPLETED" && v.payDate === null), {
+  message: "지급완료 처리하려면 지급일을 입력해야 합니다.",
+});
+
+// 지급요청 공지 배너 — 항상 최대 1개, trim 후 빈 문자열이면 공지 없음 상태로 저장된다.
+export const paymentRequestNoticeSchema = z.object({
+  content: z.string().trim(),
 });

@@ -3,7 +3,7 @@ import { withRLS } from "@/lib/rls";
 import {
   createPayeesBulk, listPayees, listPayeesForExport, listPayeesForPm, findPayeeByBizNumber,
   parsePayeeSearchField, parsePayeePmSearchField, parsePage, PAGE_SIZE,
-  updatePayee, updatePayeePmFields, softDeletePayees,
+  updatePayee, updatePayeePmFields, softDeletePayees, listPayeeOptions,
   type PayeeCreateInput,
 } from "@/lib/data/payees";
 import {
@@ -34,6 +34,7 @@ function input(bizDigits: string, type: "INSTRUCTOR" | "VENDOR", bizName = "이�
     bankName: "국민",
     accountNumberEnc: encrypt(acct),
     accountNumberMasked: maskAccountNumber(acct),
+    accountNumberBidx: blindIndex(acct),
     accountHolder: "예금주",
     taxType: type === "INSTRUCTOR" ? "BUSINESS_INCOME" : "TAX_INVOICE",
   };
@@ -447,5 +448,14 @@ describe("payees 데이터 계층", () => {
     await createPayeesBulk(ADMIN, manyInputs(PAGE_SIZE + 5));
     const rows = await listPayeesForExport(ADMIN);
     expect(rows).toHaveLength(PAGE_SIZE + 5);
+  });
+
+  it("listPayeeOptions는 역할 무관하게 id/keyId/bizName/taxType만 반환한다(계좌·사업자번호 등 민감정보 없음)", async () => {
+    await createPayeesBulk(ADMIN, [input("1234567890", "VENDOR", "업체1"), input("9001011234567", "INSTRUCTOR", "강사1")]);
+    const pmOptions = await listPayeeOptions({ userId: "pm1", role: "PM" });
+    expect(pmOptions.sort((a, b) => a.bizName.localeCompare(b.bizName))).toEqual([
+      { id: expect.any(String), keyId: "b001", bizName: "업체1", taxType: "TAX_INVOICE" },
+      { id: expect.any(String), keyId: "a001", bizName: "강사1", taxType: "BUSINESS_INCOME" },
+    ].sort((a, b) => a.bizName.localeCompare(b.bizName)));
   });
 });
