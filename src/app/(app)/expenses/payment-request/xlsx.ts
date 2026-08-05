@@ -127,20 +127,21 @@ const REGISTRATION_TEMPLATE_DATA_ROWS = 1000;
 const REGISTRATION_HEADER_NOTES: Partial<Record<(typeof REGISTRATION_TEMPLATE_HEADERS)[number], string>> = {
   "지급명의": "필수",
   "고객사명": "필수",
-  "사업자명(이름)": "필수(단, 고유번호 또는 사업자번호로 매칭되는 행은 비워도 됩니다)",
+  "사업자명(이름)": "필수 — 계좌번호와 함께 지급 리스트와 일치하면 자동 연동됩니다.",
+  "계좌번호": "필수 — 사업자명과 함께 지급 리스트와 일치하면 자동 연동됩니다.",
   "단가": "필수",
   "횟수": "필수",
-  "청구방식": "필수(단, 고유번호 또는 사업자번호로 매칭되는 행은 비워도 됩니다)",
+  "청구방식": "필수 — 지급 리스트와 자동 연동되면 지급 리스트 값으로 대체됩니다.",
 };
 
 // PM 엑셀 대량 등록용 빈 서식. payees/xlsx.ts의 buildTemplateXlsxBuffer와 같은 패턴
-// (헤더 고정 + 드롭다운 + 시트 보호)을 이 파일 전용 컬럼(15개)으로 적용한다.
+// (헤더 고정 + 드롭다운 + 시트 보호)을 이 파일 전용 컬럼(12개)으로 적용한다.
 export async function buildPaymentRequestRegistrationTemplateXlsxBuffer(): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("지급요청등록");
   ws.addRow([...REGISTRATION_TEMPLATE_HEADERS]);
 
-  const TEXT_COLUMNS = ["사업자번호(주민등록번호)", "계좌번호"] as const;
+  const TEXT_COLUMNS = ["계좌번호"] as const;
   TEXT_COLUMNS.forEach((h) => { ws.getColumn(REGISTRATION_TEMPLATE_HEADERS.indexOf(h) + 1).numFmt = "@"; });
 
   const COLUMN_WIDTH_PADDING = 4;
@@ -182,7 +183,7 @@ export async function buildPaymentRequestRegistrationTemplateXlsxBuffer(): Promi
   });
   const taxTypeCol = colLetter(REGISTRATION_TEMPLATE_HEADERS.indexOf("청구방식") + 1);
   dataValidations.add(`${taxTypeCol}2:${taxTypeCol}${REGISTRATION_TEMPLATE_DATA_ROWS + 1}`, {
-    type: "list", allowBlank: true, formulae: [`"${TAX_TYPE_LABELS.join(",")}"`],
+    type: "list", allowBlank: false, formulae: [`"${TAX_TYPE_LABELS.join(",")}"`],
   });
 
   await ws.protect("", {});

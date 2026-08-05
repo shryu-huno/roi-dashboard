@@ -331,54 +331,39 @@ describe("paymentRequestBulkUpdateSchema (일괄수정)", () => {
 
 describe("paymentRequestUploadRowSchema", () => {
   function row(overrides: Partial<{
-    entity: string; clientName: string; bizNameRaw: string; keyId: string;
-    bizNumberDigits: string; unitPrice: string; transportFee: string;
-    materialFee: string; count: string; taxTypeRaw: string; memo: string;
+    entity: string; clientName: string; bizName: string; accountNumber: string;
+    unitPrice: string; transportFee: string; materialFee: string; count: string;
+    taxType: string; memo: string;
   }> = {}) {
     return {
-      entity: "휴노", clientName: "A사", bizNameRaw: "", keyId: "a001",
-      bizNumberDigits: "", unitPrice: "10000", transportFee: "0",
-      materialFee: "0", count: "1", taxTypeRaw: "", memo: "",
+      entity: "휴노", clientName: "A사", bizName: "홍길동", accountNumber: "1101234567",
+      unitPrice: "10000", transportFee: "0", materialFee: "0", count: "1",
+      taxType: "세금계산서", memo: "",
       ...overrides,
     };
   }
 
-  it("고유번호가 있으면 사업자명/청구방식이 빈 문자열이어도 통과한다", () => {
+  it("모든 필드가 채워지면 통과한다", () => {
     expect(paymentRequestUploadRowSchema.safeParse(row()).success).toBe(true);
   });
 
-  it("사업자번호가 있으면(고유번호 없이) 사업자명/청구방식이 빈 문자열이어도 통과한다", () => {
-    const result = paymentRequestUploadRowSchema.safeParse(
-      row({ keyId: "", bizNumberDigits: "1234567890" }),
-    );
-    expect(result.success).toBe(true);
-  });
-
-  it("고유번호·사업자번호가 둘 다 없으면 사업자명이 필수다", () => {
-    const result = paymentRequestUploadRowSchema.safeParse(
-      row({ keyId: "", bizNumberDigits: "", bizNameRaw: "", taxTypeRaw: "세금계산서" }),
-    );
+  it("사업자명이 비어있으면 오류(매칭 성공 여부와 무관하게 항상 필수)", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(row({ bizName: "" }));
     expect(result.success).toBe(false);
   });
 
-  it("고유번호·사업자번호가 둘 다 없으면 청구방식이 필수다", () => {
-    const result = paymentRequestUploadRowSchema.safeParse(
-      row({ keyId: "", bizNumberDigits: "", bizNameRaw: "홍길동", taxTypeRaw: "" }),
-    );
+  it("청구방식이 비어있으면 오류", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(row({ taxType: "" }));
     expect(result.success).toBe(false);
   });
 
-  it("고유번호·사업자번호가 둘 다 없어도 사업자명+유효한 청구방식이 있으면 통과한다", () => {
-    const result = paymentRequestUploadRowSchema.safeParse(
-      row({ keyId: "", bizNumberDigits: "", bizNameRaw: "홍길동", taxTypeRaw: "세금계산서" }),
-    );
-    expect(result.success).toBe(true);
+  it("계좌번호가 비어있으면 오류", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(row({ accountNumber: "" }));
+    expect(result.success).toBe(false);
   });
 
-  it("사업자번호 형식이 9자리면 오류", () => {
-    const result = paymentRequestUploadRowSchema.safeParse(
-      row({ keyId: "", bizNumberDigits: "123456789" }),
-    );
+  it("계좌번호 형식이 9자리면 오류", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(row({ accountNumber: "123456789" }));
     expect(result.success).toBe(false);
   });
 

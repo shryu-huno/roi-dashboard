@@ -121,19 +121,18 @@ describe("payment-request export xlsx", () => {
 });
 
 describe("payment-request registration template xlsx", () => {
-  it("헤더 15개가 지정된 순서로 생성된다", async () => {
+  it("헤더 12개가 지정된 순서로 생성된다", async () => {
     const buf = await buildPaymentRequestRegistrationTemplateXlsxBuffer();
     const rows = await parseXlsxToRows(buf);
     expect(rows[0]).toEqual([...REGISTRATION_TEMPLATE_HEADERS]);
   });
 
-  it("사업자번호·계좌번호 컬럼은 텍스트 서식이다", async () => {
+  it("계좌번호 컬럼은 텍스트 서식이다", async () => {
     const buf = await buildPaymentRequestRegistrationTemplateXlsxBuffer();
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
     const ws = wb.worksheets[0];
-    expect(ws.getColumn(REGISTRATION_TEMPLATE_HEADERS.indexOf("사업자번호(주민등록번호)") + 1).numFmt).toBe("@");
     expect(ws.getColumn(REGISTRATION_TEMPLATE_HEADERS.indexOf("계좌번호") + 1).numFmt).toBe("@");
   });
 
@@ -149,11 +148,9 @@ describe("payment-request registration template xlsx", () => {
     const taxTypeCell = ws.getCell(2, taxTypeCol);
     expect(entityCell.dataValidation?.type).toBe("list");
     expect(taxTypeCell.dataValidation?.type).toBe("list");
-    // exceljs는 allowBlank: false를 serialize하지 않으므로, 읽을 때 undefined로 돌아온다.
-    // 지급명의(allowBlank: false) 셀은 allowBlank가 undefined이고,
-    // 청구방식(allowBlank: true) 셀은 allowBlank가 true다.
-    // 이 비대칭성으로 두 값이 실수로 같아지거나 뒤바뀌는 regression을 감지할 수 있다.
+    // 지급명의/청구방식 모두 항상 필수(allowBlank: false)다. exceljs는 allowBlank: false를
+    // serialize하지 않으므로, 읽을 때 undefined로 돌아온다.
     expect(entityCell.dataValidation?.allowBlank).not.toBe(true);
-    expect(taxTypeCell.dataValidation?.allowBlank).toBe(true);
+    expect(taxTypeCell.dataValidation?.allowBlank).not.toBe(true);
   });
 });

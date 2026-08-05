@@ -74,6 +74,7 @@ export function buildPayeeInputsFromRows(rows: string[][]): BuildResult {
       bankName: d.bankName,
       accountNumberEnc: encrypt(acctDigits),
       accountNumberMasked: maskAccountNumber(acctDigits),
+      accountNumberBidx: blindIndex(acctDigits),
       accountHolder: d.accountHolder,
       taxType: TAX_TYPE_BY_LABEL[d.taxType],
     });

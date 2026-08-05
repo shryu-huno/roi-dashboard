@@ -12,12 +12,12 @@ export function PaymentRequestExcelRegisterModal({ open, onClose }: { open: bool
   const router = useRouter();
   const [state, formAction, pending] = useActionState(uploadPaymentRequestCreatesAction, PAYMENT_REQUEST_CREATE_UPLOAD_INIT);
 
-  // 등록이 1건이라도 성공하면 목록을 갱신한다. 모달은 닫지 않고 성공 메시지를
-  // 사용자가 직접 확인 후 헤더의 ✕ 버튼으로 닫도록 둔다(성공 메시지가 한 프레임만
-  // 보이고 사라지는 문제 방지).
+  // 등록이 1건이라도 성공하면 목록을 갱신하고 모달을 자동으로 닫는다(all-or-nothing이라
+  // 성공하면 오류 행이 없다 — 실패/오류 시에는 모달을 유지해 오류 목록을 보여준다).
   useEffect(() => {
     if (state.ok && state.created && state.created > 0) {
       router.refresh();
+      onClose();
     }
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -38,7 +38,9 @@ export function PaymentRequestExcelRegisterModal({ open, onClose }: { open: bool
           <FileDropzone name="file" accept=".xlsx" hint="지원 확장자: .xlsx" />
 
           <p className="mt-3 rounded bg-[var(--color-hover)] px-3 py-2 text-xs text-[var(--color-muted)]">
-            업로드 항목: 지급명의, 고객사명, 사업자명(이름), 고유번호, 연락처, 사업자번호(주민등록번호), 은행명, 계좌번호, 예금주, 단가, 교통비, 재료비, 횟수, 청구방식, 상세내역
+            업로드 항목: 지급명의, 고객사명, 사업자명(이름), 은행명, 계좌번호, 예금주, 단가, 교통비, 재료비, 횟수, 청구방식, 상세내역
+            <br />
+            사업자명+계좌번호가 지급 리스트와 일치하면 자동 연동됩니다.
           </p>
 
           {state.ok && state.message && (

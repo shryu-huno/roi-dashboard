@@ -472,9 +472,13 @@ export type PaymentRequestUploadCreateResult =
   | { ok: true; created: number }
   | { ok: false; errors: { row: number; message: string }[] };
 
-// PM 엑셀 대량 등록 전용. 각 행의 고객사명/고유번호/사업자번호를 조회해 매칭한다. 매칭 오류가
-// 하나라도 있으면 아직 insert 전이므로 그대로 반환한다(all-or-nothing — 이미 쓴 것을 롤백할
-// 필요가 없다, softDeletePaymentRequests의 PartialDeleteError 패턴과 달리 여기선 "쓰기 전에
+// PM 엑셀 대량 등록 전용. 각 행의 고객사명을 조회하고, 사업자명+계좌번호가 지급 리스트와
+// 모두 일치하는 대상이 있으면 연동(매칭된 Payee 값으로 덮어씀), 없으면 예외 건(신규 등록)으로
+// 엑셀 값을 그대로 저장한다. 계좌번호 블라인드 인덱스에는 unique 제약이 없어(공동명의 계좌 등으로
+// 겹칠 수 있음) 사업자명까지 함께 비교해 특정한다 — 계좌번호만으로 좁힌 후보군에서 사업자명이
+// 일치하는 것이 없으면 예외 건, 2개 이상이면 자동 선택 불가 오류로 처리한다.
+// 매칭 오류가 하나라도 있으면 아직 insert 전이므로 그대로 반환한다(all-or-nothing — 이미 쓴 것을
+// 롤백할 필요가 없다, softDeletePaymentRequests의 PartialDeleteError 패턴과 달리 여기선 "쓰기 전에
 // 미리 전부 확인"하는 방식이라 트랜잭션 예외를 던질 필요가 없다).
 export async function createPaymentRequestsFromUpload(
   ctx: RlsContext,
@@ -506,28 +510,19 @@ export async function createPaymentRequestsFromUpload(
       }
     }
 
-    const keyIds = [...new Set(rows.map((r) => r.data.keyId).filter((v): v is string => !!v))];
-    const payeeByKeyId = new Map<string, { id: string; bizName: string; taxType: TaxType }>();
-    if (keyIds.length > 0) {
+    // 계좌번호 블라인드 인덱스로 후보만 배치 조회 — 최종 확정은 사업자명까지 함께 비교(아래 루프).
+    const accountBidxList = [...new Set(rows.map((r) => blindIndex(r.data.accountNumberDigits)))];
+    const payeesByAccountBidx = new Map<string, { id: string; bizName: string; taxType: TaxType }[]>();
+    if (accountBidxList.length > 0) {
       const payees = await tx.payee.findMany({
-        where: { keyId: { in: keyIds }, deletedAt: null },
-        select: { id: true, keyId: true, bizName: true, taxType: true },
+        where: { accountNumberBidx: { in: accountBidxList }, deletedAt: null },
+        select: { id: true, accountNumberBidx: true, bizName: true, taxType: true },
       });
       for (const p of payees) {
-        if (p.keyId) payeeByKeyId.set(p.keyId, { id: p.id, bizName: p.bizName, taxType: p.taxType });
-      }
-    }
-
-    const bizNumberDigitsList = [...new Set(rows.map((r) => r.data.bizNumberDigits).filter((v): v is string => !!v))];
-    const payeeByBizBidx = new Map<string, { id: string; bizName: string; taxType: TaxType }>();
-    if (bizNumberDigitsList.length > 0) {
-      const bidxList = bizNumberDigitsList.map((digits) => blindIndex(digits));
-      const payees = await tx.payee.findMany({
-        where: { bizNumberBidx: { in: bidxList }, deletedAt: null },
-        select: { id: true, bizNumberBidx: true, bizName: true, taxType: true },
-      });
-      for (const p of payees) {
-        if (p.bizNumberBidx) payeeByBizBidx.set(p.bizNumberBidx, { id: p.id, bizName: p.bizName, taxType: p.taxType });
+        const list = payeesByAccountBidx.get(p.accountNumberBidx);
+        const entry = { id: p.id, bizName: p.bizName, taxType: p.taxType };
+        if (list) list.push(entry);
+        else payeesByAccountBidx.set(p.accountNumberBidx, [entry]);
       }
     }
 
@@ -542,22 +537,15 @@ export async function createPaymentRequestsFromUpload(
         continue;
       }
 
-      let payee: { id: string; bizName: string; taxType: TaxType } | null = null;
-      if (data.keyId) {
-        payee = payeeByKeyId.get(data.keyId) ?? null;
-        if (!payee) {
-          errors.push({ row, message: `고유번호에 해당하는 지급 대상을 찾을 수 없습니다: ${data.keyId}` });
-          continue;
-        }
-      } else if (data.bizNumberDigits) {
-        payee = payeeByBizBidx.get(blindIndex(data.bizNumberDigits)) ?? null;
-        if (!payee) {
-          errors.push({ row, message: "사업자번호에 해당하는 지급 대상을 찾을 수 없습니다." });
-          continue;
-        }
+      const candidates = payeesByAccountBidx.get(blindIndex(data.accountNumberDigits)) ?? [];
+      const matches = candidates.filter((c) => c.bizName === data.bizNameRaw);
+      if (matches.length > 1) {
+        errors.push({ row, message: "사업자명과 계좌번호가 여러 지급 대상과 일치해 자동 선택할 수 없습니다." });
+        continue;
       }
+      const payee = matches[0] ?? null;
 
-      // payee가 null이면 파서(Task 2)가 이미 taxTypeRaw를 유효한 라벨로 검증해뒀다(예외 행).
+      // payee가 null이면 파서가 이미 taxTypeRaw를 유효한 라벨로 검증해뒀다(예외 건, 항상 필수 입력).
       const taxType = payee ? payee.taxType : TAX_TYPE_BY_LABEL[data.taxTypeRaw as keyof typeof TAX_TYPE_BY_LABEL];
       resolved.push({
         entity: data.entity,
