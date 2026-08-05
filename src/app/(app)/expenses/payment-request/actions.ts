@@ -7,11 +7,13 @@ import {
   updatePaymentRequestsBulk, updatePaymentRequest, updatePaymentRequestPmFields,
   updatePaymentRequestsByIds, softDeletePaymentRequests, createPaymentRequestsFromUpload,
 } from "@/lib/data/payment-requests";
+import { upsertPaymentRequestNotice } from "@/lib/data/payment-request-notice";
 import { buildPaymentRequestUpdatesFromRows } from "@/lib/data/payment-request-upload";
 import { buildPaymentRequestRegistrationRowsFromXlsx } from "@/lib/data/payment-request-registration-upload";
 import { parseXlsxToRows } from "../payees/xlsx";
 import {
   paymentRequestUpdateSchema, paymentRequestUpdatePmSchema, paymentRequestBulkUpdateSchema,
+  paymentRequestNoticeSchema,
 } from "@/lib/validation/schemas";
 import { SAVED, type ActionState } from "@/lib/action-state";
 import type { PaymentRequestUploadState } from "./upload-state";
@@ -91,6 +93,25 @@ export async function updatePaymentRequestAction(id: string, formData: FormData)
   } catch (e) {
     console.error("[payment-request update] 수정 실패:", e);
     return { ok: false, error: "수정 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
+  }
+
+  revalidatePath("/expenses");
+  return SAVED;
+}
+
+export async function updatePaymentRequestNoticeAction(formData: FormData): Promise<ActionState> {
+  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const ctx = getRlsContext(user);
+
+  const parsed = paymentRequestNoticeSchema.safeParse({ content: formData.get("content") });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "입력값을 확인하세요." };
+
+  try {
+    const result = await upsertPaymentRequestNotice(ctx, parsed.data.content);
+    if (!result.ok) return result;
+  } catch (e) {
+    console.error("[payment-request notice] 저장 실패:", e);
+    return { ok: false, error: "저장 중 오류가 발생했습니다. 잠시 후 다시 시도하세요." };
   }
 
   revalidatePath("/expenses");
