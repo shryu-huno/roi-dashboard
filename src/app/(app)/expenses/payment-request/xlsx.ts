@@ -128,10 +128,12 @@ const REGISTRATION_HEADER_NOTES: Partial<Record<(typeof REGISTRATION_TEMPLATE_HE
   "지급명의": "필수",
   "고객사명": "필수",
   "사업자명(이름)": "필수 — 계좌번호와 함께 지급 리스트와 일치하면 자동 연동됩니다.",
+  "은행명": "선택 — 지급 리스트와 자동 연동되면 생략 가능(단, 값을 입력했는데 지급 리스트와 다르면 오류). 지급 리스트에 없으면 필수.",
   "계좌번호": "필수 — 사업자명과 함께 지급 리스트와 일치하면 자동 연동됩니다.",
+  "예금주": "선택 — 지급 리스트와 자동 연동되면 생략 가능(단, 값을 입력했는데 지급 리스트와 다르면 오류). 지급 리스트에 없으면 필수.",
   "단가": "필수",
   "횟수": "필수",
-  "청구방식": "필수 — 지급 리스트와 자동 연동되면 지급 리스트 값으로 대체됩니다.",
+  "청구방식": "선택 — 지급 리스트와 자동 연동되면 생략 가능(단, 값을 입력했는데 지급 리스트와 다르면 오류). 지급 리스트에 없으면 필수.",
 };
 
 // PM 엑셀 대량 등록용 빈 서식. payees/xlsx.ts의 buildTemplateXlsxBuffer와 같은 패턴
@@ -183,7 +185,7 @@ export async function buildPaymentRequestRegistrationTemplateXlsxBuffer(): Promi
   });
   const taxTypeCol = colLetter(REGISTRATION_TEMPLATE_HEADERS.indexOf("청구방식") + 1);
   dataValidations.add(`${taxTypeCol}2:${taxTypeCol}${REGISTRATION_TEMPLATE_DATA_ROWS + 1}`, {
-    type: "list", allowBlank: false, formulae: [`"${TAX_TYPE_LABELS.join(",")}"`],
+    type: "list", allowBlank: true, formulae: [`"${TAX_TYPE_LABELS.join(",")}"`],
   });
 
   await ws.protect("", {});

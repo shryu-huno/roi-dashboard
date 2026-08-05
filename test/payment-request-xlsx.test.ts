@@ -148,9 +148,9 @@ describe("payment-request registration template xlsx", () => {
     const taxTypeCell = ws.getCell(2, taxTypeCol);
     expect(entityCell.dataValidation?.type).toBe("list");
     expect(taxTypeCell.dataValidation?.type).toBe("list");
-    // 지급명의/청구방식 모두 항상 필수(allowBlank: false)다. exceljs는 allowBlank: false를
-    // serialize하지 않으므로, 읽을 때 undefined로 돌아온다.
+    // 지급명의는 항상 필수(allowBlank: false) — exceljs는 이 값을 serialize하지 않으므로 읽을 때
+    // undefined로 돌아온다. 청구방식은 매칭되면 생략 가능해져(allowBlank: true) 그대로 읽힌다.
     expect(entityCell.dataValidation?.allowBlank).not.toBe(true);
-    expect(taxTypeCell.dataValidation?.allowBlank).not.toBe(true);
+    expect(taxTypeCell.dataValidation?.allowBlank).toBe(true);
   });
 });
