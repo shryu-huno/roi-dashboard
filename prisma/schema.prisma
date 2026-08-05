@@ -316,6 +316,14 @@ model PaymentRequest {
   @@index([payeeId])
 }
 
+// 지급요청 탭 상단 공지 배너. 항상 최대 1행("singleton")만 존재 — 새로 저장하면 덮어쓴다.
+// 작성자/작성일시는 요구사항상 저장하지 않는다.
+model PaymentRequestNotice {
+  id        String   @id @default("singleton")
+  content   String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
 // --- Auth.js (NextAuth) 어댑터 모델 ---
 model Account {
   id                String  @id @default(cuid())
