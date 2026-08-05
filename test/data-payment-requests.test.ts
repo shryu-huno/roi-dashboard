@@ -426,7 +426,13 @@ describe("payment-requests 데이터 계층", () => {
       const { pmA, clientA } = await seed();
       const payee = await createPayee("1101234567", "김강사", "BUSINESS_INCOME");
       await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
-        data: { ...baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "김강사" }), payeeId: payee.id },
+        data: {
+          ...baseInput({
+            requesterId: pmA.id, clientId: clientA.id, bizName: "김강사",
+            bankName: "국민", accountNumberEnc: encrypt("110123456789"), accountHolder: "예금주",
+          }),
+          payeeId: payee.id,
+        },
       }));
 
       const [row] = await listPaymentRequestsForExport(ADMIN);
@@ -438,19 +444,22 @@ describe("payment-requests 데이터 계층", () => {
       expect(row.accountHolder).toBe("예금주");
     });
 
-    it("payeeId가 없는 건은 지급 리스트 연동 컬럼이 빈 문자열이다", async () => {
+    it("payeeId가 없는 건은 고유번호/연락처/사업자번호만 빈 문자열이고, 은행명/계좌번호/예금주는 스냅샷 값 그대로 나온다", async () => {
       const { pmA, clientA } = await seed();
       await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
-        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "예외건" }),
+        data: baseInput({
+          requesterId: pmA.id, clientId: clientA.id, bizName: "예외건",
+          bankName: "신한은행", accountNumberEnc: encrypt("7778889990"), accountHolder: "김신규",
+        }),
       }));
 
       const [row] = await listPaymentRequestsForExport(ADMIN);
       expect(row.payeeKeyId).toBe("");
       expect(row.phone).toBe("");
       expect(row.bizNumber).toBe("");
-      expect(row.bankName).toBe("");
-      expect(row.accountNumber).toBe("");
-      expect(row.accountHolder).toBe("");
+      expect(row.bankName).toBe("신한은행");
+      expect(row.accountNumber).toBe("7778889990");
+      expect(row.accountHolder).toBe("김신규");
     });
 
     it("사업자명·청구방식은 등록 시점 스냅샷을 그대로 사용한다(Payee 최신값 아님)", async () => {
@@ -467,6 +476,29 @@ describe("payment-requests 데이터 계층", () => {
       const [row] = await listPaymentRequestsForExport(ADMIN);
       expect(row.bizName).toBe("등록당시이름");
       expect(row.taxType).toBe("BUSINESS_INCOME");
+    });
+
+    it("은행명·계좌번호·예금주도 등록 시점 스냅샷을 그대로 사용한다(Payee 최신값 아님)", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1101234567", "김강사", "TAX_INVOICE");
+      await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: {
+          ...baseInput({
+            requesterId: pmA.id, clientId: clientA.id, bizName: "김강사",
+            bankName: "국민", accountNumberEnc: encrypt("110123456789"), accountHolder: "예금주",
+          }),
+          payeeId: payee.id,
+        },
+      }));
+      await withRLS(ADMIN, (tx) => tx.payee.update({
+        where: { id: payee.id },
+        data: { bankName: "바뀐은행", accountNumberEnc: encrypt("999999999999"), accountHolder: "바뀐예금주" },
+      }));
+
+      const [row] = await listPaymentRequestsForExport(ADMIN);
+      expect(row.bankName).toBe("국민");
+      expect(row.accountNumber).toBe("110123456789");
+      expect(row.accountHolder).toBe("예금주");
     });
 
     it("seqNo/지급일/지급여부를 포함한다", async () => {

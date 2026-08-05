@@ -164,9 +164,10 @@ export type PaymentRequestExportRow = {
 };
 
 // 엑셀 다운로드 전용. ids가 있으면 필터 없이 해당 건만(체크박스 선택), 없으면 필터링된 전체
-// 결과를 페이지네이션 없이 반환한다. 사업자명/청구방식은 PaymentRequest 스냅샷을 그대로 쓰고,
-// 나머지 지급 리스트 정보(고유번호/연락처/사업자번호/은행명/계좌번호/예금주)만 연동된 Payee에서
-// 조회한다 — payeeId가 없는 건은 빈 문자열로 채운다. role 체크는 호출부(export 라우트)가 담당한다.
+// 결과를 페이지네이션 없이 반환한다. 사업자명/청구방식/은행명/계좌번호/예금주는 모두
+// PaymentRequest 스냅샷을 그대로 쓴다(매칭 여부와 무관하게 항상 채워짐 — payeeId가 없는
+// 예외 건도 값이 채워진다). 고유번호/연락처/사업자번호만 연동된 Payee에서 조회하며,
+// payeeId가 없는 건은 빈 문자열로 채운다. role 체크는 호출부(export 라우트)가 담당한다.
 export async function listPaymentRequestsForExport(
   ctx: RlsContext,
   filter?: PaymentRequestFilter,
@@ -182,7 +183,7 @@ export async function listPaymentRequestsForExport(
     include: {
       requester: { select: { name: true, email: true } },
       client: { select: { name: true } },
-      payee: { select: { keyId: true, phone: true, bizNumberEnc: true, bankName: true, accountNumberEnc: true, accountHolder: true } },
+      payee: { select: { keyId: true, phone: true, bizNumberEnc: true } },
     },
   }));
 
@@ -195,9 +196,9 @@ export async function listPaymentRequestsForExport(
     payeeKeyId: r.payee?.keyId ?? "",
     phone: r.payee?.phone ?? "",
     bizNumber: r.payee ? decrypt(r.payee.bizNumberEnc) : "",
-    bankName: r.payee?.bankName ?? "",
-    accountNumber: r.payee ? decrypt(r.payee.accountNumberEnc) : "",
-    accountHolder: r.payee?.accountHolder ?? "",
+    bankName: r.bankName,
+    accountNumber: decrypt(r.accountNumberEnc),
+    accountHolder: r.accountHolder,
     unitPrice: r.unitPrice,
     transportFee: r.transportFee,
     materialFee: r.materialFee,
