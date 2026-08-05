@@ -11,7 +11,7 @@ import {
 import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
 import type { ParsedRegistrationRow } from "@/lib/data/payment-request-registration-upload";
 import { createPayeesBulk } from "@/lib/data/payees";
-import { encrypt, blindIndex, maskBizNumber, maskAccountNumber } from "@/lib/crypto/payee-secret";
+import { encrypt, decrypt, blindIndex, maskBizNumber, maskAccountNumber } from "@/lib/crypto/payee-secret";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -854,6 +854,8 @@ describe("payment-requests 데이터 계층", () => {
           bizNameRaw: "홍길동",
           accountNumberDigits: "9990001112",
           taxTypeRaw: "세금계산서",
+          bankNameRaw: "국민",
+          accountHolderRaw: "예금주",
           unitPrice: 10000,
           transportFee: 0,
           materialFee: 0,
@@ -879,14 +881,28 @@ describe("payment-requests 데이터 계층", () => {
       expect(row.taxType).toBe("TAX_INVOICE");
     });
 
-    it("매칭된 행은 엑셀에 적힌 청구방식이 달라도 Payee의 실제 청구방식을 저장한다", async () => {
+    it("매칭된 행에 엑셀 청구방식이 Payee 실제 값과 다르면 오류를 반환하고 미저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      await createPayee("1111111111", "업체A", "BUSINESS_INCOME", "5551112223");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, {
+          clientName: clientA.name, bizNameRaw: "업체A", accountNumberDigits: "5551112223",
+          taxTypeRaw: "세금계산서",
+        }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("매칭된 행에 청구방식을 비워두면 Payee의 실제 청구방식을 자동 연동한다", async () => {
       const { pmA, clientA } = await seed();
       const payee = await createPayee("1111111111", "업체A", "BUSINESS_INCOME", "5551112223");
 
       const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
         uploadRow(2, {
           clientName: clientA.name, bizNameRaw: "업체A", accountNumberDigits: "5551112223",
-          taxTypeRaw: "세금계산서",
+          taxTypeRaw: "",
         }),
       ]);
       expect(result).toEqual({ ok: true, created: 1 });
@@ -1011,6 +1027,71 @@ describe("payment-requests 데이터 계층", () => {
 
       const { rows: [row] } = await listPaymentRequests(ADMIN);
       expect(row.payeeId).toBeNull();
+    });
+
+    it("매칭된 행에 은행명이 Payee 실제 값과 다르면 오류를 반환하고 미저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      await createPayee("1111111111", "업체A", "TAX_INVOICE", "5551112223");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, {
+          clientName: clientA.name, bizNameRaw: "업체A", accountNumberDigits: "5551112223",
+          bankNameRaw: "다른은행",
+        }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("예외 건인데 청구방식/은행명/예금주 중 하나라도 비어있으면 오류를 반환하고 미저장한다", async () => {
+      const { pmA, clientA } = await seed();
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, bizNameRaw: "신규대상", bankNameRaw: "" }),
+      ]);
+      expect(result.ok).toBe(false);
+      expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(0);
+    });
+
+    it("예외 건은 엑셀에 입력한 은행명/계좌번호/예금주를 그대로 암호화해 저장한다", async () => {
+      const { pmA, clientA } = await seed();
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, {
+          clientName: clientA.name, bizNameRaw: "신규대상", accountNumberDigits: "7778889990",
+          bankNameRaw: "신한은행", accountHolderRaw: "김신규",
+        }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      const saved = await withRLS(ADMIN, (tx) => tx.paymentRequest.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { bankName: true, accountNumberEnc: true, accountHolder: true },
+      }));
+      expect(saved.bankName).toBe("신한은행");
+      expect(saved.accountHolder).toBe("김신규");
+      expect(decrypt(saved.accountNumberEnc)).toBe("7778889990");
+    });
+
+    it("매칭된 행은 은행명/계좌번호/예금주도 Payee 스냅샷으로 저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1111111111", "업체A", "TAX_INVOICE", "5551112223");
+
+      const result = await createPaymentRequestsFromUpload({ userId: pmA.id, role: "PM" }, pmA.id, [
+        uploadRow(2, { clientName: clientA.name, bizNameRaw: "업체A", accountNumberDigits: "5551112223" }),
+      ]);
+      expect(result).toEqual({ ok: true, created: 1 });
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      const saved = await withRLS(ADMIN, (tx) => tx.paymentRequest.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { bankName: true, accountNumberEnc: true, accountHolder: true },
+      }));
+      expect(payee.bankName).toBe("국민");
+      expect(saved.bankName).toBe("국민");
+      expect(saved.accountHolder).toBe("예금주");
+      expect(decrypt(saved.accountNumberEnc)).toBe("5551112223");
     });
   });
 });

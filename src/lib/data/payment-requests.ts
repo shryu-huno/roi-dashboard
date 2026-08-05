@@ -2,8 +2,8 @@ import type { PaymentRequestEntity, PaymentRequestStatus, Prisma, TaxType } from
 import { withRLS, type RlsContext } from "@/lib/rls";
 import type { ActionState } from "@/lib/action-state";
 import type { PaymentRequestCreateInput } from "@/lib/payment-request-validation";
-import { decrypt, blindIndex } from "@/lib/crypto/payee-secret";
-import { TAX_TYPE_BY_LABEL } from "@/lib/labels";
+import { decrypt, blindIndex, encrypt } from "@/lib/crypto/payee-secret";
+import { TAX_TYPE_BY_LABEL, taxTypeLabel } from "@/lib/labels";
 import type { ParsedRegistrationRow } from "./payment-request-registration-upload";
 
 export const PAYMENT_REQUEST_PAGE_SIZE = 50;
@@ -472,6 +472,22 @@ export type PaymentRequestUploadCreateResult =
   | { ok: true; created: number }
   | { ok: false; errors: { row: number; message: string }[] };
 
+// 청구방식/은행명/예금주 공통 판정. 매칭된 Payee 값이 있으면: 엑셀 값이 비어있으면 그 값을
+// 쓰고(자동 연동), 엑셀 값이 있는데 다르면 오류. 매칭이 안 됐으면(payeeValue===null): 엑셀
+// 값이 필수(비어있으면 오류).
+function resolveMatchedField(
+  raw: string,
+  payeeValue: string | null,
+  fieldLabel: string,
+): { value: string } | { error: string } {
+  if (payeeValue !== null) {
+    if (raw === "" || raw === payeeValue) return { value: payeeValue };
+    return { error: `${fieldLabel}이(가) 지급 리스트와 일치하지 않습니다.` };
+  }
+  if (raw === "") return { error: `${fieldLabel}을(를) 입력하세요(지급 리스트에 없는 경우 필수).` };
+  return { value: raw };
+}
+
 // PM 엑셀 대량 등록 전용. 각 행의 고객사명을 조회하고, 사업자명+계좌번호가 지급 리스트와
 // 모두 일치하는 대상이 있으면 연동(매칭된 Payee 값으로 덮어씀), 없으면 예외 건(신규 등록)으로
 // 엑셀 값을 그대로 저장한다. 계좌번호 블라인드 인덱스에는 unique 제약이 없어(공동명의 계좌 등으로
@@ -489,8 +505,8 @@ export async function createPaymentRequestsFromUpload(
     const errors: { row: number; message: string }[] = [];
     const resolved: {
       entity: PaymentRequestEntity; clientId: string; payeeId: string | null;
-      bizName: string; taxType: TaxType; unitPrice: number; transportFee: number;
-      materialFee: number; count: number; memo: string;
+      bizName: string; taxType: TaxType; bankName: string; accountNumberEnc: string; accountHolder: string;
+      unitPrice: number; transportFee: number; materialFee: number; count: number; memo: string;
     }[] = [];
 
     // 행마다 DB 조회를 던지면 큰 배치에서 Prisma 인터랙티브 트랜잭션 타임아웃(기본 5000ms)에
@@ -512,15 +528,20 @@ export async function createPaymentRequestsFromUpload(
 
     // 계좌번호 블라인드 인덱스로 후보만 배치 조회 — 최종 확정은 사업자명까지 함께 비교(아래 루프).
     const accountBidxList = [...new Set(rows.map((r) => blindIndex(r.data.accountNumberDigits)))];
-    const payeesByAccountBidx = new Map<string, { id: string; bizName: string; taxType: TaxType }[]>();
+    const payeesByAccountBidx = new Map<string, {
+      id: string; bizName: string; taxType: TaxType; bankName: string; accountNumberEnc: string; accountHolder: string;
+    }[]>();
     if (accountBidxList.length > 0) {
       const payees = await tx.payee.findMany({
         where: { accountNumberBidx: { in: accountBidxList }, deletedAt: null },
-        select: { id: true, accountNumberBidx: true, bizName: true, taxType: true },
+        select: { id: true, accountNumberBidx: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
       });
       for (const p of payees) {
         const list = payeesByAccountBidx.get(p.accountNumberBidx);
-        const entry = { id: p.id, bizName: p.bizName, taxType: p.taxType };
+        const entry = {
+          id: p.id, bizName: p.bizName, taxType: p.taxType,
+          bankName: p.bankName, accountNumberEnc: p.accountNumberEnc, accountHolder: p.accountHolder,
+        };
         if (list) list.push(entry);
         else payeesByAccountBidx.set(p.accountNumberBidx, [entry]);
       }
@@ -545,14 +566,22 @@ export async function createPaymentRequestsFromUpload(
       }
       const payee = matches[0] ?? null;
 
-      // payee가 null이면 파서가 이미 taxTypeRaw를 유효한 라벨로 검증해뒀다(예외 건, 항상 필수 입력).
-      const taxType = payee ? payee.taxType : TAX_TYPE_BY_LABEL[data.taxTypeRaw as keyof typeof TAX_TYPE_BY_LABEL];
+      const taxTypeResult = resolveMatchedField(data.taxTypeRaw, payee ? taxTypeLabel(payee.taxType) : null, "청구방식");
+      const bankNameResult = resolveMatchedField(data.bankNameRaw, payee ? payee.bankName : null, "은행명");
+      const accountHolderResult = resolveMatchedField(data.accountHolderRaw, payee ? payee.accountHolder : null, "예금주");
+      if ("error" in taxTypeResult) { errors.push({ row, message: taxTypeResult.error }); continue; }
+      if ("error" in bankNameResult) { errors.push({ row, message: bankNameResult.error }); continue; }
+      if ("error" in accountHolderResult) { errors.push({ row, message: accountHolderResult.error }); continue; }
+
       resolved.push({
         entity: data.entity,
         clientId: clients[0].id,
         payeeId: payee?.id ?? null,
         bizName: payee?.bizName ?? data.bizNameRaw,
-        taxType,
+        taxType: TAX_TYPE_BY_LABEL[taxTypeResult.value as keyof typeof TAX_TYPE_BY_LABEL],
+        bankName: bankNameResult.value,
+        accountNumberEnc: payee ? payee.accountNumberEnc : encrypt(data.accountNumberDigits),
+        accountHolder: accountHolderResult.value,
         unitPrice: data.unitPrice,
         transportFee: data.transportFee,
         materialFee: data.materialFee,
@@ -570,6 +599,7 @@ export async function createPaymentRequestsFromUpload(
           requesterId, entity: r.entity, clientId: r.clientId, payeeId: r.payeeId,
           bizName: r.bizName, unitPrice: r.unitPrice, transportFee: r.transportFee,
           materialFee: r.materialFee, count: r.count, amount, taxType: r.taxType, memo: r.memo,
+          bankName: r.bankName, accountNumberEnc: r.accountNumberEnc, accountHolder: r.accountHolder,
         },
       });
     }
