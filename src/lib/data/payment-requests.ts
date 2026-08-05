@@ -197,7 +197,7 @@ export async function listPaymentRequestsForExport(
     phone: r.payee?.phone ?? "",
     bizNumber: r.payee ? decrypt(r.payee.bizNumberEnc) : "",
     bankName: r.bankName,
-    accountNumber: decrypt(r.accountNumberEnc),
+    accountNumber: r.accountNumberEnc ? decrypt(r.accountNumberEnc) : "",
     accountHolder: r.accountHolder,
     unitPrice: r.unitPrice,
     transportFee: r.transportFee,
@@ -499,7 +499,7 @@ function resolveMatchedField(
 ): { value: string } | { error: string } {
   if (payeeValue !== null) {
     if (raw === "" || raw === payeeValue) return { value: payeeValue };
-    return { error: `${fieldLabel}이(가) 지급 리스트와 일치하지 않습니다.` };
+    return { error: `${fieldLabel}이(가) 지급 리스트와 일치하지 않습니다(입력: ${raw}, 지급 리스트: ${payeeValue}).` };
   }
   if (raw === "") return { error: `${fieldLabel}을(를) 입력하세요(지급 리스트에 없는 경우 필수).` };
   return { value: raw };

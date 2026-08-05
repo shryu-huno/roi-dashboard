@@ -462,6 +462,16 @@ describe("payment-requests 데이터 계층", () => {
       expect(row.accountHolder).toBe("김신규");
     });
 
+    it("accountNumberEnc가 빈 문자열인 레거시 행도 예외 없이 빈 문자열로 반환한다", async () => {
+      const { pmA, clientA } = await seed();
+      await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "레거시건", accountNumberEnc: "" }),
+      }));
+
+      const [row] = await listPaymentRequestsForExport(ADMIN);
+      expect(row.accountNumber).toBe("");
+    });
+
     it("사업자명·청구방식은 등록 시점 스냅샷을 그대로 사용한다(Payee 최신값 아님)", async () => {
       const { pmA, clientA } = await seed();
       const payee = await createPayee("1101234567", "김강사", "TAX_INVOICE");
