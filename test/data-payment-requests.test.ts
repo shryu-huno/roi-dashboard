@@ -375,6 +375,26 @@ describe("payment-requests 데이터 계층", () => {
       expect(result.ok).toBe(true);
       expect((await listPaymentRequests(ADMIN)).rows).toHaveLength(2);
     });
+
+    it("선택한 사업자의 은행명/계좌번호/예금주도 스냅샷으로 저장한다", async () => {
+      const { pmA, clientA } = await seed();
+      const payee = await createPayee("1234567890", "업체A", "TAX_INVOICE", "1234567890");
+      const input: PaymentRequestCreateInput = {
+        entity: "HUNO", clientId: clientA.id, payeeId: payee.id,
+        unitPrice: 100000, transportFee: 0, materialFee: 0, count: 1, memo: "",
+      };
+      const result = await createPaymentRequestsBulk({ userId: pmA.id, role: "PM" }, pmA.id, [input]);
+      expect(result.ok).toBe(true);
+
+      const { rows: [row] } = await listPaymentRequests(ADMIN);
+      const saved = await withRLS(ADMIN, (tx) => tx.paymentRequest.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { bankName: true, accountNumberEnc: true, accountHolder: true },
+      }));
+      expect(saved.bankName).toBe("국민");
+      expect(saved.accountHolder).toBe("예금주");
+      expect(decrypt(saved.accountNumberEnc)).toBe("1234567890");
+    });
   });
 
   describe("listPaymentRequestsForExport", () => {
@@ -649,6 +669,29 @@ describe("payment-requests 데이터 계층", () => {
       expect(row.bizName).toBe("업체A");
       expect(row.taxType).toBe("TAX_INVOICE");
     });
+
+    it("payeeId를 재선택하면 은행명/계좌번호/예금주도 새 Payee 값으로 갱신된다", async () => {
+      const { pmA, clientA, clientB } = await seed();
+      const oldPayee = await createPayee("1111111111", "이전사업자", "TAX_INVOICE", "1101234567");
+      const newPayee = await createPayee("2222222222", "새사업자", "BUSINESS_INCOME", "9998887776");
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: { ...baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "이전사업자" }), payeeId: oldPayee.id },
+      }));
+
+      const result = await updatePaymentRequest(ADMIN, created.id, {
+        entity: "HUNO_INC", clientId: clientB.id, payeeId: newPayee.id,
+        payDate: new Date("2026-08-10"), status: "COMPLETED",
+      });
+      expect(result.ok).toBe(true);
+
+      const saved = await withRLS(ADMIN, (tx) => tx.paymentRequest.findUniqueOrThrow({
+        where: { id: created.id },
+        select: { bankName: true, accountNumberEnc: true, accountHolder: true },
+      }));
+      expect(saved.bankName).toBe("국민");
+      expect(saved.accountHolder).toBe("예금주");
+      expect(decrypt(saved.accountNumberEnc)).toBe("9998887776");
+    });
   });
 
   describe("updatePaymentRequestPmFields (PM 상세수정)", () => {
@@ -741,6 +784,32 @@ describe("payment-requests 데이터 계층", () => {
       expect(row.unitPrice).toBe(200000);
       expect(row.bizName).toBe("업체A");
       expect(row.taxType).toBe("TAX_INVOICE");
+    });
+
+    it("payeeId를 재선택하면 은행명/계좌번호/예금주도 새 Payee 값으로 갱신된다", async () => {
+      const { pmA, clientA } = await seed();
+      const clientC = await withRLS(ADMIN, (tx) => tx.client.create({
+        data: { name: "C사", businessType: "휴노", managers: { create: [{ userId: pmA.id }] } },
+      }));
+      const oldPayee = await createPayee("1111111111", "이전사업자", "TAX_INVOICE", "1101234567");
+      const newPayee = await createPayee("2222222222", "새사업자", "BUSINESS_INCOME", "9998887776");
+      const created = await withRLS(ADMIN, (tx) => tx.paymentRequest.create({
+        data: { ...baseInput({ requesterId: pmA.id, clientId: clientA.id, unitPrice: 10000, count: 1 }), payeeId: oldPayee.id },
+      }));
+
+      const result = await updatePaymentRequestPmFields({ userId: pmA.id, role: "PM" }, created.id, {
+        entity: "HUNO_INC", clientId: clientC.id, payeeId: newPayee.id,
+        unitPrice: 100000, transportFee: 0, materialFee: 0, count: 1, memo: "메모",
+      });
+      expect(result.ok).toBe(true);
+
+      const saved = await withRLS(ADMIN, (tx) => tx.paymentRequest.findUniqueOrThrow({
+        where: { id: created.id },
+        select: { bankName: true, accountNumberEnc: true, accountHolder: true },
+      }));
+      expect(saved.bankName).toBe("국민");
+      expect(saved.accountHolder).toBe("예금주");
+      expect(decrypt(saved.accountNumberEnc)).toBe("9998887776");
     });
   });
 

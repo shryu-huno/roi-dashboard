@@ -224,7 +224,7 @@ export async function createPaymentRequestsBulk(
     const payeeIds = [...new Set(inputs.map((i) => i.payeeId))];
     const payees = await tx.payee.findMany({
       where: { id: { in: payeeIds }, deletedAt: null },
-      select: { id: true, bizName: true, taxType: true },
+      select: { id: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
     });
     const payeeMap = new Map(payees.map((p) => [p.id, p]));
     if (payeeMap.size !== payeeIds.length) {
@@ -236,18 +236,10 @@ export async function createPaymentRequestsBulk(
       const amount = (input.unitPrice + input.transportFee + input.materialFee) * input.count;
       await tx.paymentRequest.create({
         data: {
-          requesterId,
-          entity: input.entity,
-          clientId: input.clientId,
-          payeeId: input.payeeId,
-          bizName: payee.bizName,
-          unitPrice: input.unitPrice,
-          transportFee: input.transportFee,
-          materialFee: input.materialFee,
-          count: input.count,
-          amount,
-          taxType: payee.taxType,
-          memo: input.memo,
+          requesterId, entity: input.entity, clientId: input.clientId, payeeId: input.payeeId,
+          bizName: payee.bizName, unitPrice: input.unitPrice, transportFee: input.transportFee,
+          materialFee: input.materialFee, count: input.count, amount, taxType: payee.taxType, memo: input.memo,
+          bankName: payee.bankName, accountNumberEnc: payee.accountNumberEnc, accountHolder: payee.accountHolder,
         },
       });
     }
@@ -312,23 +304,32 @@ export async function updatePaymentRequest(
   return withRLS(ctx, async (tx) => {
     const current = await tx.paymentRequest.findFirst({
       where: { id, deletedAt: null },
-      select: { payeeId: true, bizName: true, taxType: true },
+      select: { payeeId: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
     });
     if (!current) return { ok: false, error: "수정할 항목을 찾을 수 없습니다." };
 
     let bizName: string;
     let taxType: TaxType;
+    let bankName: string;
+    let accountNumberEnc: string;
+    let accountHolder: string;
     if (input.payeeId === current.payeeId) {
       bizName = current.bizName;
       taxType = current.taxType;
+      bankName = current.bankName;
+      accountNumberEnc = current.accountNumberEnc;
+      accountHolder = current.accountHolder;
     } else {
       const payee = await tx.payee.findFirst({
         where: { id: input.payeeId, deletedAt: null },
-        select: { bizName: true, taxType: true },
+        select: { bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
       });
       if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
       bizName = payee.bizName;
       taxType = payee.taxType;
+      bankName = payee.bankName;
+      accountNumberEnc = payee.accountNumberEnc;
+      accountHolder = payee.accountHolder;
     }
 
     await tx.paymentRequest.update({
@@ -339,6 +340,9 @@ export async function updatePaymentRequest(
         payeeId: input.payeeId,
         bizName,
         taxType,
+        bankName,
+        accountNumberEnc,
+        accountHolder,
         payDate: input.payDate,
         status: input.status,
       },
@@ -370,7 +374,7 @@ export async function updatePaymentRequestPmFields(
   return withRLS(ctx, async (tx) => {
     const current = await tx.paymentRequest.findFirst({
       where: { id, deletedAt: null },
-      select: { status: true, requesterId: true, payeeId: true, bizName: true, taxType: true },
+      select: { status: true, requesterId: true, payeeId: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
     });
     if (!current || current.status !== "PREPARING" || current.requesterId !== ctx.userId) {
       return { ok: false, error: "수정할 수 없는 건입니다." };
@@ -380,17 +384,26 @@ export async function updatePaymentRequestPmFields(
     // bizName/taxType을 유지한다(updatePaymentRequest와 동일 원칙 — Important #1 참고).
     let bizName: string;
     let taxType: TaxType;
+    let bankName: string;
+    let accountNumberEnc: string;
+    let accountHolder: string;
     if (input.payeeId === current.payeeId) {
       bizName = current.bizName;
       taxType = current.taxType;
+      bankName = current.bankName;
+      accountNumberEnc = current.accountNumberEnc;
+      accountHolder = current.accountHolder;
     } else {
       const payee = await tx.payee.findFirst({
         where: { id: input.payeeId, deletedAt: null },
-        select: { bizName: true, taxType: true },
+        select: { bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
       });
       if (!payee) return { ok: false, error: "선택한 사업자를 찾을 수 없습니다. 다시 선택해 주세요." };
       bizName = payee.bizName;
       taxType = payee.taxType;
+      bankName = payee.bankName;
+      accountNumberEnc = payee.accountNumberEnc;
+      accountHolder = payee.accountHolder;
     }
 
     const amount = (input.unitPrice + input.transportFee + input.materialFee) * input.count;
@@ -402,6 +415,9 @@ export async function updatePaymentRequestPmFields(
         payeeId: input.payeeId,
         bizName,
         taxType,
+        bankName,
+        accountNumberEnc,
+        accountHolder,
         unitPrice: input.unitPrice,
         transportFee: input.transportFee,
         materialFee: input.materialFee,
