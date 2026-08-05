@@ -297,6 +297,9 @@ model PaymentRequest {
   payeeId       String?                                  // 지급 리스트 연동(있으면 FK)
   payee         Payee?                @relation(fields: [payeeId], references: [id])
   bizName       String                                   // 사업자명(이름) 스냅샷
+  bankName      String                                   // 은행명 스냅샷(매칭 건=Payee 값, 예외 건=엑셀 입력값)
+  accountNumberEnc String                                // 계좌번호 스냅샷(AES-GCM 암호문, Payee.accountNumberEnc와 동일 방식)
+  accountHolder String                                   // 예금주 스냅샷
   unitPrice     Int                                       // 단가
   transportFee  Int                                       // 교통비
   materialFee   Int                                       // 재료비
