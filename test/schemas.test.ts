@@ -332,11 +332,13 @@ describe("paymentRequestBulkUpdateSchema (일괄수정)", () => {
 describe("paymentRequestUploadRowSchema", () => {
   function row(overrides: Partial<{
     entity: string; clientName: string; bizName: string; accountNumber: string;
+    bankName: string; accountHolder: string;
     unitPrice: string; transportFee: string; materialFee: string; count: string;
     taxType: string; memo: string;
   }> = {}) {
     return {
       entity: "휴노", clientName: "A사", bizName: "홍길동", accountNumber: "1101234567",
+      bankName: "국민은행", accountHolder: "홍길동",
       unitPrice: "10000", transportFee: "0", materialFee: "0", count: "1",
       taxType: "세금계산서", memo: "",
       ...overrides,
@@ -352,9 +354,19 @@ describe("paymentRequestUploadRowSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("청구방식이 비어있으면 오류", () => {
+  it("청구방식이 비어있어도 통과한다(매칭 성공 여부는 DB 조회 후에만 알 수 있음)", () => {
     const result = paymentRequestUploadRowSchema.safeParse(row({ taxType: "" }));
+    expect(result.success).toBe(true);
+  });
+
+  it("청구방식에 유효하지 않은 문자열을 넣으면 오류", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(row({ taxType: "이상한값" }));
     expect(result.success).toBe(false);
+  });
+
+  it("은행명/예금주가 비어있어도 통과한다", () => {
+    const result = paymentRequestUploadRowSchema.safeParse(row({ bankName: "", accountHolder: "" }));
+    expect(result.success).toBe(true);
   });
 
   it("계좌번호가 비어있으면 오류", () => {

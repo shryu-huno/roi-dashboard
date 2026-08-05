@@ -162,16 +162,20 @@ export const paymentRequestRowSchema = z.object({
 // PM 엑셀 대량 등록 한 행. 사업자명+계좌번호가 지급 리스트와 모두 일치하면 자동 연동되고
 // (매칭된 Payee 값으로 서버가 덮어씀), 아니면 예외 건(신규 등록)으로 엑셀 값이 그대로 저장된다.
 // 매칭 성공 여부는 DB 조회 후에만 알 수 있으므로, 이 스키마 단계에서는 조건부 없이 항상 검사한다.
+// 청구방식/은행명/예금주는 매칭되면 자동 연동되므로 선택 입력(빈 문자열 허용) — 매칭 안 됐을 때만
+// 필수라는 조건부 규칙은 DB 조회가 필요해 createPaymentRequestsFromUpload에서 판정한다.
 export const paymentRequestUploadRowSchema = z.object({
   entity: z.enum(PAYMENT_REQUEST_ENTITY_LABELS),
   clientName: z.string().trim().min(1, "고객사명을 입력하세요."),
   bizName: z.string().trim().min(1, "사업자명을 입력하세요."),
   accountNumber: accountField,
+  bankName: z.string().trim(),
+  accountHolder: z.string().trim(),
   unitPrice: z.coerce.number().int().min(1),
   transportFee: z.coerce.number().int().min(0),
   materialFee: z.coerce.number().int().min(0),
   count: z.coerce.number().int().min(1),
-  taxType: z.enum(TAX_TYPE_LABELS),
+  taxType: z.union([z.literal(""), z.enum(TAX_TYPE_LABELS)]),
   memo: z.string(),
 });
 
