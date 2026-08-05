@@ -52,6 +52,17 @@ PM 엑셀 대량 등록(`buildPaymentRequestRegistrationRowsFromXlsx` →
 계속 Payee 조인 유지, 이번 변경 범위 아님 — 이 세 값은 예외 건에 대응하는
 개념 자체가 없다).
 
+**적용 범위(중요)**: `bizName`/`taxType`은 이미 `PaymentRequest`를
+생성/수정하는 4개 경로 전부에서 Payee 스냅샷으로 유지되고 있다 —
+① 엑셀 대량 등록(`createPaymentRequestsFromUpload`, 이번 스펙의 핵심),
+② PM 수동 등록 폼(`createPaymentRequestsBulk`, 언제나 매칭 건),
+③ 정산담당자 인라인 수정(`updatePaymentRequest`, payeeId 재선택 시),
+④ PM 상세수정(`updatePaymentRequestPmFields`, payeeId 재선택 시).
+`bankName`/`accountNumberEnc`/`accountHolder`도 같은 불변식을 유지해야
+하므로 네 경로 모두 동일하게 확장한다 — 엑셀 업로드만 고치면 나머지
+세 경로로 생성/수정된 건은 계속 은행정보가 빈 채로 남아 같은 버그가
+다른 경로로 재발한다.
+
 ## 설계
 
 ### 1. Prisma 스키마 (`prisma/schema.prisma`)
@@ -166,7 +177,27 @@ function resolveMatchedField(
 `encrypt`를 `@/lib/crypto/payee-secret`에서 새로 import한다(현재 파일은
 `decrypt`/`blindIndex`만 import 중).
 
-### 5. 정산담당자 다운로드 (`listPaymentRequestsForExport`)
+### 5. 나머지 3개 스냅샷 경로 (`src/lib/data/payment-requests.ts`)
+
+`bizName`/`taxType`와 동일한 패턴으로 세 함수를 확장한다. 모두 항상
+매칭 건(실제 `payeeId` 보유)만 다루므로 4번 섹션의 `resolveMatchedField`/
+불일치-오류 로직은 필요 없다 — 그냥 Payee 값을 그대로 스냅샷한다.
+
+- **`createPaymentRequestsBulk`**: `tx.payee.findMany({ select: {...} })`의
+  select에 `bankName`, `accountNumberEnc`, `accountHolder`를 추가하고,
+  `tx.paymentRequest.create({ data: {...} })`에 `bankName: payee.bankName,
+  accountNumberEnc: payee.accountNumberEnc, accountHolder: payee.accountHolder`를
+  추가한다.
+- **`updatePaymentRequest`**: `payeeId` 변경 여부를 분기하는 기존 로직
+  (현재 `bizName`/`taxType`만 다룸)에 `bankName`/`accountNumberEnc`/
+  `accountHolder`를 같이 태운다 — payeeId가 그대로면 `current`에서 유지,
+  바뀌면 재조회한 `payee`에서 가져온다. `tx.paymentRequest.findFirst`의
+  `select`와 `tx.payee.findFirst`의 `select`에 세 필드를 추가하고,
+  최종 `update({ data: {...} })`에도 추가한다.
+- **`updatePaymentRequestPmFields`**: 위와 동일한 패턴(payeeId 유지 시
+  `current`에서, 변경 시 재조회한 `payee`에서).
+
+### 6. 정산담당자 다운로드 (`listPaymentRequestsForExport`)
 
 `tx.paymentRequest.findMany`의 `include.payee.select`에서 `bankName`/
 `accountNumberEnc`/`accountHolder`를 제거한다(더는 조인에서 가져오지
@@ -182,7 +213,7 @@ accountHolder: r.accountHolder,
 함수 상단 주석("나머지 지급 리스트 정보... payeeId가 없는 건은 빈
 문자열로 채운다")도 이 변경에 맞게 갱신한다.
 
-### 6. 등록 양식 UI (`src/app/(app)/expenses/payment-request/xlsx.ts`)
+### 7. 등록 양식 UI (`src/app/(app)/expenses/payment-request/xlsx.ts`)
 
 `REGISTRATION_HEADER_NOTES`:
 
@@ -212,6 +243,12 @@ accountHolder: r.accountHolder,
     올바르게 암호화됐는지(복호화해서 원본 계좌번호와 일치 확인).
   - `listPaymentRequestsForExport`: 예외 건도 은행명/계좌번호/예금주가
     채워져서 나오는지(기존 "빈 문자열"이 아님을 확인).
+- `test/data-payment-requests.test.ts` (나머지 3개 경로):
+  - `createPaymentRequestsBulk`: 생성된 건의 은행명/계좌번호/예금주가
+    선택한 Payee 값과 일치하는지.
+  - `updatePaymentRequest`: payeeId를 다른 Payee로 재선택하면 은행명/
+    계좌번호/예금주도 새 Payee 값으로 갱신되는지.
+  - `updatePaymentRequestPmFields`: 위와 동일한 케이스.
 - `test/payment-request-xlsx.test.ts`: 청구방식 드롭다운 `allowBlank`가
   `true`인지, 헤더 노트 문구 갱신 확인.
 
@@ -226,7 +263,9 @@ accountHolder: r.accountHolder,
   것은 별도 운영 판단이 필요해 제외).
 - 매칭 로직 자체(사업자명+계좌번호 기준, 블라인드 인덱스 조회)는 이번
   변경과 무관하며 그대로 둔다.
-- 지급요청 등록 화면(PM이 직접 입력하는 폼, `PaymentRequestNewForm`)이나
-  일반 목록/상세 화면은 건드리지 않는다 — 이번 변경은 엑셀 대량 등록
-  경로(`createPaymentRequestsFromUpload`)와 정산담당자 다운로드
-  (`listPaymentRequestsForExport`)에만 적용된다.
+- 지급요청 등록/수정 화면의 UI 컴포넌트(`PaymentRequestNewForm`,
+  `PaymentRequestDetailModal`, `PaymentRequestRow`)는 건드리지 않는다 —
+  이번 변경은 데이터 계층(`src/lib/data/payment-requests.ts`의 4개 함수)과
+  엑셀 업로드/다운로드에만 적용되고, 화면에는 새 필드를 노출하지 않는다
+  (기존 목록/상세 화면도 은행명/계좌번호/예금주를 표시하지 않으므로
+  화면상 변화는 없다).
