@@ -4,6 +4,7 @@ import { getRlsContext } from "@/lib/context";
 import { listClients } from "@/lib/data/clients";
 import { getConsultingFieldSummary, getCorporateCardSummary, getExpenseSummaryTotals } from "@/lib/data/expenses";
 import { listPayees, listPayeesForPm, listPayeeOptions, parsePage, parsePayeeSearchField, parsePayeePmSearchField } from "@/lib/data/payees";
+import { getPaymentRequestNotice } from "@/lib/data/payment-request-notice";
 import {
   listPaymentRequests, parsePaymentRequestPage, parsePaymentRequestEntity,
   parsePaymentRequestStatus, parsePaymentRequestDateParam,
@@ -226,7 +227,9 @@ async function PaymentRequestTab({
   user: SessionUser;
 }) {
   const ctx = getRlsContext(user);
-  const [clients, payees] = await Promise.all([listClients(ctx), listPayeeOptions(ctx)]);
+  const [clients, payees, noticeContent] = await Promise.all([
+    listClients(ctx), listPayeeOptions(ctx), getPaymentRequestNotice(ctx),
+  ]);
   const bizNames = Array.from(new Set(payees.map((p) => p.bizName))).sort();
 
   const filter = {
@@ -247,6 +250,7 @@ async function PaymentRequestTab({
       totalPages={result.totalPages}
       clients={clients.map((c) => ({ id: c.id, name: c.name, businessType: c.businessType }))}
       payees={payees}
+      noticeContent={noticeContent}
       bizNames={bizNames}
       filterValues={{
         payDateFrom: sp.payDateFrom ?? "",

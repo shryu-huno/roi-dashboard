@@ -47,6 +47,7 @@ export function PaymentRequestListPanel({
   filterValues,
   role,
   currentUserId,
+  noticeContent,
 }: {
   rows: PaymentRequestRowData[];
   page: number;
@@ -57,6 +58,7 @@ export function PaymentRequestListPanel({
   filterValues: FilterValues;
   role: AppRole;
   currentUserId: string;
+  noticeContent: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -140,7 +142,7 @@ export function PaymentRequestListPanel({
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <PaymentRequestNoticeBanner />
+      <PaymentRequestNoticeBanner content={noticeContent} canEdit={role === "ADMIN" || role === "SETTLEMENT"} />
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-hover)] p-4">
         <input type="hidden" name="tab" value="payment-request" />
