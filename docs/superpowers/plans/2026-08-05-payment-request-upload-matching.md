@@ -135,7 +135,7 @@ function baseInput(overrides: Partial<{
 - [ ] **Step 2: 전체 기존 테스트가 여전히 통과하는지 확인**
 
 Run: `npx vitest run test/data-payment-requests.test.ts`
-Expected: PASS — 이 파일의 기존 테스트 전부(약 40개 이상)가 수정 전과 동일하게 통과. 새 컬럼 관련 테스트는 아직 없음(Task 5-7에서 추가).
+Expected: 65개 중 55개 PASS, `createPaymentRequestsBulk`/`createPaymentRequestsFromUpload` describe 블록의 10개는 계속 FAIL — 두 함수는 아직 `bankName`/`accountNumberEnc`/`accountHolder`를 채우지 않아 NOT NULL 위반이 나는 게 정상이다(Task 5가 `createPaymentRequestsFromUpload`를, Task 6이 `createPaymentRequestsBulk`를 고친다). 이 10개 실패 외에 다른 실패가 있으면 BLOCKED로 보고할 것.
 
 - [ ] **Step 3: Commit**
 
@@ -723,7 +723,7 @@ export async function createPaymentRequestsFromUpload(
 - [ ] **Step 4: 테스트 실행해서 통과 확인**
 
 Run: `npx vitest run test/data-payment-requests.test.ts`
-Expected: PASS(전체 — Task 2에서 확인한 기존 테스트 + 이번에 추가/교체한 테스트 모두).
+Expected: `createPaymentRequestsFromUpload` describe 블록(이번에 추가/교체한 테스트 포함)은 전부 PASS. `createPaymentRequestsBulk` describe 블록의 3개 테스트는 Task 6이 아직 실행되지 않아 계속 FAIL이 정상이다(그 함수는 아직 은행정보를 채우지 않음). 그 3개 외에 다른 실패가 있으면 BLOCKED로 보고할 것.
 
 - [ ] **Step 5: Commit**
 
