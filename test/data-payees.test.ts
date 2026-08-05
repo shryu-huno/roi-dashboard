@@ -34,6 +34,7 @@ function input(bizDigits: string, type: "INSTRUCTOR" | "VENDOR", bizName = "이�
     bankName: "국민",
     accountNumberEnc: encrypt(acct),
     accountNumberMasked: maskAccountNumber(acct),
+    accountNumberBidx: blindIndex(acct),
     accountHolder: "예금주",
     taxType: type === "INSTRUCTOR" ? "BUSINESS_INCOME" : "TAX_INVOICE",
   };

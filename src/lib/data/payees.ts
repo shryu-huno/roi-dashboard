@@ -42,6 +42,7 @@ export type PayeeCreateInput = {
   bankName: string;
   accountNumberEnc: string;
   accountNumberMasked: string;
+  accountNumberBidx: string;
   accountHolder: string;
   taxType: TaxType;
 };
@@ -150,6 +151,7 @@ export function createPayeesBulk(
           bankName: input.bankName,
           accountNumberEnc: input.accountNumberEnc,
           accountNumberMasked: input.accountNumberMasked,
+          accountNumberBidx: input.accountNumberBidx,
           accountHolder: input.accountHolder,
           taxType: input.taxType,
           deletedAt: null,
@@ -370,6 +372,7 @@ export function updatePayee(ctx: RlsContext, id: string, input: PayeeUpdateInput
         bankName: input.bankName,
         accountNumberEnc: encrypt(acctDigits),
         accountNumberMasked: maskAccountNumber(acctDigits),
+        accountNumberBidx: blindIndex(acctDigits),
         accountHolder: input.accountHolder,
         taxType: input.taxType,
       },
