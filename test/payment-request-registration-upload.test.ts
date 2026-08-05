@@ -21,7 +21,8 @@ describe("buildPaymentRequestRegistrationRowsFromXlsx", () => {
       row: 2,
       data: {
         entity: "HUNO", clientName: "A사", bizNameRaw: "홍길동", accountNumberDigits: "1101234567",
-        taxTypeRaw: "세금계산서", unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "메모",
+        taxTypeRaw: "세금계산서", bankNameRaw: "국민은행", accountHolderRaw: "홍길동",
+        unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "메모",
       },
     }]);
   });
@@ -39,10 +40,17 @@ describe("buildPaymentRequestRegistrationRowsFromXlsx", () => {
     expect(result.errors[0].row).toBe(2);
   });
 
-  it("청구방식이 없으면 오류", () => {
+  it("청구방식이 없어도 파싱은 통과한다(매칭 여부 판단은 이후 단계)", () => {
     const result = buildPaymentRequestRegistrationRowsFromXlsx([HEADER, fullRow({ "청구방식": "" })]);
-    expect(result.rows).toEqual([]);
-    expect(result.errors).toHaveLength(1);
+    expect(result.errors).toEqual([]);
+    expect(result.rows[0].data.taxTypeRaw).toBe("");
+  });
+
+  it("은행명/예금주가 없어도 파싱은 통과한다(매칭 여부 판단은 이후 단계)", () => {
+    const result = buildPaymentRequestRegistrationRowsFromXlsx([HEADER, fullRow({ "은행명": "", "예금주": "" })]);
+    expect(result.errors).toEqual([]);
+    expect(result.rows[0].data.bankNameRaw).toBe("");
+    expect(result.rows[0].data.accountHolderRaw).toBe("");
   });
 
   it("계좌번호가 없으면 오류", () => {
@@ -81,10 +89,10 @@ describe("buildPaymentRequestRegistrationRowsFromXlsx", () => {
     expect(result.rows[0].data.materialFee).toBe(0);
   });
 
-  it("은행명/예금주는 파싱 결과에 포함되지 않는다(참고용, 저장되지 않음)", () => {
+  it("은행명/예금주가 파싱 결과에 포함된다", () => {
     const result = buildPaymentRequestRegistrationRowsFromXlsx([HEADER, fullRow()]);
-    expect(result.rows[0].data).not.toHaveProperty("bankName");
-    expect(result.rows[0].data).not.toHaveProperty("accountHolder");
+    expect(result.rows[0].data.bankNameRaw).toBe("국민은행");
+    expect(result.rows[0].data.accountHolderRaw).toBe("홍길동");
   });
 
   it("완전히 빈 행은 건너뛴다", () => {

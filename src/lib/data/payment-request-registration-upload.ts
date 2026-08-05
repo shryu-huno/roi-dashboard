@@ -17,7 +17,12 @@ export type ParsedRegistrationRow = {
   // 매칭 실패 시 예외 건(신규 등록)으로 이 값이 그대로 저장된다 — 매칭 여부와 무관하게 항상 필수.
   bizNameRaw: string;
   accountNumberDigits: string;
+  // taxTypeRaw/bankNameRaw/accountHolderRaw: 매칭되면 비어있어도 되고(Payee 값 자동 연동),
+  // 값이 있는데 Payee 실제 값과 다르면 오류. 매칭 안 되면(예외 건) 셋 다 필수 — DB 조회가
+  // 필요해 이 판정은 createPaymentRequestsFromUpload가 담당한다.
   taxTypeRaw: string;
+  bankNameRaw: string;
+  accountHolderRaw: string;
   unitPrice: number;
   transportFee: number;
   materialFee: number;
@@ -64,6 +69,8 @@ export function buildPaymentRequestRegistrationRowsFromXlsx(rows: string[][]): B
       clientName: at(cells, "고객사명"),
       bizName: at(cells, "사업자명(이름)"),
       accountNumber: at(cells, "계좌번호"),
+      bankName: at(cells, "은행명"),
+      accountHolder: at(cells, "예금주"),
       unitPrice: at(cells, "단가"),
       transportFee: at(cells, "교통비"),
       materialFee: at(cells, "재료비"),
@@ -85,6 +92,8 @@ export function buildPaymentRequestRegistrationRowsFromXlsx(rows: string[][]): B
         bizNameRaw: d.bizName,
         accountNumberDigits: digitsOnly(d.accountNumber),
         taxTypeRaw: d.taxType,
+        bankNameRaw: d.bankName,
+        accountHolderRaw: d.accountHolder,
         unitPrice: d.unitPrice,
         transportFee: d.transportFee,
         materialFee: d.materialFee,
