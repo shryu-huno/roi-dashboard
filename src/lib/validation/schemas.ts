@@ -72,6 +72,8 @@ export const clientSchema = z.object({
   // 청구·보고 주기(복수 선택). 체크박스는 항상 폼에 있으므로 미선택이면 [](클리어).
   billingCycle: cycleArray,
   reportCycle: cycleArray,
+  // 실적 계약 여부(단일 체크박스). 체크 시 value="true"만 전송, 미체크면 null → false.
+  performanceContract: z.preprocess((v) => v === "true", z.boolean()),
 });
 
 export const taskSchema = z.object({
@@ -89,7 +91,13 @@ export const performanceBatchSchema = z.object({
   clientId: z.string().min(1),
   year,
   month,
-  rows: z.array(z.object({ taskId: z.string().min(1), count: nonNegInt })),
+  // 과업별로 횟수 또는 금액 중 정확히 하나만 입력(택일). 둘 다 오거나 둘 다 비면 거부.
+  rows: z.array(
+    z.object({ taskId: z.string().min(1), count: nullableAmount, amount: nullableAmount })
+      .refine((r) => (r.count != null) !== (r.amount != null), {
+        message: "횟수 또는 금액 중 하나만 입력하세요.",
+      }),
+  ),
 });
 
 export const expenseSchema = z.object({

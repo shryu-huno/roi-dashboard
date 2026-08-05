@@ -30,6 +30,14 @@ export function NewClientForm({ pms }: { pms: Pm[] }) {
           업종
           <input name="industry" className="mt-1 w-40 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
         </label>
+        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+          계약 시작
+          <input type="date" name="contractStart" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+        </label>
+        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+          계약 종료
+          <input type="date" name="contractEnd" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+        </label>
         <div className="flex flex-col text-xs text-[var(--color-muted)]">
           <span>청구 주기 (복수 선택)</span>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -52,13 +60,10 @@ export function NewClientForm({ pms }: { pms: Pm[] }) {
             ))}
           </div>
         </div>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          계약 시작
-          <input type="date" name="contractStart" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-        </label>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          계약 종료
-          <input type="date" name="contractEnd" className="mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
+        {/* 실적 계약 여부 — 저장 버튼 좌측. 기본 언체크. */}
+        <label className="flex items-center gap-1.5 self-end pb-2 text-sm text-[var(--color-fg)]">
+          <input type="checkbox" name="performanceContract" value="true" />
+          실적 계약
         </label>
         <button
           type="submit"

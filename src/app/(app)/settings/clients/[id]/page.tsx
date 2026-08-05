@@ -42,6 +42,7 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
           contractEnd: toDateInput(client.contractEnd),
           billingCycle: client.billingCycle,
           reportCycle: client.reportCycle,
+          performanceContract: client.performanceContract,
         }}
       />
       {/* 담당 PM 배정은 정산담당자/관리자만 보고 변경한다. PM에게는 숨긴다. */}

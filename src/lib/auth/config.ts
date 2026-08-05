@@ -20,6 +20,9 @@ export const authConfig: NextAuthConfig = {
   session: { strategy: "database" },
   providers: [
     Google({
+      // 미리 생성해 둔 이메일 기반 User 행에 Google 로그인을 연결 허용.
+      // (Google이 이메일을 검증 + hd=huno.kr 도메인 제한이라 계정 탈취 위험은 낮음)
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: { hd: ALLOWED_DOMAIN, prompt: "select_account" },
       },

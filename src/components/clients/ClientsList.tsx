@@ -11,6 +11,7 @@ type ClientItem = {
   status: string;
   industry: string | null;
   pmLabel: string;
+  performanceContract: boolean; // 실적 계약 여부(명시 지정). true면 달성률 대신 "실적 계약" 표시.
   progress: number | null; // 올해 실적/계약. 계약 없음이면 null.
   billingCycle: string[];
   reportCycle: string[];
@@ -82,7 +83,7 @@ export function ClientsList({ clients, showPm }: { clients: ClientItem[]; showPm
               <div className="flex items-start justify-between gap-2">
                 <div className="text-base font-medium text-[var(--color-fg)]">{c.name}</div>
                 <div className="shrink-0 text-sm font-semibold text-[var(--color-primary)]">
-                  {c.progress === null ? "실적 계약" : formatPercent(c.progress)}
+                  {c.performanceContract ? "실적 계약" : formatPercent(c.progress)}
                 </div>
               </div>
               <div className="mt-1 flex items-end justify-between gap-2">

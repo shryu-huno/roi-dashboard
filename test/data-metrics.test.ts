@@ -33,14 +33,14 @@ describe("metrics: period totals & contract total", () => {
     clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
     taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
     // A사: 3월 실적 4회(40000), 지출 3월 5000, 청구 3월 30000, 입금 3월 20000
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
     await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
     await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
     // A사: 8월 실적 2회(20000) — 하반기
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 8, rows: [{ taskId: taskA, count: 2 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 8, rows: [{ taskId: taskA, count: 2, amount: null }] });
     // B사: 3월 실적 1회(20000)
-    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1, amount: null }] });
   });
 
   it("ADMIN sees all clients' totals for H1", async () => {
@@ -66,12 +66,12 @@ describe("metrics: period totals & contract total", () => {
     expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(500000); // A만
   });
 
-  it("includeVat=true applies ×1.1 to displayed totals and contract", async () => {
+  it("includeVat=true applies ×1.1 to 실적/청구/입금/계약금 but NOT 지출", async () => {
     const t = await getPeriodTotals(ADMIN, 2026, "h1", true);
     expect(t.performance).toBe(66000); // 60000 × 1.1
     expect(t.billing).toBe(33000); // 30000 × 1.1
     expect(t.deposit).toBe(22000); // 20000 × 1.1
-    expect(t.expense).toBe(5500); // 5000 × 1.1
+    expect(t.expense).toBe(5000); // 지출은 부가세 미포함(원장 원값) — VAT 토글 무관
     expect(await getContractTotal(ADMIN, true)).toBe(1430000); // 1300000 × 1.1
   });
 
@@ -103,7 +103,7 @@ describe("metrics: trend & expense breakdown", () => {
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000 })).id;
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_TRANSPORT", amount: 3000 });
   });
@@ -133,9 +133,9 @@ describe("metrics: client & PM summaries", () => {
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
     clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
     taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
-    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1, amount: null }] });
   });
 
   it("client summaries per client (ADMIN)", async () => {
@@ -193,7 +193,7 @@ describe("metrics: client detail", () => {
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
-    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4 }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
     await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
   });
@@ -222,5 +222,51 @@ describe("metrics: client detail", () => {
   it("returns null for another PM's client (RLS)", async () => {
     const d = await getClientDetail({ userId: pmB, role: "PM" }, clientA, 2026, "all");
     expect(d).toBeNull();
+  });
+});
+
+describe("metrics: 상담비 집계 기준 (프로젝트=실시일시 / 회계연도=지급월)", () => {
+  let clientA: string;
+  beforeEach(async () => {
+    await reset();
+    clientA = (await createClient(ADMIN, { name: "A사" })).id;
+    // 실시일시와 지급월이 어긋나는 상담비 2건을 넣어 기준별 집계 차이를 만든다.
+    await withRLS(ADMIN, (tx) =>
+      tx.consultingExpense.createMany({
+        data: [
+          // 실시 2026-03(상반기), 지급 2026-07(하반기)
+          { clientId: clientA, clientName: "A사", field: "심리상담", sessionDate: "2026-03-15", year: 2026, month: 7, amount: 100000 },
+          // 실시 2025-12(2026년 범위 밖), 지급 2026-01(상반기)
+          { clientId: clientA, clientName: "A사", field: "심리상담", sessionDate: "2025-12-20", year: 2026, month: 1, amount: 50000 },
+        ],
+      }),
+    );
+  });
+
+  it("프로젝트 기준: 상담비를 실시일시로 집계", async () => {
+    // 상반기(1~6월) 실시 = 2026-03 건만 → 100000. (지급 2026-07 건은 실시일이 6월 이후라 제외, 2025-12 건도 제외)
+    const h1 = await getPeriodTotals(ADMIN, 2026, "h1", false, false, false);
+    expect(h1.expense).toBe(100000);
+    // 2026 전체 실시 = 2026-03 건만(2025-12 건은 2026 범위 밖) → 100000.
+    const all = await getPeriodTotals(ADMIN, 2026, "all", false, false, false);
+    expect(all.expense).toBe(100000);
+  });
+
+  it("회계연도 기준: 상담비를 지급월로 집계", async () => {
+    // 상반기(1~6월) 지급 = 2026-01 건만 → 50000. (지급 2026-07 건은 하반기라 제외)
+    const h1 = await getPeriodTotals(ADMIN, 2026, "h1", false, false, true);
+    expect(h1.expense).toBe(50000);
+    // 2026 전체 지급 = 두 건 모두 → 150000.
+    const all = await getPeriodTotals(ADMIN, 2026, "all", false, false, true);
+    expect(all.expense).toBe(150000);
+  });
+
+  it("월별 추이도 기준을 따른다", async () => {
+    const proj = await getMonthlyTrend(ADMIN, 2026, false, false, false);
+    expect(proj.find((t) => t.month === 3)!.expense).toBe(100000); // 실시 3월
+    expect(proj.find((t) => t.month === 7)!.expense).toBe(0);
+    const fisc = await getMonthlyTrend(ADMIN, 2026, false, false, true);
+    expect(fisc.find((t) => t.month === 7)!.expense).toBe(100000); // 지급 7월
+    expect(fisc.find((t) => t.month === 1)!.expense).toBe(50000); // 지급 1월
   });
 });

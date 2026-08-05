@@ -20,7 +20,7 @@ export type ExpenseTab = {
 };
 
 export const EXPENSE_TABS: readonly ExpenseTab[] = [
-  { key: "all", label: "전체 내역", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
+  { key: "all", label: "메뉴얼", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
   // 지급 리스트는 전사 공용 원장이지만 PM에게는 마스킹된 뷰(연락처/은행명/계좌번호/예금주 마스킹,
   // 편집은 사업자명·청구방식만)로 노출한다. 원문 뷰(PayeeListPanel)는 여전히 ADMIN/SETTLEMENT 전용.
   { key: "payment-list", label: "지급 리스트", roles: ["ADMIN", "SETTLEMENT"], pmScoped: true },
