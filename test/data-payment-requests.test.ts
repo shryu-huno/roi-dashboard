@@ -76,6 +76,7 @@ async function createPayee(
 
 function baseInput(overrides: Partial<{
   requesterId: string; entity: "HUNO" | "HUNO_INC"; clientId: string; bizName: string;
+  bankName: string; accountNumberEnc: string; accountHolder: string;
   unitPrice: number; transportFee: number; materialFee: number; count: number;
   taxType: "TAX_INVOICE" | "BUSINESS_INCOME"; memo: string; payDate: Date | null; status: "PREPARING" | "COMPLETED";
 }>) {
@@ -84,6 +85,9 @@ function baseInput(overrides: Partial<{
     entity: overrides.entity ?? "HUNO",
     clientId: overrides.clientId!,
     bizName: overrides.bizName ?? "홍길동",
+    bankName: overrides.bankName ?? "국민",
+    accountNumberEnc: overrides.accountNumberEnc ?? encrypt("1101234567"),
+    accountHolder: overrides.accountHolder ?? "예금주",
     unitPrice: overrides.unitPrice ?? 100000,
     transportFee: overrides.transportFee ?? 0,
     materialFee: overrides.materialFee ?? 0,
