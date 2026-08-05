@@ -226,3 +226,8 @@ export const paymentRequestBulkUpdateSchema = z.object({
 }).refine((v) => !(v.status === "COMPLETED" && v.payDate === null), {
   message: "지급완료 처리하려면 지급일을 입력해야 합니다.",
 });
+
+// 지급요청 공지 배너 — 항상 최대 1개, trim 후 빈 문자열이면 공지 없음 상태로 저장된다.
+export const paymentRequestNoticeSchema = z.object({
+  content: z.string().trim(),
+});

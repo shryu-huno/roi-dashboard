@@ -13,6 +13,7 @@ import {
   paymentRequestUpdateSchema,
   paymentRequestUpdatePmSchema,
   paymentRequestBulkUpdateSchema,
+  paymentRequestNoticeSchema,
 } from "@/lib/validation/schemas";
 
 describe("performanceBatchSchema", () => {
@@ -405,5 +406,25 @@ describe("paymentRequestUploadRowSchema", () => {
       expect(result.data.transportFee).toBe(0);
       expect(result.data.materialFee).toBe(0);
     }
+  });
+});
+
+describe("paymentRequestNoticeSchema", () => {
+  it("일반 문자열을 그대로 허용한다", () => {
+    const r = paymentRequestNoticeSchema.safeParse({ content: "정산 마감 안내드립니다." });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.content).toBe("정산 마감 안내드립니다.");
+  });
+
+  it("앞뒤 공백은 trim한다", () => {
+    const r = paymentRequestNoticeSchema.safeParse({ content: "  공지 내용  " });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.content).toBe("공지 내용");
+  });
+
+  it("공백만 있으면 빈 문자열로 통과한다(공지 비우기)", () => {
+    const r = paymentRequestNoticeSchema.safeParse({ content: "   " });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.content).toBe("");
   });
 });
