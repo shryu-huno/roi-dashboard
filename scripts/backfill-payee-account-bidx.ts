@@ -14,6 +14,7 @@ dotenv.config({ path: path.join(__dirname, "..", ".env.local"), override: true }
 async function main() {
   const { withRLS } = await import("../src/lib/rls");
   const { decrypt, digitsOnly, blindIndex } = await import("../src/lib/crypto/payee-secret");
+  const { prisma } = await import("../src/lib/db");
 
   const ADMIN = { userId: "backfill-script", role: "ADMIN" as const };
 
@@ -30,6 +31,7 @@ async function main() {
   });
 
   console.log(`백필 완료: ${updated}건`);
+  await prisma.$disconnect();
 }
 
 main().catch((e) => {
