@@ -75,8 +75,21 @@ export function getPeriodTotals(
 
 export function getContractTotal(ctx: RlsContext, includeVat = false, easywelOnly = false): Promise<number> {
   return withRLS(ctx, async (tx) => {
-    const r = await tx.task.aggregate({ where: { client: clientWhere(easywelOnly) }, _sum: { contractAmount: true } });
-    return withVat(r._sum.contractAmount ?? 0, includeVat);
+    // 전체 프로젝트가 아니라 고객사마다 "가장 최근 프로젝트"(계약 시작일이 가장 늦은 것,
+    // 시작일이 없으면 등록일 최신) 1건의 계약금만 합산한다.
+    const projects = await tx.project.findMany({
+      where: { deletedAt: null, client: clientWhere(easywelOnly) },
+      orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      select: { clientId: true, tasks: { select: { contractAmount: true } } },
+    });
+    const seen = new Set<string>();
+    let total = 0;
+    for (const p of projects) {
+      if (seen.has(p.clientId)) continue; // 고객사별 첫 행 = 가장 최근 프로젝트
+      seen.add(p.clientId);
+      total += p.tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
+    }
+    return withVat(total, includeVat);
   });
 }
 
@@ -463,7 +476,8 @@ export function getClientProjectBreakdown(
   return withRLS(ctx, async (tx) => {
     const projects = await tx.project.findMany({
       where: { clientId, deletedAt: null },
-      orderBy: { createdAt: "asc" },
+      // 계약 시작일이 최신인 프로젝트가 위로. 시작일 없으면 등록일 최신순.
+      orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       include: { tasks: { select: { id: true, contractAmount: true } } },
     });
     const rows: ProjectBreakdownRow[] = [];

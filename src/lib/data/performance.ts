@@ -1,5 +1,6 @@
 import { withRLS, type RlsContext } from "@/lib/rls";
 import type { ActionState } from "@/lib/action-state";
+import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
 
 export type PerformanceBatchInput = {
   clientId: string;
@@ -15,22 +16,68 @@ export function listPerformance(ctx: RlsContext, clientId: string, year: number,
   );
 }
 
-// 계약 기간 전체(연/월 무관) 과업별 누적 횟수·금액. Plan 3 집계의 조회 기반이기도 하다.
 export type PerformanceTotal = { taskId: string; totalCount: number; totalAmount: number };
 
-export async function listPerformanceTotals(ctx: RlsContext, clientId: string): Promise<PerformanceTotal[]> {
-  const grouped = await withRLS(ctx, (tx) =>
-    tx.monthlyPerformance.groupBy({
-      by: ["taskId"],
-      where: { task: { clientId } },
-      _sum: { count: true, amount: true },
-    }),
-  );
-  return grouped.map((g) => ({
-    taskId: g.taskId,
-    totalCount: g._sum.count ?? 0,
-    totalAmount: g._sum.amount ?? 0,
-  }));
+// 누적 집계 기준.
+//  - year:    조회 연도(1~12월) 1년치 실적을 합산한다(기본, "최신연도 기준").
+//  - project: 조회 월(year·month)을 계약기간에 포함하는 프로젝트별로, 그 프로젝트의 계약기간
+//             전체(연 경계 무시)를 합산한다. 계약 시작/종료일이 비어있으면 조회 연도로 폴백한다.
+export type TotalsBasis =
+  | { basis: "year"; year: number }
+  | { basis: "project"; year: number; month: number };
+
+function toYm(d: Date): Ym {
+  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+export async function listPerformanceTotals(
+  ctx: RlsContext,
+  clientId: string,
+  opts: TotalsBasis,
+): Promise<PerformanceTotal[]> {
+  return withRLS(ctx, async (tx) => {
+    if (opts.basis === "year") {
+      const grouped = await tx.monthlyPerformance.groupBy({
+        by: ["taskId"],
+        where: { task: { clientId }, year: opts.year },
+        _sum: { count: true, amount: true },
+      });
+      return grouped.map((g) => ({ taskId: g.taskId, totalCount: g._sum.count ?? 0, totalAmount: g._sum.amount ?? 0 }));
+    }
+    // 프로젝트 기준: 조회 월을 계약기간에 포함하는 프로젝트만 골라, 각 프로젝트의 계약기간 전체를 합산.
+    const monthStart = new Date(Date.UTC(opts.year, opts.month - 1, 1));
+    const monthEnd = new Date(Date.UTC(opts.year, opts.month, 0, 23, 59, 59, 999));
+    const projects = await tx.project.findMany({
+      where: {
+        clientId,
+        deletedAt: null,
+        AND: [
+          { OR: [{ contractStart: null }, { contractStart: { lte: monthEnd } }] },
+          { OR: [{ contractEnd: null }, { contractEnd: { gte: monthStart } }] },
+        ],
+      },
+      select: { contractStart: true, contractEnd: true, tasks: { select: { id: true } } },
+    });
+    const totals: PerformanceTotal[] = [];
+    for (const p of projects) {
+      const taskIds = p.tasks.map((t) => t.id);
+      if (!taskIds.length) continue;
+      // 계약기간이 있으면 그 월범위, 없으면 조회 연도(1~12월)로 폴백(프로젝트 브레이크다운과 동일 규칙).
+      const months =
+        p.contractStart && p.contractEnd
+          ? eachMonth(...orderRange(toYm(p.contractStart), toYm(p.contractEnd)))
+          : eachMonth({ year: opts.year, month: 1 }, { year: opts.year, month: 12 });
+      const grouped = await tx.monthlyPerformance.groupBy({
+        by: ["taskId"],
+        where: { taskId: { in: taskIds }, OR: months.map((m) => ({ year: m.year, month: m.month })) },
+        _sum: { count: true, amount: true },
+      });
+      for (const g of grouped) {
+        totals.push({ taskId: g.taskId, totalCount: g._sum.count ?? 0, totalAmount: g._sum.amount ?? 0 });
+      }
+    }
+    return totals;
+  });
 }
 
 const FORBIDDEN = "FORBIDDEN_OR_MISSING_TASK";

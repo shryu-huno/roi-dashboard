@@ -4,12 +4,13 @@ import { listClients } from "@/lib/data/clients";
 import { listTasks } from "@/lib/data/tasks";
 import { listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { PerformanceGrid } from "./PerformanceGrid";
+import { TotalsBasisToggle } from "./TotalsBasisToggle";
 import { ClientCombobox } from "@/components/ClientCombobox";
 
 export default async function PerformancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; year?: string; month?: string }>;
+  searchParams: Promise<{ clientId?: string; year?: string; month?: string; basis?: string }>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();
@@ -26,12 +27,14 @@ export default async function PerformancePage({
   const clientId = sp.clientId || undefined;
   const year = Number(sp.year) || defaultYear;
   const month = Number(sp.month) || defaultMonth;
+  // 누적표 집계 기준. 기본은 "year"(최신연도=조회 연도 1년치). "project"면 조회 월의 프로젝트 계약기간 전체.
+  const totalsBasis = sp.basis === "project" ? "project" : "year";
 
   const [tasks, perf, totals] = clientId
     ? await Promise.all([
-        listTasks(ctx, clientId),
+        listTasks(ctx, clientId, { year, month }),
         listPerformance(ctx, clientId, year, month),
-        listPerformanceTotals(ctx, clientId),
+        listPerformanceTotals(ctx, clientId, totalsBasis === "project" ? { basis: "project", year, month } : { basis: "year", year }),
       ])
     : [[], [], []];
   // count가 null인 레코드는 금액 직접입력 모드 → 금액을 초깃값으로 복원.
@@ -56,6 +59,8 @@ export default async function PerformancePage({
           월
           <input type="number" name="month" min="1" max="12" defaultValue={month} className="mt-1 w-24 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
         </label>
+        {/* 조회(GET 제출) 시에도 누적 기준 토글 상태를 유지한다. */}
+        {totalsBasis === "project" && <input type="hidden" name="basis" value="project" />}
         <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">조회</button>
       </form>
 
@@ -74,7 +79,10 @@ export default async function PerformancePage({
             initialAmounts={initialAmounts}
           />
 
-          <h2 className="mb-2 mt-10 text-[18px] font-medium text-black">{year}년 누적</h2>
+          <div className="mb-2 mt-10 flex items-center justify-between">
+            <h2 className="text-[18px] font-medium text-black">{totalsBasis === "project" ? "프로젝트 누적" : `${year}년 누적`}</h2>
+            <TotalsBasisToggle on={totalsBasis === "project"} />
+          </div>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">

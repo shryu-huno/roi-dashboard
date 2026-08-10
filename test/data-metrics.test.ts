@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { archiveClient, setClientEasywel } from "@/lib/data/clients";
 import { mkClient, mkTask, setClientPms } from "./factories";
+import { createProject } from "@/lib/data/projects";
+import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
@@ -64,6 +66,21 @@ describe("metrics: period totals & contract total", () => {
   it("contract total sums Task.contractAmount, RLS-scoped", async () => {
     expect(await getContractTotal(ADMIN)).toBe(1300000); // 500000 + 800000
     expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(500000); // A만
+  });
+
+  it("계약금은 고객사별 '가장 최근(계약 시작일) 프로젝트' 1건만 합산한다", async () => {
+    // A사에 시작일이 더 늦은 프로젝트를 추가한다. 기존 기본 프로젝트(시작일 null, 500000)는
+    // 최신이 아니므로 제외되고, 새 프로젝트(300000)만 A사 몫으로 잡혀야 한다.
+    const proj = await createProject(ADMIN, clientA, {
+      name: "2026 계약",
+      contractStart: new Date("2026-01-01"),
+      contractEnd: new Date("2026-12-31"),
+      pmIds: [pmA],
+    });
+    await createTask(ADMIN, { clientId: clientA, projectId: proj.id, name: "신규", unitPrice: 10000, contractCount: 30 }); // 300000
+    // A사 최신 프로젝트 300000 + B사 800000. A사 기본 프로젝트 500000은 제외.
+    expect(await getContractTotal(ADMIN)).toBe(1100000);
+    expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(300000); // A사 최신만
   });
 
   it("includeVat=true applies ×1.1 to 실적/청구/입금/계약금 but NOT 지출", async () => {
