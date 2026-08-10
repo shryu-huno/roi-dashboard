@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { upsertBilling, getBilling, upsertDeposit, getDeposit } from "@/lib/data/billing";
-import { createClient } from "@/lib/data/clients";
+import { mkClient } from "./factories";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -21,8 +21,8 @@ describe("billing/deposit data layer", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
-    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
+    clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    clientB = (await mkClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
   });
 
   it("stores 0 as 0 (0원)", async () => {

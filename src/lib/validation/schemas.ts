@@ -57,18 +57,28 @@ const cycleArray = z.preprocess(
   z.array(z.enum(CYCLE_VALUES)),
 );
 
+// 담당 PM 여러 명. 빈 값은 걸러내고, 미포함이면 undefined(배정 유지).
+const pmIds = z.preprocess(
+  (v) => (v === undefined ? undefined : (Array.isArray(v) ? v : [v]).filter((x) => x !== "" && x != null)),
+  z.array(z.string()).optional(),
+);
+
+// 고객사 기본정보만. 청구·보고 주기, 계약기간, 실적계약, 담당 PM은 Project로 이동했다.
 export const clientSchema = z.object({
   name: z.string().min(1),
   status: z.string().optional(),
   businessType: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
   industry: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
+});
+
+// 프로젝트: 청구·보고 주기, 계약기간, 실적계약 여부, 담당 PM을 소유한다.
+export const projectSchema = z.object({
+  clientId: z.string().min(1),
+  name: z.string().min(1),
+  status: z.string().optional(),
   contractStart: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
   contractEnd: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
-  // 담당 PM 여러 명. 빈 값은 걸러내고, 미포함이면 undefined(배정 유지).
-  pmIds: z.preprocess(
-    (v) => (v === undefined ? undefined : (Array.isArray(v) ? v : [v]).filter((x) => x !== "" && x != null)),
-    z.array(z.string()).optional(),
-  ),
+  pmIds,
   // 청구·보고 주기(복수 선택). 체크박스는 항상 폼에 있으므로 미선택이면 [](클리어).
   billingCycle: cycleArray,
   reportCycle: cycleArray,
@@ -78,6 +88,7 @@ export const clientSchema = z.object({
 
 export const taskSchema = z.object({
   clientId: z.string().min(1),
+  projectId: z.string().min(1),
   name: z.string().min(1),
   unitPrice: signedInt,
   // 계약 횟수(빈칸=미입력=null).

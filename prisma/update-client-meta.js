@@ -28,17 +28,21 @@ async function main() {
       await tx.$executeRaw`SELECT set_config('app.user_role', 'ADMIN', true)`;
 
       for (const c of CLIENTS) {
-        const result = await tx.client.updateMany({
+        // 사업자구분은 고객사에 남고, 계약기간·청구·보고 주기는 프로젝트로 이동했다.
+        const client = await tx.client.updateMany({
           where: { name: c.name },
+          data: { businessType: c.businessType ?? null },
+        });
+        await tx.project.updateMany({
+          where: { client: { name: c.name } },
           data: {
-            businessType: c.businessType ?? null,
             contractStart: c.contractStart ? new Date(c.contractStart) : null,
             contractEnd: c.contractEnd ? new Date(c.contractEnd) : null,
             billingCycle: c.billingCycle ?? [],
             reportCycle: c.reportCycle ?? [],
           },
         });
-        if (result.count > 0) updated++;
+        if (client.count > 0) updated++;
         else { skipped++; console.log(`  미매칭(DB에 없음): ${c.name}`); }
       }
     },

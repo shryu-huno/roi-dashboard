@@ -2,11 +2,11 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listClients, listArchivedClients } from "@/lib/data/clients";
-import { prisma } from "@/lib/db";
 import { getIncludeVat } from "@/lib/vat";
 import { NewClientForm } from "./NewClientForm";
 import { ArchiveClientButton } from "./ArchiveClientButton";
 import { RestoreClientButton } from "./RestoreClientButton";
+import { DeleteClientButton } from "./DeleteClientButton";
 import { VatToggle } from "./VatToggle";
 import { EasywelToggle } from "./EasywelToggle";
 
@@ -15,9 +15,8 @@ export default async function SettingsClientsPage() {
   const isAdmin = user.role === "ADMIN";
   const isPm = user.role === "PM";
   const ctx = getRlsContext(user);
-  const [clients, pms, archived, includeVat] = await Promise.all([
+  const [clients, archived, includeVat] = await Promise.all([
     listClients(ctx),
-    prisma.user.findMany({ where: { role: "PM", status: "ACTIVE" }, orderBy: { name: "asc" } }),
     isAdmin ? listArchivedClients(ctx) : Promise.resolve([]),
     getIncludeVat(),
   ]);
@@ -30,13 +29,7 @@ export default async function SettingsClientsPage() {
       </div>
 
       {/* 고객사 추가는 정산담당자/관리자만. PM은 배정받은 고객사 조회·상세 설정만 한다. */}
-      {!isPm && (
-        <NewClientForm
-          pms={pms
-            .map((p) => ({ id: p.id, label: p.name ?? p.email }))
-            .sort((a, b) => a.label.localeCompare(b.label, "ko"))}
-        />
-      )}
+      {!isPm && <NewClientForm />}
 
       <table className="w-full border-collapse text-sm">
         <thead>
@@ -44,7 +37,7 @@ export default async function SettingsClientsPage() {
             <th className="py-2">고객사</th>
             <th>상태</th>
             <th>사업자 구분</th>
-            <th>과업</th>
+            <th>프로젝트</th>
             <th>현대이지웰</th>
             {isAdmin && <th>삭제</th>}
           </tr>
@@ -73,9 +66,9 @@ export default async function SettingsClientsPage() {
 
       {isAdmin && (
         <section className="mt-10">
-          <h2 className="mb-2 text-base font-semibold">보관된 고객사</h2>
+          <h2 className="mb-2 text-base font-semibold">숨김 처리된 고객사</h2>
           <p className="mb-3 text-xs text-[var(--color-muted)]">
-            삭제(보관)된 고객사입니다. 목록·전사 집계에서 제외되며, 데이터는 보존됩니다. 복원하면 다시 표시됩니다.
+            삭제(숨김)된 고객사입니다. 목록·전사 집계에서 제외되며, 데이터는 보존됩니다. 복원하면 다시 표시됩니다. 삭제 시 연관 데이터까지 완전히 제거되며 되돌릴 수 없습니다.
           </p>
           {archived.length === 0 ? (
             <p className="text-sm text-[var(--color-muted)]">보관된 고객사가 없습니다.</p>
@@ -86,6 +79,7 @@ export default async function SettingsClientsPage() {
                   <th className="py-2">고객사</th>
                   <th>상태</th>
                   <th>복원</th>
+                  <th>삭제</th>
                 </tr>
               </thead>
               <tbody>
@@ -95,6 +89,9 @@ export default async function SettingsClientsPage() {
                     <td>{c.status}</td>
                     <td>
                       <RestoreClientButton id={c.id} />
+                    </td>
+                    <td>
+                      <DeleteClientButton id={c.id} name={c.name} />
                     </td>
                   </tr>
                 ))}

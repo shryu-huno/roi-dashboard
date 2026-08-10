@@ -22,6 +22,16 @@ export function formatCycle(values: string[]): string {
   return ordered.length ? ordered.join("·") : "미설정";
 }
 
+// 프로젝트명을 계약 기간(YYYY-MM-DD 문자열) 연도로 생성한다.
+// 같은 해면 "2026년", 다른 해면 "2025년~2026년", 한쪽만 있으면 그 연도, 둘 다 없으면 "".
+export function deriveProjectName(start: string, end: string): string {
+  const yearOf = (d: string) => (/^\d{4}/.test(d) ? d.slice(0, 4) : null);
+  const years = [yearOf(start), yearOf(end)].filter((y): y is string => y !== null);
+  if (years.length === 0) return "";
+  const uniq = [...new Set(years)];
+  return uniq.length === 1 ? `${uniq[0]}년` : `${uniq[0]}년~${uniq[uniq.length - 1]}년`;
+}
+
 export function filterClients<T extends { name: string; pmLabel: string; industry: string | null }>(rows: T[], query: string, mode: SortMode = "name"): T[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...rows];

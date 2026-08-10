@@ -14,7 +14,7 @@ export function ArchiveClientButton({ id, name }: { id: string; name: string }) 
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <button type="submit" className="text-[var(--color-danger)]">삭제</button>
+      <button type="submit" className="text-[var(--color-danger)]">삭제(숨김)</button>
     </form>
   );
 }

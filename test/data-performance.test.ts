@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { upsertPerformanceBatch, listPerformance, listPerformanceTotals } from "@/lib/data/performance";
-import { createClient } from "@/lib/data/clients";
-import { createTask } from "@/lib/data/tasks";
+import { mkClient, mkTask } from "./factories";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -22,10 +21,10 @@ describe("performance data layer", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
-    taskA1 = (await createTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000 })).id;
-    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
-    taskB1 = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000 })).id;
+    clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    taskA1 = (await mkTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000 })).id;
+    clientB = (await mkClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
+    taskB1 = (await mkTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000 })).id;
   });
 
   it("computes amount = unitPrice * count on save", async () => {

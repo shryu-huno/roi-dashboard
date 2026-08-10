@@ -22,6 +22,8 @@ describe("RLS: PM sees only own clients", () => {
   let pmB: string;
   let clientA: string;
   let clientB: string;
+  let projectA: string;
+  let projectB: string;
   let taskA: string;
 
   beforeEach(async () => {
@@ -31,10 +33,13 @@ describe("RLS: PM sees only own clients", () => {
     pmA = a.id;
     pmB = b.id;
     await withRLS(ADMIN, async (tx) => {
+      // 접근 권한(RLS)은 ClientManager 기준을 유지한다. 프로젝트에도 담당 PM(ProjectManager)을 둔다.
       clientA = (await tx.client.create({ data: { name: "A사", managers: { create: [{ userId: pmA }] } } })).id;
       clientB = (await tx.client.create({ data: { name: "B사", managers: { create: [{ userId: pmB }] } } })).id;
-      taskA = (await tx.task.create({ data: { clientId: clientA, name: "심리진단", unitPrice: 10000 } })).id;
-      await tx.task.create({ data: { clientId: clientB, name: "전문가상담", unitPrice: 20000 } });
+      projectA = (await tx.project.create({ data: { clientId: clientA, name: "P-A", managers: { create: [{ userId: pmA }] } } })).id;
+      projectB = (await tx.project.create({ data: { clientId: clientB, name: "P-B", managers: { create: [{ userId: pmB }] } } })).id;
+      taskA = (await tx.task.create({ data: { clientId: clientA, projectId: projectA, name: "심리진단", unitPrice: 10000 } })).id;
+      await tx.task.create({ data: { clientId: clientB, projectId: projectB, name: "전문가상담", unitPrice: 20000 } });
     });
   });
 
@@ -46,6 +51,27 @@ describe("RLS: PM sees only own clients", () => {
   it("PM A reads only tasks under client A (child-table policy)", async () => {
     const rows = await withRLS({ userId: pmA, role: "PM" }, (tx) => tx.task.findMany());
     expect(rows.map((r) => r.id)).toEqual([taskA]);
+  });
+
+  it("PM A reads only projects under client A (Project policy via ClientManager)", async () => {
+    const rows = await withRLS({ userId: pmA, role: "PM" }, (tx) => tx.project.findMany());
+    expect(rows.map((r) => r.id)).toEqual([projectA]);
+  });
+
+  it("PM A cannot create a project under PM B's client (Project WITH CHECK)", async () => {
+    await expect(
+      withRLS({ userId: pmA, role: "PM" }, (tx) =>
+        tx.project.create({ data: { clientId: clientB, name: "탈취프로젝트" } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
+  });
+
+  it("PM A cannot assign a project manager on PM B's project (ProjectManager WITH CHECK)", async () => {
+    await expect(
+      withRLS({ userId: pmA, role: "PM" }, (tx) =>
+        tx.projectManager.create({ data: { projectId: projectB, userId: pmA } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
   });
 
   it("ADMIN reads all clients", async () => {
@@ -73,7 +99,7 @@ describe("RLS: PM sees only own clients", () => {
   it("PM A cannot create a task under PM B's client (child-table WITH CHECK)", async () => {
     await expect(
       withRLS({ userId: pmA, role: "PM" }, (tx) =>
-        tx.task.create({ data: { clientId: clientB, name: "탈취과업", unitPrice: 1000 } }),
+        tx.task.create({ data: { clientId: clientB, projectId: projectB, name: "탈취과업", unitPrice: 1000 } }),
       ),
     ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
   });
