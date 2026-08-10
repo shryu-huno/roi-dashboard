@@ -33,11 +33,12 @@ export default async function ClientsPage() {
       status: c.status,
       industry: c.industry,
       pmLabel: labels.length ? labels.join(", ") : "미배정",
-      // 고객사 설정에서 실적 계약 체크 ON한 고객사만 카드에서 "실적 계약" 표시(달성률 대신).
-      performanceContract: c.performanceContract,
+      // 주기·실적계약은 프로젝트 단위 → 고객사 카드에선 활성 프로젝트 전체를 합산해 표시한다.
+      // 프로젝트 하나라도 실적 계약이면 달성률 대신 "실적 계약" 표시.
+      performanceContract: c.projects.some((p) => p.performanceContract),
       progress: attainment(perf.get(c.id) ?? 0, contract.get(c.id) ?? 0),
-      billingCycle: c.billingCycle,
-      reportCycle: c.reportCycle,
+      billingCycle: [...new Set(c.projects.flatMap((p) => p.billingCycle))],
+      reportCycle: [...new Set(c.projects.flatMap((p) => p.reportCycle))],
       hyundaiEasywel: c.hyundaiEasywel,
     };
   });

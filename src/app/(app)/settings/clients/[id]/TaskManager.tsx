@@ -95,7 +95,7 @@ function StatusMessage({ state }: { state: ActionState }) {
   return null;
 }
 
-function NewTaskForm({ clientId }: { clientId: string }) {
+function NewTaskForm({ clientId, projectId }: { clientId: string; projectId: string }) {
   const [state, formAction] = useActionState(createTaskAction, OK);
   const [category, setCategory] = useState("");
   const [etcName, setEtcName] = useState("");
@@ -117,6 +117,7 @@ function NewTaskForm({ clientId }: { clientId: string }) {
   return (
     <form action={formAction} className={cardCls}>
       <input type="hidden" name="clientId" value={clientId} />
+      <input type="hidden" name="projectId" value={projectId} />
       <CategoryPicker category={category} setCategory={setCategory} etcName={etcName} setEtcName={setEtcName} />
       <label className={labelCls}>
         단가(원)
@@ -156,7 +157,7 @@ function NewTaskForm({ clientId }: { clientId: string }) {
   );
 }
 
-function EditTaskRow({ clientId, task }: { clientId: string; task: Task }) {
+function EditTaskRow({ clientId, projectId, task }: { clientId: string; projectId: string; task: Task }) {
   const [state, formAction] = useActionState(updateTaskAction, OK);
   const [delState, delAction] = useActionState(deleteTaskAction, OK);
   // 저장된 과업명을 분류 선택 + (기타)자유입력으로 분해해 초기값으로 쓴다.
@@ -173,6 +174,7 @@ function EditTaskRow({ clientId, task }: { clientId: string; task: Task }) {
       <form action={formAction} className="flex flex-wrap items-end gap-4">
         <input type="hidden" name="id" value={task.id} />
         <input type="hidden" name="clientId" value={clientId} />
+        <input type="hidden" name="projectId" value={projectId} />
         <CategoryPicker category={category} setCategory={setCategory} etcName={etcName} setEtcName={setEtcName} />
         <label className={labelCls}>
           단가(원)
@@ -212,6 +214,7 @@ function EditTaskRow({ clientId, task }: { clientId: string; task: Task }) {
       <form action={delAction} className="flex items-end gap-2">
         <input type="hidden" name="id" value={task.id} />
         <input type="hidden" name="clientId" value={clientId} />
+        <input type="hidden" name="projectId" value={projectId} />
         <button type="submit" className="rounded border border-[var(--color-border)] px-3 py-2 text-sm">삭제</button>
         <StatusMessage state={delState} />
       </form>
@@ -219,14 +222,14 @@ function EditTaskRow({ clientId, task }: { clientId: string; task: Task }) {
   );
 }
 
-export function TaskManager({ clientId, tasks }: { clientId: string; tasks: Task[] }) {
+export function TaskManager({ clientId, projectId, tasks }: { clientId: string; projectId: string; tasks: Task[] }) {
   return (
     <div>
-      <NewTaskForm clientId={clientId} />
+      <NewTaskForm clientId={clientId} projectId={projectId} />
       {tasks.length === 0 ? (
         <p className="text-[var(--color-muted)]">등록된 과업이 없습니다.</p>
       ) : (
-        tasks.map((t) => <EditTaskRow key={t.id} clientId={clientId} task={t} />)
+        tasks.map((t) => <EditTaskRow key={t.id} clientId={clientId} projectId={projectId} task={t} />)
       )}
     </div>
   );

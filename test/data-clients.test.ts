@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { listClients, getClient, createClient, updateClient, archiveClient, restoreClient, listArchivedClients, setClientEasywel } from "@/lib/data/clients";
-import { createTask } from "@/lib/data/tasks";
+import { listClients, getClient, updateClient, archiveClient, restoreClient, listArchivedClients, setClientEasywel } from "@/lib/data/clients";
+import { mkClient, mkTask } from "./factories";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -23,51 +23,51 @@ describe("clients data layer", () => {
   });
 
   it("ADMIN creates and lists clients", async () => {
-    await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
-    await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    await mkClient(ADMIN, { name: "B사", pmIds: [pmB] });
     const rows = await listClients(ADMIN);
     expect(rows.map((r) => r.name)).toEqual(["A사", "B사"]);
   });
 
   it("PM sees only own client (RLS)", async () => {
-    await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
-    await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    await mkClient(ADMIN, { name: "B사", pmIds: [pmB] });
     const rows = await listClients({ userId: pmA, role: "PM" });
     expect(rows.map((r) => r.name)).toEqual(["A사"]);
   });
 
   it("PM cannot update another PM's client (RLS → ok:false)", async () => {
-    const b = await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
-    const res = await updateClient({ userId: pmA, role: "PM" }, b.id, { name: "해킹", pmIds: [pmB] });
+    const b = await mkClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    const res = await updateClient({ userId: pmA, role: "PM" }, b.id, { name: "해킹" });
     expect(res.ok).toBe(false);
     const still = await withRLS(ADMIN, (tx) => tx.client.findUnique({ where: { id: b.id } }));
     expect(still?.name).toBe("B사");
   });
 
   it("getClient returns the client by id for ADMIN", async () => {
-    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    const c = await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
     const found = await getClient(ADMIN, c.id);
     expect(found?.name).toBe("A사");
   });
 
   it("PM cannot getClient another PM's client (RLS → null)", async () => {
-    const b = await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    const b = await mkClient(ADMIN, { name: "B사", pmIds: [pmB] });
     const found = await getClient({ userId: pmA, role: "PM" }, b.id);
     expect(found).toBeNull();
   });
 
   it("updateClient patches only provided fields, preserving unset ones", async () => {
-    const start = new Date("2026-01-01T00:00:00.000Z");
-    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA], contractStart: start });
+    // 계약기간은 프로젝트로 이동했으므로, 고객사 레벨의 보존 검증은 industry로 한다.
+    const c = await mkClient(ADMIN, { name: "A사", pmIds: [pmA], industry: "제조" });
     const res = await updateClient(ADMIN, c.id, { name: "새이름" });
     expect(res.ok).toBe(true);
     const found = await getClient(ADMIN, c.id);
     expect(found?.name).toBe("새이름");
-    expect(found?.contractStart?.toISOString()).toBe(start.toISOString());
+    expect(found?.industry).toBe("제조");
   });
 
   it("creates and updates industry", async () => {
-    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA], industry: "제조" });
+    const c = await mkClient(ADMIN, { name: "A사", pmIds: [pmA], industry: "제조" });
     expect((await getClient(ADMIN, c.id))?.industry).toBe("제조");
     await updateClient(ADMIN, c.id, { name: "A사", industry: "IT" });
     expect((await getClient(ADMIN, c.id))?.industry).toBe("IT");
@@ -76,7 +76,7 @@ describe("clients data layer", () => {
   });
 
   it("setClientEasywel toggles the flag (default false)", async () => {
-    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    const c = await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
     expect((await getClient(ADMIN, c.id))?.hyundaiEasywel).toBe(false);
     expect((await setClientEasywel(ADMIN, c.id, true)).ok).toBe(true);
     expect((await getClient(ADMIN, c.id))?.hyundaiEasywel).toBe(true);
@@ -85,15 +85,15 @@ describe("clients data layer", () => {
   });
 
   it("PM cannot setClientEasywel on another PM's client (RLS → ok:false)", async () => {
-    const b = await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    const b = await mkClient(ADMIN, { name: "B사", pmIds: [pmB] });
     const res = await setClientEasywel({ userId: pmA, role: "PM" }, b.id, true);
     expect(res.ok).toBe(false);
     expect((await getClient(ADMIN, b.id))?.hyundaiEasywel).toBe(false);
   });
 
   it("archiveClient hides client from list but preserves its data", async () => {
-    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
-    await createTask(ADMIN, { clientId: c.id, name: "과업1", unitPrice: 1000, contractCount: null });
+    const c = await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    await mkTask(ADMIN, { clientId: c.id, name: "과업1", unitPrice: 1000, contractCount: null });
 
     const res = await archiveClient(ADMIN, c.id);
     expect(res.ok).toBe(true);
@@ -109,13 +109,13 @@ describe("clients data layer", () => {
   });
 
   it("archiveClient on an already-archived client returns ok:false", async () => {
-    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    const c = await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
     expect((await archiveClient(ADMIN, c.id)).ok).toBe(true);
     expect((await archiveClient(ADMIN, c.id)).ok).toBe(false);
   });
 
   it("PM cannot archive another PM's client (RLS → ok:false)", async () => {
-    const b = await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    const b = await mkClient(ADMIN, { name: "B사", pmIds: [pmB] });
     const res = await archiveClient({ userId: pmA, role: "PM" }, b.id);
     expect(res.ok).toBe(false);
     const row = await withRLS(ADMIN, (tx) => tx.client.findUnique({ where: { id: b.id } }));
@@ -123,8 +123,8 @@ describe("clients data layer", () => {
   });
 
   it("listArchivedClients returns only archived; restoreClient brings it back", async () => {
-    const a = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
-    await createClient(ADMIN, { name: "B사", pmIds: [pmB] });
+    const a = await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    await mkClient(ADMIN, { name: "B사", pmIds: [pmB] });
     await archiveClient(ADMIN, a.id);
 
     // 보관 목록엔 A사만, 일반 목록엔 B사만.
@@ -138,7 +138,7 @@ describe("clients data layer", () => {
   });
 
   it("restoreClient on a non-archived client returns ok:false", async () => {
-    const c = await createClient(ADMIN, { name: "A사", pmIds: [pmA] });
+    const c = await mkClient(ADMIN, { name: "A사", pmIds: [pmA] });
     expect((await restoreClient(ADMIN, c.id)).ok).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import { resolvePeriod } from "@/lib/period";
 import { prisma } from "@/lib/db";
 import { withVat } from "@/lib/vat";
 import { sessionDateBetween, sessionMonth } from "@/lib/consulting-basis";
+import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
 
 // 고객사 where 조각: 보관(소프트 삭제) 제외 + (옵션) 현대이지웰 고객사만.
 function clientWhere(easywelOnly: boolean) {
@@ -427,5 +428,82 @@ export function getClientDetail(
     });
 
     return { client: { id: client.id, name: client.name, status: client.status }, contract, tasks: taskRows, monthly, expenses };
+  });
+}
+
+export type ProjectBreakdownRow = {
+  id: string;
+  name: string;
+  contractStart: string | null; // "yyyy-mm-dd" | null
+  contractEnd: string | null;
+  performanceContract: boolean;
+  performance: number;
+  billing: number;
+  deposit: number;
+  expense: number;
+  contract: number;
+};
+
+function toYm(d: Date): Ym {
+  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+// 고객사의 프로젝트별 요약. 재무 데이터는 고객사 단위로 저장되므로, 각 프로젝트의 기간 창으로
+// 잘라 귀속한다(프로젝트가 시간상 겹치지 않는다는 전제).
+// - fiscalBasis=false(프로젝트 기준): 프로젝트 계약기간(contractStart~End) 월범위로 집계.
+//   계약기간이 비어 있으면 선택 연도(1~12월)로 대체한다.
+// - fiscalBasis=true(회계연도 기준): 선택 연도(1~12월)로 집계.
+export function getClientProjectBreakdown(
+  ctx: RlsContext,
+  clientId: string,
+  year: number,
+  includeVat = false,
+  fiscalBasis = false,
+): Promise<ProjectBreakdownRow[]> {
+  return withRLS(ctx, async (tx) => {
+    const projects = await tx.project.findMany({
+      where: { clientId, deletedAt: null },
+      orderBy: { createdAt: "asc" },
+      include: { tasks: { select: { id: true, contractAmount: true } } },
+    });
+    const rows: ProjectBreakdownRow[] = [];
+    for (const p of projects) {
+      // 기간 창 결정.
+      const [from, to] =
+        !fiscalBasis && p.contractStart && p.contractEnd
+          ? orderRange(toYm(p.contractStart), toYm(p.contractEnd))
+          : [{ year, month: 1 }, { year, month: 12 }];
+      const ym = eachMonth(from, to).map((m) => ({ year: m.year, month: m.month }));
+      const taskIds = p.tasks.map((t) => t.id);
+
+      // 순차 await (같은 tx에서 병렬 쿼리 금지).
+      const perf = taskIds.length
+        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: taskIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
+        : 0;
+      const billing = (await tx.monthlyBilling.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
+      const deposit = (await tx.monthlyDeposit.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
+      const expense = (await tx.expense.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
+      const consulting = (await tx.consultingExpense.aggregate({
+        where: fiscalBasis ? { clientId, OR: ym } : { clientId, sessionDate: sessionDateBetween(from, to) },
+        _sum: { amount: true },
+      }))._sum.amount ?? 0;
+      const corporateCard = (await tx.corporateCardExpense.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
+      const contract = p.tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
+
+      rows.push({
+        id: p.id,
+        name: p.name,
+        contractStart: p.contractStart ? p.contractStart.toISOString().slice(0, 10) : null,
+        contractEnd: p.contractEnd ? p.contractEnd.toISOString().slice(0, 10) : null,
+        performanceContract: p.performanceContract,
+        performance: withVat(perf, includeVat),
+        billing: withVat(billing, includeVat),
+        deposit: withVat(deposit, includeVat),
+        // 지출은 부가세 미포함(원장 원값).
+        expense: expense + consulting + corporateCard,
+        contract: withVat(contract, includeVat),
+      });
+    }
+    return rows;
   });
 }

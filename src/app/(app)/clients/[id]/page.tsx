@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { parsePeriodParams, resolvePeriod } from "@/lib/period";
-import { getClientDetail } from "@/lib/data/metrics";
+import { getClientDetail, getClientProjectBreakdown } from "@/lib/data/metrics";
 import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
 import { getFiscalBasis } from "@/lib/basis";
@@ -29,7 +29,10 @@ export default async function ClientDetailPage({
   const includeVat = await getIncludeVat();
   const fiscalBasis = await getFiscalBasis();
 
-  const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis);
+  const [detail, projectRows] = await Promise.all([
+    getClientDetail(ctx, id, year, period, includeVat, fiscalBasis),
+    getClientProjectBreakdown(ctx, id, year, includeVat, fiscalBasis),
+  ]);
   if (!detail) notFound();
 
   const { startMonth, endMonth } = resolvePeriod(period);
@@ -58,6 +61,52 @@ export default async function ClientDetailPage({
         <KpiCard title="달성률" value={formatPercent(attainment(perf, contract))} sub={`계약금 ${formatWon(contract)}`} />
         <KpiCard title="청구율" value={formatPercent(billingRate(billing, perf))} />
         <KpiCard title="수금률" value={formatPercent(collectionRate(deposit, billing))} />
+      </section>
+
+      <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">
+          프로젝트별 요약 <span className="font-normal text-[var(--color-muted)]">({fiscalBasis ? "회계연도 기준 · " + year + "년" : "프로젝트 기준 · 계약기간"})</span>
+        </h2>
+        {projectRows.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">등록된 프로젝트가 없습니다.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
+                  <th className="py-2 pr-3">프로젝트</th>
+                  <th className="px-2 whitespace-nowrap">계약기간</th>
+                  <th className="px-2 text-right">수익률</th>
+                  <th className="px-2 text-right">달성률</th>
+                  <th className="px-2 text-right">실적</th>
+                  <th className="px-2 text-right">청구</th>
+                  <th className="px-2 text-right">입금</th>
+                  <th className="px-2 text-right">지출</th>
+                  <th className="px-2 text-right">계약금</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectRows.map((p) => (
+                  <tr key={p.id} className="border-b border-[var(--color-border)]">
+                    <td className="py-2 pr-3 whitespace-nowrap">{p.name}</td>
+                    <td className="px-2 whitespace-nowrap text-[var(--color-muted)]">
+                      {p.contractStart && p.contractEnd ? `${p.contractStart} ~ ${p.contractEnd}` : "—"}
+                    </td>
+                    <td className="px-2 text-right whitespace-nowrap">{formatPercent(margin(p.performance, p.expense))}</td>
+                    <td className="px-2 text-right whitespace-nowrap">
+                      {p.performanceContract ? "실적 계약" : formatPercent(attainment(p.performance, p.contract))}
+                    </td>
+                    <td className="px-2 text-right whitespace-nowrap">{formatWon(p.performance)}</td>
+                    <td className="px-2 text-right whitespace-nowrap">{formatWon(p.billing)}</td>
+                    <td className="px-2 text-right whitespace-nowrap">{formatWon(p.deposit)}</td>
+                    <td className="px-2 text-right whitespace-nowrap">{formatWon(p.expense)}</td>
+                    <td className="px-2 text-right whitespace-nowrap">{formatWon(p.contract)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">

@@ -3,7 +3,6 @@
 import { useActionState } from "react";
 import { updateClientAction } from "../actions";
 import { OK } from "@/lib/action-state";
-import { CYCLE_VALUES } from "@/lib/clients/summary-view";
 
 type ClientInit = {
   id: string;
@@ -11,16 +10,12 @@ type ClientInit = {
   status: string;
   businessType: string | null;
   industry: string | null;
-  contractStart: string; // "yyyy-mm-dd" | ""
-  contractEnd: string;
-  billingCycle: string[];
-  reportCycle: string[];
-  performanceContract: boolean;
 };
 
 const labelCls = "flex flex-col text-xs text-[var(--color-muted)]";
 const inputCls = "mt-1 rounded border border-[var(--color-border)] px-3 py-2 text-sm";
 
+// 고객사 기본정보만. 청구·보고 주기, 계약기간, 실적계약, 담당 PM은 프로젝트 단위로 관리한다.
 export function EditClientForm({ client }: { client: ClientInit }) {
   const [state, formAction] = useActionState(updateClientAction, OK);
   return (
@@ -45,41 +40,6 @@ export function EditClientForm({ client }: { client: ClientInit }) {
       <label className={labelCls}>
         업종
         <input name="industry" defaultValue={client.industry ?? ""} className={`${inputCls} w-40`} />
-      </label>
-      <label className={labelCls}>
-        계약 시작
-        <input type="date" name="contractStart" defaultValue={client.contractStart} className={inputCls} />
-      </label>
-      <label className={labelCls}>
-        계약 종료
-        <input type="date" name="contractEnd" defaultValue={client.contractEnd} className={inputCls} />
-      </label>
-      <div className={labelCls}>
-        <span>청구 주기 (복수 선택)</span>
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-          {CYCLE_VALUES.map((v) => (
-            <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
-              <input type="checkbox" name="billingCycle" value={v} defaultChecked={client.billingCycle.includes(v)} />
-              {v}
-            </label>
-          ))}
-        </div>
-      </div>
-      <div className={labelCls}>
-        <span>보고 주기 (복수 선택)</span>
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-          {CYCLE_VALUES.map((v) => (
-            <label key={v} className="flex items-center gap-1 text-sm text-[var(--color-fg)]">
-              <input type="checkbox" name="reportCycle" value={v} defaultChecked={client.reportCycle.includes(v)} />
-              {v}
-            </label>
-          ))}
-        </div>
-      </div>
-      {/* 실적 계약 여부 — 저장 버튼 좌측. 체크 시 실적 계약으로 취급(목록에서 "실적 계약" 표시). */}
-      <label className="flex items-center gap-1.5 self-end pb-2 text-sm text-[var(--color-fg)]">
-        <input type="checkbox" name="performanceContract" value="true" defaultChecked={client.performanceContract} />
-        실적 계약
       </label>
       <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">저장</button>
       {state.ok && state.message && <span className="text-sm text-[var(--color-primary)]">{state.message}</span>}

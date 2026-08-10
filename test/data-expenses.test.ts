@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { upsertExpense, listExpenses } from "@/lib/data/expenses";
-import { createClient } from "@/lib/data/clients";
+import { mkClient } from "./factories";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
 
@@ -20,8 +20,8 @@ describe("expenses data layer", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
-    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
+    clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    clientB = (await mkClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
   });
 
   it("upserts one row per category and updates in place", async () => {

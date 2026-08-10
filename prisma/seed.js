@@ -76,6 +76,16 @@ async function main() {
             status: "진행중",
             industry: null,
             businessType: c.businessType || null,
+            // 접근 권한(RLS)은 ClientManager 기준을 유지한다.
+            managers: userId ? { create: [{ userId }] } : undefined,
+          },
+        });
+
+        // 청구·보고 주기, 계약기간, 담당 PM, 과업은 프로젝트가 소유한다. 시드는 고객사당 기본 프로젝트 1개.
+        const project = await tx.project.create({
+          data: {
+            clientId: client.id,
+            name: "기본 프로젝트",
             contractStart: c.contractStart ? new Date(c.contractStart) : null,
             contractEnd: c.contractEnd ? new Date(c.contractEnd) : null,
             billingCycle: c.billingCycle || [],
@@ -88,6 +98,7 @@ async function main() {
           const task = await tx.task.create({
             data: {
               clientId: client.id,
+              projectId: project.id,
               name: t.name,
               unitPrice: t.unitPrice,
               contractCount: t.contractCount,

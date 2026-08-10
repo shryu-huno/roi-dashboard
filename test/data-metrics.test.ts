@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { createClient, updateClient, archiveClient, setClientEasywel } from "@/lib/data/clients";
-import { createTask } from "@/lib/data/tasks";
+import { archiveClient, setClientEasywel } from "@/lib/data/clients";
+import { mkClient, mkTask, setClientPms } from "./factories";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
@@ -28,10 +28,10 @@ describe("metrics: period totals & contract total", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
-    taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
-    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
-    taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
+    clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    taskA = (await mkTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
+    clientB = (await mkClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
+    taskB = (await mkTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
     // A사: 3월 실적 4회(40000), 지출 3월 5000, 청구 3월 30000, 입금 3월 20000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
@@ -101,8 +101,8 @@ describe("metrics: trend & expense breakdown", () => {
   beforeEach(async () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
-    taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000 })).id;
+    clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    taskA = (await mkTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000 })).id;
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_TRANSPORT", amount: 3000 });
@@ -129,10 +129,10 @@ describe("metrics: client & PM summaries", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", name: "PM A", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", name: "PM B", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
-    taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
-    clientB = (await createClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
-    taskB = (await createTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
+    clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    taskA = (await mkTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
+    clientB = (await mkClient(ADMIN, { name: "B사", pmIds: [pmB] })).id;
+    taskB = (await mkTask(ADMIN, { clientId: clientB, name: "상담", unitPrice: 20000, contractCount: 40 })).id; // 계약금 800000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
     await upsertPerformanceBatch(ADMIN, { clientId: clientB, year: 2026, month: 3, rows: [{ taskId: taskB, count: 1, amount: null }] });
@@ -158,7 +158,7 @@ describe("metrics: client & PM summaries", () => {
   });
 
   it("client summary uses 미배정 for no PM and returns industry", async () => {
-    await createClient(ADMIN, { name: "C사", industry: "제조" });
+    await mkClient(ADMIN, { name: "C사", industry: "제조" });
     const rows = await getClientSummaries(ADMIN, 2026, "all");
     const c = rows.find((r) => r.name === "C사")!;
     expect(c.pmLabel).toBe("미배정");
@@ -174,7 +174,7 @@ describe("metrics: client & PM summaries", () => {
   });
 
   it("multi-PM client: labels join and each PM gets full amount", async () => {
-    await updateClient(ADMIN, clientA, { name: "A사", pmIds: [pmA, pmB] }); // A사 담당 2명
+    await setClientPms(ADMIN, clientA, [pmA, pmB]); // A사 담당 2명(프로젝트 PM → ClientManager 동기화)
     const summaries = await getClientSummaries(ADMIN, 2026, "all");
     expect(summaries.find((r) => r.name === "A사")!.pmLabel).toBe("PM A, PM B");
 
@@ -191,8 +191,8 @@ describe("metrics: client detail", () => {
     await reset();
     pmA = (await prisma.user.create({ data: { email: "pma@huno.kr", role: "PM", status: "ACTIVE" } })).id;
     pmB = (await prisma.user.create({ data: { email: "pmb@huno.kr", role: "PM", status: "ACTIVE" } })).id;
-    clientA = (await createClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
-    taskA = (await createTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
+    clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
+    taskA = (await mkTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
     await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
@@ -229,7 +229,7 @@ describe("metrics: 상담비 집계 기준 (프로젝트=실시일시 / 회계�
   let clientA: string;
   beforeEach(async () => {
     await reset();
-    clientA = (await createClient(ADMIN, { name: "A사" })).id;
+    clientA = (await mkClient(ADMIN, { name: "A사" })).id;
     // 실시일시와 지급월이 어긋나는 상담비 2건을 넣어 기준별 집계 차이를 만든다.
     await withRLS(ADMIN, (tx) =>
       tx.consultingExpense.createMany({

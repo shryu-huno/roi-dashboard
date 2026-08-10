@@ -5,30 +5,24 @@ import { revalidatePath } from "next/cache";
 import { requireRole, requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { VAT_COOKIE } from "@/lib/vat";
-import { clientSchema, taskSchema } from "@/lib/validation/schemas";
-import { createClient, updateClient, updateClientPms, archiveClient, restoreClient, setClientEasywel } from "@/lib/data/clients";
+import { clientSchema, projectSchema, taskSchema } from "@/lib/validation/schemas";
+import { deriveProjectName } from "@/lib/clients/summary-view";
+import { createClient, updateClient, archiveClient, restoreClient, hardDeleteClient, setClientEasywel } from "@/lib/data/clients";
+import { createProject, updateProject, updateProjectPms } from "@/lib/data/projects";
 import { createTask, updateTask, deleteTask } from "@/lib/data/tasks";
 import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function createClientAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireRole("SETTLEMENT");
   const ctx = getRlsContext(user);
+  // 담당 PM·주기·계약기간은 고객사 생성 후 프로젝트를 추가하며 지정한다.
   const parsed = clientSchema.safeParse({
     name: formData.get("name"),
     status: formData.get("status") ?? undefined,
     businessType: formData.get("businessType"),
     industry: formData.get("industry"),
-    contractStart: formData.get("contractStart"),
-    contractEnd: formData.get("contractEnd"),
-    billingCycle: formData.getAll("billingCycle"),
-    reportCycle: formData.getAll("reportCycle"),
-    performanceContract: formData.get("performanceContract"),
-    pmIds: formData.getAll("pmIds"),
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 고객사명을 확인하세요." };
-  if (!parsed.data.pmIds || parsed.data.pmIds.length === 0) {
-    return { ok: false, error: "담당 PM을 최소 1명 이상 선택하세요." };
-  }
   await createClient(ctx, parsed.data);
   revalidatePath("/settings/clients");
   return SAVED;
@@ -39,18 +33,11 @@ export async function updateClientAction(_prev: ActionState, formData: FormData)
   const user = await requireRole("PM");
   const ctx = getRlsContext(user);
   const id = String(formData.get("id"));
-  // 담당 PM은 별도 폼(updateClientPmsAction)에서 관리한다. 여기서 pmIds를 넘기면
-  // 빈 폼이 배정을 전부 지워버리므로, 이 액션은 PM 배정을 건드리지 않는다.
   const parsed = clientSchema.safeParse({
     name: formData.get("name"),
     status: formData.get("status") ?? undefined,
     businessType: formData.get("businessType"),
     industry: formData.get("industry"),
-    contractStart: formData.get("contractStart"),
-    contractEnd: formData.get("contractEnd"),
-    billingCycle: formData.getAll("billingCycle"),
-    reportCycle: formData.getAll("reportCycle"),
-    performanceContract: formData.get("performanceContract"),
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다." };
   const result = await updateClient(ctx, id, parsed.data);
@@ -58,13 +45,67 @@ export async function updateClientAction(_prev: ActionState, formData: FormData)
   return result.ok ? SAVED : result;
 }
 
-export async function updateClientPmsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+// 프로젝트명은 항상 계약 기간 연도로 자동 생성한다(입력란 없음). 계약 기간이 없으면 "미정".
+function projectNameFrom(formData: FormData): string {
+  const start = String(formData.get("contractStart") ?? "");
+  const end = String(formData.get("contractEnd") ?? "");
+  return deriveProjectName(start, end) || "미정";
+}
+
+// 프로젝트 추가 — 정산담당자/관리자만(담당 PM 배정을 포함).
+export async function createProjectAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("SETTLEMENT");
+  const ctx = getRlsContext(user);
+  const clientId = String(formData.get("clientId"));
+  const parsed = projectSchema.safeParse({
+    clientId,
+    name: projectNameFrom(formData),
+    status: formData.get("status") ?? undefined,
+    contractStart: formData.get("contractStart"),
+    contractEnd: formData.get("contractEnd"),
+    billingCycle: formData.getAll("billingCycle"),
+    reportCycle: formData.getAll("reportCycle"),
+    performanceContract: formData.get("performanceContract"),
+    pmIds: formData.getAll("pmIds"),
+  });
+  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다." };
+  await createProject(ctx, clientId, parsed.data);
+  revalidatePath(`/settings/clients/${clientId}`);
+  return SAVED;
+}
+
+// 프로젝트 기본정보 수정 — PM도 본인 담당 프로젝트를 수정할 수 있다(RLS로 범위 제한).
+// 담당 PM은 별도 폼(updateProjectPmsAction)에서 관리하므로 여기선 pmIds를 넘기지 않는다.
+export async function updateProjectAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("PM");
+  const ctx = getRlsContext(user);
+  const id = String(formData.get("id"));
+  const clientId = String(formData.get("clientId"));
+  const parsed = projectSchema.safeParse({
+    clientId,
+    name: projectNameFrom(formData), // 계약 기간 연도로 재생성(입력란 없음).
+    status: formData.get("status") ?? undefined,
+    contractStart: formData.get("contractStart"),
+    contractEnd: formData.get("contractEnd"),
+    billingCycle: formData.getAll("billingCycle"),
+    reportCycle: formData.getAll("reportCycle"),
+    performanceContract: formData.get("performanceContract"),
+  });
+  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다." };
+  const result = await updateProject(ctx, id, parsed.data);
+  revalidatePath(`/settings/clients/${clientId}`);
+  return result.ok ? SAVED : result;
+}
+
+// 프로젝트 담당 PM 배정 — 정산담당자/관리자만. ClientManager(접근 권한)를 동기화한다.
+export async function updateProjectPmsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireRole("SETTLEMENT");
   const ctx = getRlsContext(user);
   const id = String(formData.get("id"));
+  const clientId = String(formData.get("clientId"));
   const pmIds = formData.getAll("pmIds").map(String).filter((x) => x !== "");
-  const result = await updateClientPms(ctx, id, pmIds);
-  revalidatePath(`/settings/clients/${id}`);
+  const result = await updateProjectPms(ctx, id, pmIds);
+  revalidatePath(`/settings/clients/${clientId}`);
   return result.ok ? SAVED : result;
 }
 
@@ -92,11 +133,20 @@ export async function restoreClientAction(formData: FormData): Promise<void> {
   revalidatePath("/settings/clients");
 }
 
+// 하드 삭제 — 관리자(ADMIN) 전용. 숨김 처리된 고객사만 완전 삭제(연관 데이터 포함, 되돌릴 수 없음).
+export async function hardDeleteClientAction(formData: FormData): Promise<void> {
+  const user = await requireRole("ADMIN");
+  const ctx = getRlsContext(user);
+  await hardDeleteClient(ctx, String(formData.get("id")));
+  revalidatePath("/settings/clients");
+}
+
 export async function createTaskAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireRole("PM");
   const ctx = getRlsContext(user);
   const parsed = taskSchema.safeParse({
     clientId: formData.get("clientId"),
+    projectId: formData.get("projectId"),
     name: formData.get("name"),
     unitPrice: formData.get("unitPrice"),
     contractCount: formData.get("contractCount"),
@@ -114,6 +164,7 @@ export async function updateTaskAction(_prev: ActionState, formData: FormData): 
   const id = String(formData.get("id"));
   const parsed = taskSchema.safeParse({
     clientId: formData.get("clientId"),
+    projectId: formData.get("projectId"),
     name: formData.get("name"),
     unitPrice: formData.get("unitPrice"),
     contractCount: formData.get("contractCount"),

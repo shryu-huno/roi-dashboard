@@ -74,6 +74,7 @@ model User {
   updatedAt DateTime   @updatedAt
 
   managedClients ClientManager[]
+  managedProjects ProjectManager[]
   accounts  Account[]
   sessions  Session[]
 
@@ -86,24 +87,57 @@ model Client {
   name         String
   status       String   @default("진행중")
   industry     String?
-  contractStart DateTime?
-  contractEnd   DateTime?
   businessType String?  // 사업자 구분: 휴노 | 휴노INC
   hyundaiEasywel Boolean @default(false) // 현대이지웰 소개로 계약한 고객사
-  billingCycle String[] @default([]) // 청구 주기(복수): 월/분기/중간/최종
-  reportCycle  String[] @default([]) // 보고 주기(복수): 월/분기/중간/최종
-  performanceContract Boolean @default(false) // 실적 계약 여부. true=계약금 대신 실적 기준으로 보는 고객사(목록에서 달성률 대신 "실적 계약" 표시).
   deletedAt    DateTime? // 소프트 삭제(보관). null=활성, 값=보관됨(목록에서 숨김).
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // 청구·보고 주기, 계약기간, 실적계약 여부, 과업은 Project 계층으로 이동했다.
   managers     ClientManager[]
+  projects     Project[]
   tasks        Task[]
   billings     MonthlyBilling[]
   deposits     MonthlyDeposit[]
   expenses     Expense[]
   consultingExpenses ConsultingExpense[]
   corporateCardExpenses CorporateCardExpense[]
+}
+
+// 고객사 아래의 프로젝트(계약). 청구·보고 주기, 계약기간, 담당 PM, 과업을 소유한다.
+// 재무 데이터(청구·입금·지출·성과)는 고객사 단위로 유지하고, 프로젝트 기준 집계 시
+// 프로젝트 계약기간(contractStart~contractEnd) 월범위로 잘라 귀속한다.
+model Project {
+  id                  String    @id @default(cuid())
+  clientId            String
+  client              Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name                String
+  status              String    @default("진행중")
+  contractStart       DateTime?
+  contractEnd         DateTime?
+  billingCycle        String[]  @default([]) // 청구 주기(복수): 월/분기/중간/최종
+  reportCycle         String[]  @default([]) // 보고 주기(복수): 월/분기/중간/최종
+  performanceContract Boolean   @default(false) // 실적 계약 여부.
+  deletedAt           DateTime? // 소프트 삭제(보관).
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  managers            ProjectManager[]
+  tasks               Task[]
+
+  @@index([clientId])
+}
+
+// 프로젝트–담당PM 다대다 조인. 표시·설정용. 접근 권한(RLS)은 여전히 ClientManager 기준이며,
+// 프로젝트 PM 배정 시 앱이 ClientManager를 프로젝트 PM들의 합집합으로 동기화한다.
+model ProjectManager {
+  projectId String
+  userId    String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
 }
 
 // 고객사–담당PM 다대다 조인. 한 고객사에 여러 PM을 지정할 수 있다.
@@ -119,8 +153,10 @@ model ClientManager {
 
 model Task {
   id             String     @id @default(cuid())
-  clientId       String
+  clientId       String     // 비정규화: RLS·고객사 단위 집계용. 항상 project.clientId와 동일.
   client         Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId      String
+  project        Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name           String
   unitPrice      Int
   contractCount  Int?
@@ -132,6 +168,7 @@ model Task {
   performances   MonthlyPerformance[]
 
   @@index([clientId])
+  @@index([projectId])
 }
 
 model MonthlyPerformance {

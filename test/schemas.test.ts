@@ -5,6 +5,7 @@ import {
   billingSchema,
   taskSchema,
   clientSchema,
+  projectSchema,
   payeeUploadRowSchema,
   payeeUpdateSchema,
   payeeUpdatePmSchema,
@@ -74,28 +75,28 @@ describe("billingSchema (null vs 0)", () => {
 
 describe("taskSchema", () => {
   it("accepts a task with null contractCount (미입력)", () => {
-    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: 10000, contractCount: "" });
+    const r = taskSchema.safeParse({ clientId: "c1", projectId: "p1",name: "심리진단", unitPrice: 10000, contractCount: "" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.contractCount).toBeNull();
   });
   it("accepts a contractCount", () => {
-    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: 10000, contractCount: "12" });
+    const r = taskSchema.safeParse({ clientId: "c1", projectId: "p1",name: "심리진단", unitPrice: 10000, contractCount: "12" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.contractCount).toBe(12);
   });
   it("strips thousands separators from unitPrice", () => {
-    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: "1,000,000", contractCount: "" });
+    const r = taskSchema.safeParse({ clientId: "c1", projectId: "p1",name: "심리진단", unitPrice: "1,000,000", contractCount: "" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.unitPrice).toBe(1000000);
   });
   it("rejects empty name", () => {
-    expect(taskSchema.safeParse({ clientId: "c1", name: "", unitPrice: 100 }).success).toBe(false);
+    expect(taskSchema.safeParse({ clientId: "c1", projectId: "p1",name: "", unitPrice: 100 }).success).toBe(false);
   });
   it("rejects empty-string unitPrice", () => {
-    expect(taskSchema.safeParse({ clientId: "c1", name: "x", unitPrice: "" }).success).toBe(false);
+    expect(taskSchema.safeParse({ clientId: "c1", projectId: "p1",name: "x", unitPrice: "" }).success).toBe(false);
   });
   it("accepts a negative unitPrice (마이너스 조정/차감)", () => {
-    const r = taskSchema.safeParse({ clientId: "c1", name: "심리진단", unitPrice: "-1,000,000", contractCount: "" });
+    const r = taskSchema.safeParse({ clientId: "c1", projectId: "p1",name: "심리진단", unitPrice: "-1,000,000", contractCount: "" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.unitPrice).toBe(-1000000);
   });
@@ -138,6 +139,36 @@ describe("clientSchema industry", () => {
     const r = clientSchema.safeParse({ name: "A사", industry: "제조" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.industry).toBe("제조");
+  });
+});
+
+describe("projectSchema", () => {
+  it("parses cycles, pmIds, dates, and performanceContract", () => {
+    const r = projectSchema.safeParse({
+      clientId: "c1", name: "기본 프로젝트",
+      contractStart: "2026-01-01", contractEnd: "2026-12-31",
+      billingCycle: ["월", "분기"], reportCycle: "최종",
+      performanceContract: "true", pmIds: ["u1", "u2"],
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.billingCycle).toEqual(["월", "분기"]);
+      expect(r.data.reportCycle).toEqual(["최종"]);
+      expect(r.data.performanceContract).toBe(true);
+      expect(r.data.pmIds).toEqual(["u1", "u2"]);
+    }
+  });
+  it("requires clientId and non-empty name", () => {
+    expect(projectSchema.safeParse({ name: "P" }).success).toBe(false);
+    expect(projectSchema.safeParse({ clientId: "c1", name: "" }).success).toBe(false);
+  });
+  it("defaults performanceContract to false and cycles to [] when absent", () => {
+    const r = projectSchema.safeParse({ clientId: "c1", name: "P" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.performanceContract).toBe(false);
+      expect(r.data.billingCycle).toEqual([]);
+    }
   });
 });
 
