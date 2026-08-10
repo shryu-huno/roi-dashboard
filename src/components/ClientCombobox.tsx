@@ -95,7 +95,7 @@ export function ClientCombobox({
         role="combobox"
         aria-expanded={open}
         aria-controls="client-combobox-list"
-        className="w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
+        className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-center text-sm"
       />
       {open && filtered.length > 0 && (
         <ul id="client-combobox-list" ref={listRef} className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
@@ -108,7 +108,7 @@ export function ClientCombobox({
                   select(c);
                 }}
                 onMouseEnter={() => setHighlight(i)}
-                className={`block w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-border)] ${
+                className={`block w-full px-3 py-2 text-center text-sm hover:bg-[var(--color-border)] ${
                   i === highlight ? "bg-[var(--color-border)]" : ""
                 }`}
               >

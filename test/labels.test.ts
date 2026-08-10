@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { roleLabel, statusLabel, expenseCategoryLabel } from "@/lib/labels";
+import { roleLabel, statusLabel, expenseCategoryLabel, paymentRequestEntityLabel, paymentRequestStatusLabel } from "@/lib/labels";
 
 describe("labels", () => {
   it("maps roles to Korean", () => {
@@ -27,5 +27,16 @@ describe("labels", () => {
     expect(expenseCategoryLabel("OPS_MEETING")).toBe("운영비(회의비)");
     expect(expenseCategoryLabel("TEST_MATERIAL")).toBe("검사지 구매");
     expect(expenseCategoryLabel("GENERAL_ETC")).toBe("일반관리(기타)");
+  });
+});
+
+describe("지급요청 라벨", () => {
+  it("지급명의 라벨", () => {
+    expect(paymentRequestEntityLabel("HUNO")).toBe("휴노");
+    expect(paymentRequestEntityLabel("HUNO_INC")).toBe("휴노INC");
+  });
+  it("지급여부 라벨", () => {
+    expect(paymentRequestStatusLabel("PREPARING")).toBe("지급준비");
+    expect(paymentRequestStatusLabel("COMPLETED")).toBe("지급완료");
   });
 });

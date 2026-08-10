@@ -42,6 +42,7 @@ export type PayeeCreateInput = {
   bankName: string;
   accountNumberEnc: string;
   accountNumberMasked: string;
+  accountNumberBidx: string;
   accountHolder: string;
   taxType: TaxType;
 };
@@ -150,6 +151,7 @@ export function createPayeesBulk(
           bankName: input.bankName,
           accountNumberEnc: input.accountNumberEnc,
           accountNumberMasked: input.accountNumberMasked,
+          accountNumberBidx: input.accountNumberBidx,
           accountHolder: input.accountHolder,
           taxType: input.taxType,
           deletedAt: null,
@@ -370,6 +372,7 @@ export function updatePayee(ctx: RlsContext, id: string, input: PayeeUpdateInput
         bankName: input.bankName,
         accountNumberEnc: encrypt(acctDigits),
         accountNumberMasked: maskAccountNumber(acctDigits),
+        accountNumberBidx: blindIndex(acctDigits),
         accountHolder: input.accountHolder,
         taxType: input.taxType,
       },
@@ -401,4 +404,19 @@ export function softDeletePayees(ctx: RlsContext, ids: string[]): Promise<Action
     if (result.count === 0) return { ok: false, error: "삭제할 항목을 찾을 수 없습니다." };
     return { ok: true };
   });
+}
+
+// 지급요청 등록 화면의 사업자명(이름) 검색 콤보박스용 — 민감정보(계좌/사업자번호) 없이
+// id/keyId/bizName/taxType만. Payee의 SELECT RLS(payee_select)는 전 역할 허용이라 role 분기가
+// 필요 없다. taxType은 지급요청 등록 시 청구방식을 자동 반영하고 호버 툴팁에 쓰기 위함(마스킹 대상 아님).
+export type PayeeOption = { id: string; keyId: string; bizName: string; taxType: TaxType };
+
+export function listPayeeOptions(ctx: RlsContext): Promise<PayeeOption[]> {
+  return withRLS(ctx, (tx) =>
+    tx.payee.findMany({
+      where: { deletedAt: null },
+      select: { id: true, keyId: true, bizName: true, taxType: true },
+      orderBy: { bizName: "asc" },
+    }),
+  );
 }
