@@ -27,10 +27,25 @@ function resolveContractAmount(input: TaskAmounts): number | null {
   return input.contractAmount ?? deriveContractAmount(input.unitPrice, input.contractCount);
 }
 
-// 고객사 단위(모든 프로젝트의 과업). 실적 입력 화면이 고객사 전체 과업을 보여주는 데 쓴다.
+// 고객사 단위 과업 조회. period가 주어지면 그 연·월(달)을 계약기간에 포함하는 프로젝트의
+// 과업만 반환한다(실적 입력 화면용). period 미전달이면 모든 프로젝트의 과업을 반환한다.
+// 계약 시작/종료일이 비어있으면(열린 구간) 해당 방향 제약은 걸지 않는다.
 // 설정 화면은 프로젝트별 과업을 listProjects의 include로 로드하므로 이 함수를 쓰지 않는다.
-export function listTasks(ctx: RlsContext, clientId: string) {
-  return withRLS(ctx, (tx) => tx.task.findMany({ where: { clientId }, orderBy: { name: "asc" } }));
+export function listTasks(ctx: RlsContext, clientId: string, period?: { year: number; month: number }) {
+  let projectFilter = {};
+  if (period) {
+    const monthStart = new Date(Date.UTC(period.year, period.month - 1, 1));
+    const monthEnd = new Date(Date.UTC(period.year, period.month, 0, 23, 59, 59, 999));
+    projectFilter = {
+      project: {
+        AND: [
+          { OR: [{ contractStart: null }, { contractStart: { lte: monthEnd } }] },
+          { OR: [{ contractEnd: null }, { contractEnd: { gte: monthStart } }] },
+        ],
+      },
+    };
+  }
+  return withRLS(ctx, (tx) => tx.task.findMany({ where: { clientId, ...projectFilter }, orderBy: { name: "asc" } }));
 }
 
 export function createTask(ctx: RlsContext, input: TaskInput) {

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
-import { listTasks, updateTask, deleteTask } from "@/lib/data/tasks";
+import { listTasks, updateTask, deleteTask, createTask } from "@/lib/data/tasks";
+import { createProject } from "@/lib/data/projects";
 import { mkClient, mkTask } from "./factories";
 
 const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
@@ -86,5 +87,27 @@ describe("tasks data layer", () => {
     expect(res.ok).toBe(true);
     const rows = await listTasks(ADMIN, clientA);
     expect(rows[0].unitPrice).toBe(12000);
+  });
+
+  it("period 지정 시 조회 월을 계약기간에 포함하는 프로젝트의 과업만 반환한다", async () => {
+    // A사에 기간이 다른 두 프로젝트. 기본 프로젝트(mkClient)는 날짜 없음 → 항상 포함.
+    const past = await createProject(ADMIN, clientA, {
+      name: "2025~2026", contractStart: new Date("2025-06-01"), contractEnd: new Date("2026-05-31"), pmIds: [pmA],
+    });
+    const curr = await createProject(ADMIN, clientA, {
+      name: "2026~2027", contractStart: new Date("2026-06-01"), contractEnd: new Date("2027-06-30"), pmIds: [pmA],
+    });
+    await createTask(ADMIN, { clientId: clientA, projectId: past.id, name: "과거과업", unitPrice: 1000 });
+    await createTask(ADMIN, { clientId: clientA, projectId: curr.id, name: "현재과업", unitPrice: 1000 });
+
+    // 2026년 6월: 현재 프로젝트만 포함(과거 프로젝트는 2026-05-31 종료로 제외). 날짜 없는 기본 프로젝트는 포함.
+    const jun = await listTasks(ADMIN, clientA, { year: 2026, month: 6 });
+    expect(jun.map((r) => r.name).sort()).toEqual(["현재과업"]);
+    // 2026년 3월: 과거 프로젝트만 포함(현재 프로젝트는 2026-06-01 시작으로 제외).
+    const mar = await listTasks(ADMIN, clientA, { year: 2026, month: 3 });
+    expect(mar.map((r) => r.name).sort()).toEqual(["과거과업"]);
+    // period 미전달이면 전체 반환.
+    const all = await listTasks(ADMIN, clientA);
+    expect(all.map((r) => r.name).sort()).toEqual(["과거과업", "현재과업"]);
   });
 });

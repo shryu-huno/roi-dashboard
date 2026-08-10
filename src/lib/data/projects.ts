@@ -32,7 +32,8 @@ export function listProjects(ctx: RlsContext, clientId: string) {
   return withRLS(ctx, (tx) =>
     tx.project.findMany({
       where: { clientId, deletedAt: null },
-      orderBy: { createdAt: "desc" }, // 최신 프로젝트가 위, 오래된 프로젝트가 아래.
+      // 계약 시작일이 최신인 프로젝트가 위. 시작일 없으면 등록일 최신순.
+      orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       include: { managers: true, tasks: { orderBy: { name: "asc" } } },
     }),
   );
