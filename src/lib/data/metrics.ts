@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { withVat } from "@/lib/vat";
 import { sessionDateBetween, sessionMonth } from "@/lib/consulting-basis";
 import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
+import { deriveProjectName } from "@/lib/clients/summary-view";
 
 // 고객사 where 조각: 보관(소프트 삭제) 제외 + (옵션) 현대이지웰 고객사만.
 function clientWhere(easywelOnly: boolean) {
@@ -504,11 +505,14 @@ export function getClientProjectBreakdown(
       const corporateCard = (await tx.corporateCardExpense.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
       const contract = p.tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
 
+      const start = p.contractStart ? p.contractStart.toISOString().slice(0, 10) : null;
+      const end = p.contractEnd ? p.contractEnd.toISOString().slice(0, 10) : null;
       rows.push({
         id: p.id,
-        name: p.name,
-        contractStart: p.contractStart ? p.contractStart.toISOString().slice(0, 10) : null,
-        contractEnd: p.contractEnd ? p.contractEnd.toISOString().slice(0, 10) : null,
+        // 프로젝트명은 계약기간 연도로 표기(설정 화면과 동일 규칙, "년" 제외). 계약기간이 없으면 저장된 name으로 폴백.
+        name: deriveProjectName(start ?? "", end ?? "").replaceAll("년", "") || p.name,
+        contractStart: start,
+        contractEnd: end,
         performanceContract: p.performanceContract,
         performance: withVat(perf, includeVat),
         billing: withVat(billing, includeVat),
