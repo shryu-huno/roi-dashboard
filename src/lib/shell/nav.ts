@@ -1,4 +1,4 @@
-import type { AppRole } from "@/lib/auth/rbac";
+import { canManageUsers, canManageTeams, type AppRole } from "@/lib/auth/rbac";
 
 export type NavItem = { href: string; label: string };
 
@@ -17,6 +17,7 @@ export function navItemsForRole(role: AppRole | null): NavItem[] {
   if (role) {
     items.push({ href: "/settings/clients", label: "고객사 설정" });
   }
-  if (role === "ADMIN") items.push({ href: "/admin/users", label: "사용자 관리" });
+  if (canManageTeams(role)) items.push({ href: "/admin/teams", label: "팀 관리" });
+  if (canManageUsers(role)) items.push({ href: "/admin/users", label: "사용자 관리" });
   return items;
 }

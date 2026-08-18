@@ -4,8 +4,12 @@ import { roleLabel, statusLabel } from "@/lib/labels";
 import { approveUser, changeStatus } from "./actions";
 
 export default async function AdminUsersPage() {
-  await requireRole("ADMIN");
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+  await requireRole("SUPER_ADMIN");
+  const [users, teams] = await Promise.all([
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.team.findMany({ orderBy: { name: "asc" } }),
+  ]);
+  const teamName = new Map(teams.map((t) => [t.id, t.name]));
 
   return (
     <div>
@@ -16,6 +20,7 @@ export default async function AdminUsersPage() {
             <th className="py-2">이메일</th>
             <th>이름</th>
             <th>역할</th>
+            <th>팀</th>
             <th>상태</th>
             <th>작업</th>
           </tr>
@@ -26,17 +31,26 @@ export default async function AdminUsersPage() {
               <td className="py-2">{u.email}</td>
               <td>{u.name ?? "-"}</td>
               <td>{roleLabel(u.role)}</td>
+              <td>{u.teamId ? teamName.get(u.teamId) ?? "(삭제된 팀)" : "-"}</td>
               <td>{statusLabel(u.status)}</td>
               <td className="flex gap-2 py-2">
                 <form action={approveUser} className="flex gap-1">
                   <input type="hidden" name="userId" value={u.id} />
                   <select name="role" defaultValue={u.role ?? "PM"} className="border border-[var(--color-border)] rounded px-1">
-                    <option value="ADMIN">관리자</option>
+                    <option value="SUPER_ADMIN">최고관리자</option>
+                    <option value="ADMIN">팀 관리자</option>
                     <option value="SETTLEMENT">정산담당자</option>
                     <option value="PM">PM</option>
                   </select>
+                  {/* 팀은 팀 관리자·PM에게 의미가 있다(최고관리자·정산담당자는 전체 접근이라 무시됨). */}
+                  <select name="teamId" defaultValue={u.teamId ?? ""} className="border border-[var(--color-border)] rounded px-1">
+                    <option value="">팀 없음</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
                   <button type="submit" className="rounded bg-[var(--color-primary)] px-2 py-1 text-white">
-                    {u.status === "ACTIVE" ? "역할변경" : "활성화"}
+                    {u.status === "ACTIVE" ? "저장" : "활성화"}
                   </button>
                 </form>
                 {u.status === "ACTIVE" && (

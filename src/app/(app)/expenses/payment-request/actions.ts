@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth/session";
+import { requireRole, requireAllAccess } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import {
   updatePaymentRequestsBulk, updatePaymentRequest, updatePaymentRequestPmFields,
@@ -23,7 +23,7 @@ export async function uploadPaymentRequestUpdatesAction(
   _prev: PaymentRequestUploadState,
   formData: FormData,
 ): Promise<PaymentRequestUploadState> {
-  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const user = await requireAllAccess(); // 최고관리자·정산담당자 전용(팀 관리자 제외)
   const ctx = getRlsContext(user);
 
   const file = formData.get("file");
@@ -75,7 +75,7 @@ export async function uploadPaymentRequestUpdatesAction(
 }
 
 export async function updatePaymentRequestAction(id: string, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const user = await requireAllAccess(); // 최고관리자·정산담당자 전용(팀 관리자 제외)
   const ctx = getRlsContext(user);
 
   const parsed = paymentRequestUpdateSchema.safeParse({
@@ -100,7 +100,7 @@ export async function updatePaymentRequestAction(id: string, formData: FormData)
 }
 
 export async function updatePaymentRequestNoticeAction(formData: FormData): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const user = await requireAllAccess(); // 최고관리자·정산담당자 전용(팀 관리자 제외)
   const ctx = getRlsContext(user);
 
   const parsed = paymentRequestNoticeSchema.safeParse({ content: formData.get("content") });
@@ -147,7 +147,7 @@ export async function updatePaymentRequestPmAction(id: string, formData: FormDat
 }
 
 export async function bulkUpdatePaymentRequestsAction(ids: string[], formData: FormData): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireAllAccess(); // 최고관리자·정산담당자 전용(팀 관리자 제외)
   const ctx = getRlsContext(user);
 
   const parsed = paymentRequestBulkUpdateSchema.safeParse({

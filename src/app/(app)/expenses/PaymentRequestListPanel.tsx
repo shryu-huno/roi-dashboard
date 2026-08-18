@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { PaymentRequestRow as PaymentRequestRowData } from "@/lib/data/payment-requests";
 import type { PayeeOption } from "@/lib/data/payees";
-import type { AppRole } from "@/lib/auth/rbac";
+import { isAllAccess, type AppRole } from "@/lib/auth/rbac";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { SelectDropdown } from "@/components/SelectDropdown";
 import { SuggestInput } from "@/components/SuggestInput";
@@ -69,7 +69,7 @@ export function PaymentRequestListPanel({
   const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const canExport = role === "ADMIN" || role === "SETTLEMENT";
+  const canExport = isAllAccess(role);
 
   // PM은 지급준비+본인 신청 건만 선택 가능 — "전체선택"도 그 범위로 제한한다.
   const selectableRows = role === "PM" ? rows.filter((r) => pmCanAct(r, currentUserId)) : rows;
@@ -142,7 +142,7 @@ export function PaymentRequestListPanel({
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <PaymentRequestNoticeBanner content={noticeContent} canEdit={role === "ADMIN" || role === "SETTLEMENT"} />
+      <PaymentRequestNoticeBanner content={noticeContent} canEdit={isAllAccess(role)} />
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-hover)] p-4">
         <input type="hidden" name="tab" value="payment-request" />

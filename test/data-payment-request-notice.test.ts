@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { getPaymentRequestNotice, upsertPaymentRequestNotice } from "@/lib/data/payment-request-notice";
 
-const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
+const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 const SETTLEMENT = { userId: "seed-settlement", role: "SETTLEMENT" as const };
 const PM = { userId: "seed-pm", role: "PM" as const };
 

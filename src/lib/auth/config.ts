@@ -36,6 +36,7 @@ export const authConfig: NextAuthConfig = {
       session.user.id = user.id;
       session.user.role = (user as unknown as { role: AppRole | null }).role ?? null;
       session.user.status = (user as unknown as { status: "PENDING" | "ACTIVE" | "INACTIVE" }).status;
+      session.user.teamId = (user as unknown as { teamId: string | null }).teamId ?? null;
       return session;
     },
   },

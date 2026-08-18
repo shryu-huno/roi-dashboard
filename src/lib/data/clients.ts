@@ -6,6 +6,7 @@ export type ClientInput = {
   status?: string;
   businessType?: string | null;
   industry?: string | null;
+  pmIds?: string[]; // 담당 PM(여러 명). 생성 시 ClientManager로 배정해 접근 권한(RLS)을 부여한다.
 };
 
 const withManagers = { include: { managers: true } } as const;
@@ -39,7 +40,9 @@ export function listArchivedClients(ctx: RlsContext) {
 }
 
 export function createClient(ctx: RlsContext, input: ClientInput) {
-  // 담당 PM·주기·계약기간은 고객사 생성 후 프로젝트를 추가하며 지정한다.
+  // 담당 PM은 고객사 담당(ClientManager)으로 바로 배정해, 배정된 PM이 프로젝트·과업을
+  // 설정할 수 있게 한다(Project/Task RLS는 ClientManager 기준). 주기·계약기간은 이후 프로젝트에서 지정.
+  const pmIds = [...new Set(input.pmIds ?? [])];
   return withRLS(ctx, (tx) =>
     tx.client.create({
       data: {
@@ -47,6 +50,7 @@ export function createClient(ctx: RlsContext, input: ClientInput) {
         status: input.status ?? "진행중",
         businessType: input.businessType ?? null,
         industry: input.industry ?? null,
+        managers: pmIds.length ? { create: pmIds.map((userId) => ({ userId })) } : undefined,
       },
       ...withManagers,
     }),

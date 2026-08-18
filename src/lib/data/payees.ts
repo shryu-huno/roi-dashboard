@@ -2,6 +2,7 @@ import type { Payee, PayeeType, TaxType, Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { decrypt, encrypt, blindIndex, digitsOnly, maskAccountNumber, maskPhone, maskFully } from "@/lib/crypto/payee-secret";
 import type { ActionState } from "@/lib/action-state";
+import { isAllAccess } from "@/lib/auth/rbac";
 
 export const PAYEE_SEARCH_FIELDS = ["bizName", "bizNumber", "keyId"] as const;
 export type PayeeSearchField = (typeof PAYEE_SEARCH_FIELDS)[number];
@@ -248,7 +249,7 @@ function fetchMatchedPayees(
 export type PayeePage<T> = { rows: T[]; page: number; totalPages: number };
 
 export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter, page = 1): Promise<PayeePage<PayeeRow>> {
-  if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
+  if (!isAllAccess(ctx.role)) {
     throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
   }
   let { rows, totalCount } = await fetchMatchedPayees(ctx, filter, { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE });
@@ -277,7 +278,7 @@ export async function listPayees(ctx: RlsContext, filter?: PayeeSearchFilter, pa
 }
 
 export async function listPayeesForExport(ctx: RlsContext, filter?: PayeeSearchFilter): Promise<PayeeExportRow[]> {
-  if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
+  if (!isAllAccess(ctx.role)) {
     throw new Error("지급 리스트 원문 조회 권한이 없습니다.");
   }
   const { rows } = await fetchMatchedPayees(ctx, filter);
@@ -362,7 +363,7 @@ export type PayeeUpdateInput = {
 export function updatePayee(ctx: RlsContext, id: string, input: PayeeUpdateInput): Promise<void> {
   const acctDigits = digitsOnly(input.accountNumber);
   return withRLS(ctx, async (tx) => {
-    if (ctx.role !== "ADMIN" && ctx.role !== "SETTLEMENT") {
+    if (!isAllAccess(ctx.role)) {
       throw new Error("지급 리스트 수정 권한이 없습니다.");
     }
     await tx.payee.update({

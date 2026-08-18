@@ -1,7 +1,7 @@
 "use server";
 
 import type { PayeeFileType } from "@prisma/client";
-import { requireRole } from "@/lib/auth/session";
+import { requireRole, requireAllAccess } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { revalidatePath } from "next/cache";
 import { getPayeeAttachments } from "@/lib/data/payee-attachments";
@@ -41,7 +41,7 @@ export async function getAttachmentDownloadUrlAction(
   payeeId: string,
   fileType: PayeeFileType,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
-  const user = await requireRole("SETTLEMENT"); // 다운로드는 PM에게 계속 차단(통장사본/사업자등록증에 원문 노출).
+  const user = await requireAllAccess(); // 다운로드는 최고관리자·정산담당자만(통장사본/사업자등록증 원문 노출). PM·팀 관리자 차단.
   const ctx = getRlsContext(user);
   return getDownloadUrlCore(ctx, payeeId, fileType);
 }
