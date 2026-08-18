@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { hasAtLeast } from "@/lib/auth/rbac";
+import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { listClients } from "@/lib/data/clients";
 import { getClientYearProgress } from "@/lib/data/metrics";
 import { attainment } from "@/lib/metrics/formulas";
@@ -15,7 +15,8 @@ export default async function ClientsPage() {
     listClients(ctx),
     getClientYearProgress(ctx, new Date().getFullYear()),
   ]);
-  const showPm = hasAtLeast(user.role, "SETTLEMENT");
+  const showPm = isAllAccess(user.role) || isTeamAdmin(user.role);
+  const isAdmin = isAllAccess(user.role);
 
   const pmIds = [...new Set(clients.flatMap((c) => c.managers.map((m) => m.userId)))];
   const users = pmIds.length
@@ -43,5 +44,5 @@ export default async function ClientsPage() {
     };
   });
 
-  return <ClientsList clients={rows} showPm={showPm} />;
+  return <ClientsList clients={rows} showPm={showPm} isAdmin={isAdmin} />;
 }

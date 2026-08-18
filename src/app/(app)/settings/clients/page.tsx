@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
+import { isAllAccess } from "@/lib/auth/rbac";
 import { getRlsContext } from "@/lib/context";
+import { prisma } from "@/lib/db";
 import { listClients, listArchivedClients } from "@/lib/data/clients";
 import { getIncludeVat } from "@/lib/vat";
 import { NewClientForm } from "./NewClientForm";
@@ -9,27 +11,39 @@ import { RestoreClientButton } from "./RestoreClientButton";
 import { DeleteClientButton } from "./DeleteClientButton";
 import { VatToggle } from "./VatToggle";
 import { EasywelToggle } from "./EasywelToggle";
+import { ManualButton } from "./ManualButton";
 
 export default async function SettingsClientsPage() {
   const user = await requireRole("PM");
-  const isAdmin = user.role === "ADMIN";
+  // 보관/복원/하드삭제·현대이지웰·매뉴얼 등 전사 관리 UI는 최고관리자 전용.
+  const isAdmin = user.role === "SUPER_ADMIN";
   const isPm = user.role === "PM";
+  // 고객사 생성은 전체 접근(최고관리자·정산담당자)만. 팀 관리자는 생성 시 RLS로도 막힌다.
+  const canCreate = isAllAccess(user.role);
   const ctx = getRlsContext(user);
-  const [clients, archived, includeVat] = await Promise.all([
+  const [clients, archived, includeVat, pms] = await Promise.all([
     listClients(ctx),
     isAdmin ? listArchivedClients(ctx) : Promise.resolve([]),
     getIncludeVat(),
+    // 담당 PM 후보(생성 폼용): 생성 권한자(전체 접근)만 조회. PM·팀 관리자는 여기서 생성하지 않는다.
+    canCreate ? prisma.user.findMany({ where: { role: { in: ["PM", "ADMIN"] }, status: "ACTIVE" }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
+  const pmOptions = pms
+    .map((p) => ({ id: p.id, label: p.name ?? p.email }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ko"));
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">고객사 설정</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold">고객사 설정</h1>
+          {isAdmin && <ManualButton kind="admin" />}
+        </div>
         <VatToggle defaultOn={includeVat} />
       </div>
 
-      {/* 고객사 추가는 정산담당자/관리자만. PM은 배정받은 고객사 조회·상세 설정만 한다. */}
-      {!isPm && <NewClientForm />}
+      {/* 고객사 추가는 전체 접근(최고관리자·정산담당자)만. PM·팀 관리자는 배정받은 고객사 조회·상세 설정만 한다. */}
+      {canCreate && <NewClientForm pms={pmOptions} />}
 
       <table className="w-full border-collapse text-sm">
         <thead>
@@ -38,7 +52,7 @@ export default async function SettingsClientsPage() {
             <th>상태</th>
             <th>사업자 구분</th>
             <th>프로젝트</th>
-            <th>현대이지웰</th>
+            {isAdmin && <th>현대이지웰</th>}
             {isAdmin && <th>삭제</th>}
           </tr>
         </thead>
@@ -51,9 +65,11 @@ export default async function SettingsClientsPage() {
               <td>
                 <Link href={`/settings/clients/${c.id}`} className="text-[var(--color-primary)]">상세 설정</Link>
               </td>
-              <td>
-                <EasywelToggle id={c.id} defaultOn={c.hyundaiEasywel} />
-              </td>
+              {isAdmin && (
+                <td>
+                  <EasywelToggle id={c.id} defaultOn={c.hyundaiEasywel} />
+                </td>
+              )}
               {isAdmin && (
                 <td>
                   <ArchiveClientButton id={c.id} name={c.name} />

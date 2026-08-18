@@ -10,8 +10,11 @@ describe("navItemsForRole", () => {
   it("SETTLEMENT adds settings", () => {
     expect(hrefs("SETTLEMENT")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients"]);
   });
-  it("ADMIN adds user management", () => {
-    expect(hrefs("ADMIN")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients", "/admin/users"]);
+  it("team ADMIN gets no admin links (팀 관리자는 사용자·팀 관리 없음)", () => {
+    expect(hrefs("ADMIN")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients"]);
+  });
+  it("SUPER_ADMIN adds team and user management", () => {
+    expect(hrefs("SUPER_ADMIN")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients", "/admin/teams", "/admin/users"]);
   });
   it("null role sees base items only (no dashboard)", () => {
     expect(hrefs(null)).toEqual(["/clients", "/performance"]);

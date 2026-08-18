@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 
-const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
+const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
 async function reset() {
   await withRLS(ADMIN, async (tx) => {

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
+import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import type { ActionState } from "@/lib/action-state";
 
 export type ProjectInput = {
@@ -43,7 +44,17 @@ export function getProject(ctx: RlsContext, id: string) {
   return withRLS(ctx, (tx) => tx.project.findUnique({ where: { id }, include: { managers: true } }));
 }
 
+// 담당 PM 배정·ClientManager 동기화는 전체 접근(최고관리자·정산담당자)과 팀 관리자만.
+// 팀 관리자는 자기 팀 소속 PM만 배정 가능하며, 그 제약은 ProjectManager·ClientManager의
+// RLS WITH CHECK(User.teamId = app.team_id)가 강제한다.
+function isPrivileged(ctx: RlsContext): boolean {
+  return isAllAccess(ctx.role) || isTeamAdmin(ctx.role);
+}
+
 export function createProject(ctx: RlsContext, clientId: string, input: ProjectInput) {
+  // PM이 만든 프로젝트는 담당 PM 배정 없이 생성된다. PM은 이미 고객사 담당(ClientManager)이라
+  // Project RLS로 접근이 유지되며, ClientManager 동기화(정산/관리자 전용)는 건너뛴다.
+  const privileged = isPrivileged(ctx);
   return withRLS(ctx, async (tx) => {
     const project = await tx.project.create({
       data: {
@@ -55,10 +66,10 @@ export function createProject(ctx: RlsContext, clientId: string, input: ProjectI
         billingCycle: input.billingCycle ?? [],
         reportCycle: input.reportCycle ?? [],
         performanceContract: input.performanceContract ?? false,
-        managers: input.pmIds?.length ? { create: input.pmIds.map((userId) => ({ userId })) } : undefined,
+        managers: privileged && input.pmIds?.length ? { create: input.pmIds.map((userId) => ({ userId })) } : undefined,
       },
     });
-    await syncClientManagers(tx, clientId);
+    if (privileged) await syncClientManagers(tx, clientId);
     return project;
   });
 }
@@ -95,6 +106,7 @@ export async function updateProject(ctx: RlsContext, id: string, input: ProjectI
 }
 
 // 담당 PM 배정만 교체(다른 필드는 손대지 않는다). ClientManager를 동기화한다.
+// 앱 UI는 updateProject로 통합 저장하지만, 테스트 팩토리가 고객사 PM을 직접 설정할 때 사용한다.
 export async function updateProjectPms(ctx: RlsContext, id: string, pmIds: string[]): Promise<ActionState> {
   const ok = await withRLS(ctx, async (tx) => {
     const project = await tx.project.findUnique({ where: { id }, select: { clientId: true } });
@@ -109,3 +121,21 @@ export async function updateProjectPms(ctx: RlsContext, id: string, pmIds: strin
   if (!ok) return { ok: false, error: "프로젝트를 찾을 수 없거나 권한이 없습니다." };
   return { ok: true };
 }
+
+// 프로젝트 완전 삭제 — 연관 과업·실적·담당 PM이 함께 삭제된다(cascade). 되돌릴 수 없다.
+// 삭제 후 남은 프로젝트들의 PM 합집합으로 ClientManager(접근 권한)를 재동기화한다.
+export async function deleteProject(ctx: RlsContext, id: string): Promise<ActionState> {
+  const privileged = isPrivileged(ctx);
+  const ok = await withRLS(ctx, async (tx) => {
+    // RLS로 접근 불가면 null → 손대지 않는다.
+    const project = await tx.project.findUnique({ where: { id }, select: { clientId: true } });
+    if (!project) return false;
+    await tx.project.delete({ where: { id } });
+    // 과업·실적·담당 PM은 FK cascade로 정리된다. ClientManager 재동기화는 정산/관리자만(PM은 쓰기 불가).
+    if (privileged) await syncClientManagers(tx, project.clientId);
+    return true;
+  });
+  if (!ok) return { ok: false, error: "프로젝트를 찾을 수 없거나 권한이 없습니다." };
+  return { ok: true };
+}
+

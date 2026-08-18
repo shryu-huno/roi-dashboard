@@ -3,7 +3,8 @@ import type { PayeeType, TaxType, PaymentRequestEntity, PaymentRequestStatus } f
 
 export function roleLabel(role: AppRole | null | undefined): string {
   switch (role) {
-    case "ADMIN": return "관리자";
+    case "SUPER_ADMIN": return "최고관리자";
+    case "ADMIN": return "팀 관리자";
     case "SETTLEMENT": return "정산담당자";
     case "PM": return "PM";
     default: return "미지정";

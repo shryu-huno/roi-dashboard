@@ -3,7 +3,8 @@ import { roleLabel, statusLabel, expenseCategoryLabel, paymentRequestEntityLabel
 
 describe("labels", () => {
   it("maps roles to Korean", () => {
-    expect(roleLabel("ADMIN")).toBe("관리자");
+    expect(roleLabel("SUPER_ADMIN")).toBe("최고관리자");
+    expect(roleLabel("ADMIN")).toBe("팀 관리자");
     expect(roleLabel("SETTLEMENT")).toBe("정산담당자");
     expect(roleLabel("PM")).toBe("PM");
     expect(roleLabel(null)).toBe("미지정");

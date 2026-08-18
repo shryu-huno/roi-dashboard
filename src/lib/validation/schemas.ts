@@ -69,6 +69,8 @@ export const clientSchema = z.object({
   status: z.string().optional(),
   businessType: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
   industry: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
+  // 담당 PM(여러 명). 고객사 생성 시 ClientManager로 배정해 접근 권한(RLS)을 부여한다.
+  pmIds,
 });
 
 // 프로젝트: 청구·보고 주기, 계약기간, 실적계약 여부, 담당 PM을 소유한다.

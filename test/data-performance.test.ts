@@ -6,7 +6,7 @@ import { createProject } from "@/lib/data/projects";
 import { createTask } from "@/lib/data/tasks";
 import { mkClient, mkTask } from "./factories";
 
-const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
+const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
 async function reset() {
   await withRLS(ADMIN, async (tx) => {

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { requireRole } from "@/lib/auth/session";
+import { requireAllAccess } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { listPayeesForExport, parsePayeeSearchField, type PayeeExportRow } from "@/lib/data/payees";
 import { buildExportXlsxBuffer } from "../xlsx";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 // 없으면 현재 검색/필터 결과 그대로 내려받는다. ADMIN·SETTLEMENT 전용,
 // 사업자번호는 마스킹이 아닌 원문으로 포함한다.
 export async function GET(req: NextRequest) {
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireAllAccess();
   const ctx = getRlsContext(user);
 
   const keyIdsParam = req.nextUrl.searchParams.get("keyIds");

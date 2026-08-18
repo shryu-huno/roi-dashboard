@@ -4,7 +4,7 @@ import { createPayeesBulk } from "@/lib/data/payees";
 import { getPayeeAttachments, upsertPayeeAttachment, deletePayeeAttachment } from "@/lib/data/payee-attachments";
 import { encrypt, blindIndex, maskBizNumber, maskAccountNumber } from "@/lib/crypto/payee-secret";
 
-const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
+const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
 async function reset() {
   await withRLS(ADMIN, async (tx) => {

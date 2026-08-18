@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/auth/session";
+import { requireRole, requireAllAccess } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { createPayeesBulk, updatePayee, updatePayeePmFields, softDeletePayees } from "@/lib/data/payees";
 import { PayeeKeyConfigError } from "@/lib/crypto/payee-secret";
@@ -69,7 +69,7 @@ export async function uploadPayeesAction(
 }
 
 export async function updatePayeeAction(id: string, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("SETTLEMENT"); // ADMIN도 랭크상 통과
+  const user = await requireAllAccess(); // 최고관리자·정산담당자 전용(팀 관리자 제외)
   const ctx = getRlsContext(user);
 
   const parsed = payeeUpdateSchema.safeParse({

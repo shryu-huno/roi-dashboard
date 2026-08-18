@@ -11,6 +11,7 @@ datasource db {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   SETTLEMENT
   PM
@@ -80,6 +81,8 @@ model User {
   emailVerified DateTime? // Auth.js Prisma 어댑터 필수 필드
   role      Role?
   status    UserStatus @default(PENDING)
+  teamId    String?    // 소속 팀. 팀 관리자·PM의 접근 범위 기준. SUPER_ADMIN/SETTLEMENT는 무관.
+  team      Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -91,6 +94,18 @@ model User {
 
   @@index([role])
   @@index([status])
+  @@index([teamId])
+}
+
+// 팀. 팀 관리자(ADMIN)와 PM이 소속되며, 팀 관리자는 자기 팀 소속 PM이 담당하는
+// 고객사만 열람한다. 고객사의 팀 귀속은 별도 필드 없이 담당 PM(ClientManager)에서 도출한다.
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   User[]
 }
 
 model Client {

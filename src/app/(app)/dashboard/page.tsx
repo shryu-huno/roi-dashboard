@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { hasAtLeast } from "@/lib/auth/rbac";
+import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { parsePeriodParams } from "@/lib/period";
 import {
   getPeriodTotals, getContractTotal, getMonthlyTrend,
@@ -31,8 +31,10 @@ export default async function DashboardPage({
   const user = await requireUser();
   const ctx = getRlsContext(user);
   const { year, period } = parsePeriodParams(sp, new Date().getFullYear());
+  const isAdmin = isAllAccess(user.role);
   const includeVat = await getIncludeVat();
-  const easywelOnly = await getEasywelOnly();
+  // 현대이지웰 필터는 전체 접근(최고관리자·정산담당자) 전용. 그 외는 항상 전체 기준으로 집계한다.
+  const easywelOnly = isAdmin ? await getEasywelOnly() : false;
   const fiscalBasis = await getFiscalBasis();
 
   // 각 조회는 독립 트랜잭션이므로 병렬 실행 가능.
@@ -43,7 +45,8 @@ export default async function DashboardPage({
     getExpenseBreakdown(ctx, year, period, easywelOnly),
     getClientSummaries(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
   ]);
-  const showPm = hasAtLeast(user.role, "SETTLEMENT");
+  // PM별 집계는 전체 접근·팀 관리자에게 노출. 데이터(clients)는 RLS로 각자의 범위(팀/전체)로 제한된다.
+  const showPm = isAllAccess(user.role) || isTeamAdmin(user.role);
   const pms = showPm ? rollupPmSummaries(clients) : [];
 
   const marginV = margin(totals.performance, totals.expense);
@@ -54,7 +57,7 @@ export default async function DashboardPage({
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">전사 대시보드</h1>
         <div className="flex items-center gap-6">
-          <EasywelFilterToggle defaultOn={easywelOnly} />
+          {isAdmin && <EasywelFilterToggle defaultOn={easywelOnly} />}
           <BasisToggle defaultOn={fiscalBasis} />
         </div>
       </div>

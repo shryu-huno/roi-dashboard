@@ -24,7 +24,7 @@ const SORTS: { value: SortMode; label: string }[] = [
   { value: "industry", label: "업종별" },
 ];
 
-export function ClientsList({ clients, showPm }: { clients: ClientItem[]; showPm: boolean }) {
+export function ClientsList({ clients, showPm, isAdmin }: { clients: ClientItem[]; showPm: boolean; isAdmin: boolean }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("name");
   const [easywelOnly, setEasywelOnly] = useState(false);
@@ -58,14 +58,16 @@ export function ClientsList({ clients, showPm }: { clients: ClientItem[]; showPm
             placeholder={sort === "pm" ? "PM 검색" : sort === "industry" ? "업종 검색" : "고객사 검색"}
             className="w-56 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]"
           />
-          <label className="flex items-center gap-2 text-sm text-[var(--color-fg)]">
-            <input
-              type="checkbox"
-              checked={easywelOnly}
-              onChange={(e) => setEasywelOnly(e.target.checked)}
-            />
-            현대이지웰만
-          </label>
+          {isAdmin && (
+            <label className="flex items-center gap-2 text-sm text-[var(--color-fg)]">
+              <input
+                type="checkbox"
+                checked={easywelOnly}
+                onChange={(e) => setEasywelOnly(e.target.checked)}
+              />
+              현대이지웰만
+            </label>
+          )}
         </div>
       </div>
       {clients.length === 0 ? (

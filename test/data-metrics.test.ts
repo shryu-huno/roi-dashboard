@@ -10,7 +10,7 @@ import { upsertExpense } from "@/lib/data/expenses";
 import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
 import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries, getClientDetail } from "@/lib/data/metrics";
 
-const ADMIN = { userId: "seed-admin", role: "ADMIN" as const };
+const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
 async function reset() {
   await withRLS(ADMIN, async (tx) => {

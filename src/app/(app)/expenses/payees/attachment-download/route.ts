@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { requireRole } from "@/lib/auth/session";
+import { requireAllAccess } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { getPayeeAttachments } from "@/lib/data/payee-attachments";
 import { downloadPayeeFile, StorageConfigError } from "@/lib/storage/payee-attachments";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 // 그대로 Content-Disposition에 실어 내려준다(Supabase 서명 URL의 download 옵션은 비ASCII
 // 파일명을 이중 인코딩해 깨뜨리는 문제가 있어 쓰지 않는다 — payee-attachments.ts 참고).
 export async function GET(req: NextRequest) {
-  const user = await requireRole("SETTLEMENT");
+  const user = await requireAllAccess();
   const ctx = getRlsContext(user);
 
   const payeeId = req.nextUrl.searchParams.get("payeeId");
