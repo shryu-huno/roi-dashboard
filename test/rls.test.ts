@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
+import { createProject } from "@/lib/data/projects";
 
 // 전체 열람(SUPER_ADMIN) 컨텍스트: 정책상 모든 행 접근 허용 → 시드/정리에 사용.
 const ROOT = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
@@ -82,6 +83,21 @@ describe("RLS: PM sees only own clients", () => {
         tx.projectManager.create({ data: { projectId: projectB, userId: pmA } }),
       ),
     ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
+  });
+
+  it("PM-created project inherits the client's manager (self) as ProjectManager", async () => {
+    const proj = await createProject({ userId: pmA, role: "PM" }, clientA, { name: "PM 생성 프로젝트" });
+    const rows = await withRLS(ROOT, (tx) => tx.projectManager.findMany({ where: { projectId: proj.id } }));
+    expect(rows.map((r) => r.userId)).toEqual([pmA]);
+  });
+
+  it("PM-created project inherits ALL client managers, incl. co-PMs the creator can't see", async () => {
+    // 공동 담당 PM 구성: clientA에 pmA·pmB를 함께 배정(관리자 컨텍스트로 세팅).
+    await withRLS(ROOT, (tx) => tx.clientManager.create({ data: { clientId: clientA, userId: pmB } }));
+    // 생성자 pmA는 RLS상 pmB의 ClientManager 행을 볼 수 없지만, 승계 결과엔 둘 다 포함돼야 한다.
+    const proj = await createProject({ userId: pmA, role: "PM" }, clientA, { name: "공동 PM 프로젝트" });
+    const rows = await withRLS(ROOT, (tx) => tx.projectManager.findMany({ where: { projectId: proj.id } }));
+    expect(rows.map((r) => r.userId).sort()).toEqual([pmA, pmB].sort());
   });
 
   it("SUPER_ADMIN reads all clients", async () => {
