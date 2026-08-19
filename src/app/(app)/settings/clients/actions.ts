@@ -128,25 +128,26 @@ export async function setClientEasywelAction(id: string, on: boolean): Promise<v
   revalidatePath("/settings/clients");
 }
 
-// 고객사 소프트 삭제(보관) — 최고관리자(SUPER_ADMIN) 전용. UI 버튼 노출과 별개로 서버에서 강제한다.
+// 고객사 소프트 삭제(보관) — 관리자 이상(최고관리자·팀 관리자). 팀 관리자는 RLS로 자기 팀 고객사만.
 export async function archiveClientAction(formData: FormData): Promise<void> {
-  const user = await requireRole("SUPER_ADMIN");
+  const user = await requireRole("ADMIN");
   const ctx = getRlsContext(user);
   await archiveClient(ctx, String(formData.get("id")));
   revalidatePath("/settings/clients");
 }
 
-// 보관 취소(복원) — 최고관리자(SUPER_ADMIN) 전용.
+// 보관 취소(복원) — 관리자 이상(최고관리자·팀 관리자). 팀 관리자는 RLS로 자기 팀 고객사만.
 export async function restoreClientAction(formData: FormData): Promise<void> {
-  const user = await requireRole("SUPER_ADMIN");
+  const user = await requireRole("ADMIN");
   const ctx = getRlsContext(user);
   await restoreClient(ctx, String(formData.get("id")));
   revalidatePath("/settings/clients");
 }
 
-// 하드 삭제 — 최고관리자(SUPER_ADMIN) 전용. 숨김 처리된 고객사만 완전 삭제(연관 데이터 포함, 되돌릴 수 없음).
+// 하드 삭제 — 관리자 이상(최고관리자·팀 관리자). 팀 관리자는 RLS로 자기 팀 고객사만.
+// 숨김 처리된 고객사만 완전 삭제(연관 데이터 포함, 되돌릴 수 없음).
 export async function hardDeleteClientAction(formData: FormData): Promise<void> {
-  const user = await requireRole("SUPER_ADMIN");
+  const user = await requireRole("ADMIN");
   const ctx = getRlsContext(user);
   await hardDeleteClient(ctx, String(formData.get("id")));
   revalidatePath("/settings/clients");

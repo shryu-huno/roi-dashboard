@@ -15,8 +15,9 @@ import { ManualButton } from "./ManualButton";
 
 export default async function SettingsClientsPage() {
   const user = await requireRole("PM");
-  // 보관/복원/하드삭제·현대이지웰·매뉴얼 등 전사 관리 UI는 최고관리자 전용.
-  const isAdmin = user.role === "SUPER_ADMIN";
+  // 보관/복원/하드삭제·현대이지웰·매뉴얼 등 관리 UI는 관리자(최고관리자·팀 관리자)에게 노출.
+  // 팀 관리자의 실제 조작은 RLS가 자기 팀 고객사로 범위를 제한한다.
+  const isAdmin = user.role === "SUPER_ADMIN" || isTeamAdmin(user.role);
   const isPm = user.role === "PM";
   // 고객사 생성은 전체 접근(최고관리자·정산담당자)과 팀 관리자만.
   const canCreate = isAllAccess(user.role) || isTeamAdmin(user.role);
