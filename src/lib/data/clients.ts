@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import type { ActionState } from "@/lib/action-state";
 
@@ -42,19 +43,27 @@ export function listArchivedClients(ctx: RlsContext) {
 export function createClient(ctx: RlsContext, input: ClientInput) {
   // 담당 PM은 고객사 담당(ClientManager)으로 바로 배정해, 배정된 PM이 프로젝트·과업을
   // 설정할 수 있게 한다(Project/Task RLS는 ClientManager 기준). 주기·계약기간은 이후 프로젝트에서 지정.
+  //
+  // 팀 관리자(ADMIN)는 담당 PM이 붙기 전에는 고객사가 보이지 않아, 단일 create의
+  // INSERT...RETURNING이 SELECT(USING) 정책에 걸린다. 그래서 ①고객사 INSERT(RETURNING 없이)
+  // → ②담당 PM 연결 → ③재조회 순서로 나눈다. ② 이후엔 팀 관리자에게도 보여 ③ 조회가 통과한다.
   const pmIds = [...new Set(input.pmIds ?? [])];
-  return withRLS(ctx, (tx) =>
-    tx.client.create({
+  const id = randomUUID();
+  return withRLS(ctx, async (tx) => {
+    await tx.client.createMany({
       data: {
+        id,
         name: input.name,
         status: input.status ?? "진행중",
         businessType: input.businessType ?? null,
         industry: input.industry ?? null,
-        managers: pmIds.length ? { create: pmIds.map((userId) => ({ userId })) } : undefined,
       },
-      ...withManagers,
-    }),
-  );
+    });
+    if (pmIds.length) {
+      await tx.clientManager.createMany({ data: pmIds.map((userId) => ({ clientId: id, userId })) });
+    }
+    return tx.client.findUniqueOrThrow({ where: { id }, ...withManagers });
+  });
 }
 
 export async function updateClient(ctx: RlsContext, id: string, input: ClientInput): Promise<ActionState> {

@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { requireRole, requireUser, requireAllAccess } from "@/lib/auth/session";
+import { requireRole, requireUser } from "@/lib/auth/session";
 import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { getRlsContext } from "@/lib/context";
 import { VAT_COOKIE } from "@/lib/vat";
@@ -14,9 +14,12 @@ import { createTask, updateTask, deleteTask } from "@/lib/data/tasks";
 import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function createClientAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  // 고객사 생성은 전체 접근(최고관리자·정산담당자)만. 팀 관리자는 생성 시점에 매니저가 없어
-  // Client RLS(WITH CHECK = app_can_see_client)로도 INSERT가 막히므로 애초에 이 액션에 도달시키지 않는다.
-  const user = await requireAllAccess();
+  // 고객사 생성은 전체 접근(최고관리자·정산담당자)과 팀 관리자만. 팀 관리자는 자기 팀 소속 PM만
+  // 배정할 수 있고(ClientManager RLS가 강제), Client INSERT는 team_admin_create_client 마이그레이션이 허용한다.
+  const user = await requireRole("PM");
+  if (!isAllAccess(user.role) && !isTeamAdmin(user.role)) {
+    return { ok: false, error: "고객사를 추가할 권한이 없습니다." };
+  }
   const ctx = getRlsContext(user);
   // 담당 PM은 여기서 배정. 주기·계약기간은 고객사 생성 후 프로젝트에서 지정.
   const parsed = clientSchema.safeParse({

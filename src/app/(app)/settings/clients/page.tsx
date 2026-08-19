@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
-import { isAllAccess } from "@/lib/auth/rbac";
+import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { getRlsContext } from "@/lib/context";
 import { prisma } from "@/lib/db";
 import { listClients, listArchivedClients } from "@/lib/data/clients";
@@ -18,15 +18,24 @@ export default async function SettingsClientsPage() {
   // 보관/복원/하드삭제·현대이지웰·매뉴얼 등 전사 관리 UI는 최고관리자 전용.
   const isAdmin = user.role === "SUPER_ADMIN";
   const isPm = user.role === "PM";
-  // 고객사 생성은 전체 접근(최고관리자·정산담당자)만. 팀 관리자는 생성 시 RLS로도 막힌다.
-  const canCreate = isAllAccess(user.role);
+  // 고객사 생성은 전체 접근(최고관리자·정산담당자)과 팀 관리자만.
+  const canCreate = isAllAccess(user.role) || isTeamAdmin(user.role);
   const ctx = getRlsContext(user);
   const [clients, archived, includeVat, pms] = await Promise.all([
     listClients(ctx),
     isAdmin ? listArchivedClients(ctx) : Promise.resolve([]),
     getIncludeVat(),
-    // 담당 PM 후보(생성 폼용): 생성 권한자(전체 접근)만 조회. PM·팀 관리자는 여기서 생성하지 않는다.
-    canCreate ? prisma.user.findMany({ where: { role: { in: ["PM", "ADMIN"] }, status: "ACTIVE" }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    // 담당 PM 후보(생성 폼용): 전체 접근은 전원, 팀 관리자는 자기 팀 소속만(그 외 배정 시 RLS로 막힌다). PM은 생성하지 않는다.
+    canCreate
+      ? prisma.user.findMany({
+          where: {
+            role: { in: ["PM", "ADMIN"] },
+            status: "ACTIVE",
+            ...(isAllAccess(user.role) ? {} : { teamId: user.teamId ?? undefined }),
+          },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
   const pmOptions = pms
     .map((p) => ({ id: p.id, label: p.name ?? p.email }))
@@ -42,7 +51,7 @@ export default async function SettingsClientsPage() {
         <VatToggle defaultOn={includeVat} />
       </div>
 
-      {/* 고객사 추가는 전체 접근(최고관리자·정산담당자)만. PM·팀 관리자는 배정받은 고객사 조회·상세 설정만 한다. */}
+      {/* 고객사 추가는 전체 접근(최고관리자·정산담당자)과 팀 관리자만. PM은 배정받은 고객사 조회·상세 설정만 한다. */}
       {canCreate && <NewClientForm pms={pmOptions} />}
 
       <table className="w-full border-collapse text-sm">
