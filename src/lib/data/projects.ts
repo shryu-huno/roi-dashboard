@@ -51,12 +51,29 @@ function isPrivileged(ctx: RlsContext): boolean {
   return isAllAccess(ctx.role) || isTeamAdmin(ctx.role);
 }
 
-export function createProject(ctx: RlsContext, clientId: string, input: ProjectInput) {
-  // PM이 만든 프로젝트는 담당 PM 배정 없이 생성된다. PM은 이미 고객사 담당(ClientManager)이라
-  // Project RLS로 접근이 유지되며, ClientManager 동기화(정산/관리자 전용)는 건너뛴다.
+// 고객사 담당 PM(ClientManager) 전체를 프로젝트(ProjectManager)로 승계한다.
+// PM이 만든 프로젝트에서 쓰인다: PM은 RLS상 공동 담당 PM을 볼 수 없어 직접 복사할 수 없으므로,
+// "사용자가 누구를 고르는" 게 아니라 이미 존재하는 고객사 담당 PM을 그대로 프로젝트로 내리는
+// 시스템 동작으로 처리한다. 사용자 입력은 흘러들지 않고, 검증된 clientId/projectId에만 한정된다.
+// (clientId는 직전 프로젝트 생성이 PM의 RLS로 검증된 값이다.)
+const SYSTEM_CTX: RlsContext = { userId: "__system__", role: "SUPER_ADMIN" };
+
+async function inheritClientManagers(clientId: string, projectId: string): Promise<void> {
+  await withRLS(SYSTEM_CTX, async (tx) => {
+    const cms = await tx.clientManager.findMany({ where: { clientId }, select: { userId: true } });
+    if (cms.length) {
+      await tx.projectManager.createMany({
+        data: cms.map(({ userId }) => ({ projectId, userId })),
+        skipDuplicates: true,
+      });
+    }
+  });
+}
+
+export async function createProject(ctx: RlsContext, clientId: string, input: ProjectInput) {
   const privileged = isPrivileged(ctx);
-  return withRLS(ctx, async (tx) => {
-    const project = await tx.project.create({
+  const project = await withRLS(ctx, async (tx) => {
+    const created = await tx.project.create({
       data: {
         clientId,
         name: input.name,
@@ -69,9 +86,23 @@ export function createProject(ctx: RlsContext, clientId: string, input: ProjectI
         managers: privileged && input.pmIds?.length ? { create: input.pmIds.map((userId) => ({ userId })) } : undefined,
       },
     });
-    if (privileged) await syncClientManagers(tx, clientId);
-    return project;
+    if (privileged) {
+      // 정산/관리자: 폼에서 고른 담당 PM을 배정하고 ClientManager를 합집합으로 동기화한다.
+      await syncClientManagers(tx, clientId);
+    } else {
+      // PM: RLS상 본인 ClientManager 행만 보이므로, 생성자 본인은 같은 트랜잭션에서 원자적으로 승계한다
+      // (projectmanager WITH CHECK가 "그 고객사 담당 PM이면 허용"으로 완화됨). 공동 PM은 아래에서 추가.
+      const own = await tx.clientManager.findMany({ where: { clientId }, select: { userId: true } });
+      if (own.length) {
+        await tx.projectManager.createMany({ data: own.map(({ userId }) => ({ projectId: created.id, userId })) });
+      }
+    }
+    return created;
   });
+  // PM은 공동 담당 PM을 볼 수 없으므로, 생성 후 시스템 컨텍스트로 고객사 담당 PM 전체를 승계한다
+  // (본인은 위에서 이미 배정됨 → skipDuplicates). ClientManager는 그대로라 동기화 불필요.
+  if (!privileged) await inheritClientManagers(clientId, project.id);
+  return project;
 }
 
 // 프로젝트 기본정보 수정. pmIds가 주어지면 담당 PM도 교체(미포함이면 유지).
