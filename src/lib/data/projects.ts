@@ -122,17 +122,16 @@ export async function updateProjectPms(ctx: RlsContext, id: string, pmIds: strin
   return { ok: true };
 }
 
-// 프로젝트 완전 삭제 — 연관 과업·실적·담당 PM이 함께 삭제된다(cascade). 되돌릴 수 없다.
-// 삭제 후 남은 프로젝트들의 PM 합집합으로 ClientManager(접근 권한)를 재동기화한다.
+// 프로젝트 완전 삭제 — 연관 과업·실적·프로젝트 담당 PM(ProjectManager)이 함께 삭제된다(cascade). 되돌릴 수 없다.
+// 고객사 담당 PM(ClientManager)은 손대지 않는다: 프로젝트를 지워도 고객사에 배정된 기본 PM의 접근
+// 권한은 유지돼야 하기 때문(마지막 프로젝트를 지우면 합집합 재동기화가 기본 PM까지 지워버렸던 문제).
+// PM 교체는 프로젝트 수정(updateProject)에서 명시적으로 한다.
 export async function deleteProject(ctx: RlsContext, id: string): Promise<ActionState> {
-  const privileged = isPrivileged(ctx);
   const ok = await withRLS(ctx, async (tx) => {
     // RLS로 접근 불가면 null → 손대지 않는다.
-    const project = await tx.project.findUnique({ where: { id }, select: { clientId: true } });
+    const project = await tx.project.findUnique({ where: { id }, select: { id: true } });
     if (!project) return false;
     await tx.project.delete({ where: { id } });
-    // 과업·실적·담당 PM은 FK cascade로 정리된다. ClientManager 재동기화는 정산/관리자만(PM은 쓰기 불가).
-    if (privileged) await syncClientManagers(tx, project.clientId);
     return true;
   });
   if (!ok) return { ok: false, error: "프로젝트를 찾을 수 없거나 권한이 없습니다." };
