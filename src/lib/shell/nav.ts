@@ -3,6 +3,13 @@ import { canManageUsers, canManageTeams, type AppRole } from "@/lib/auth/rbac";
 export type NavItem = { href: string; label: string };
 
 export function navItemsForRole(role: AppRole | null): NavItem[] {
+  // 정산담당자는 지출·청구/입금 입력만 담당한다(그 외 메뉴는 숨김).
+  if (role === "SETTLEMENT") {
+    return [
+      { href: "/expenses", label: "지출 입력" },
+      { href: "/billing", label: "청구·입금 입력" },
+    ];
+  }
   const items: NavItem[] = [];
   // 대시보드는 역할이 부여된(승인된) 사용자에게만. getRlsContext는 role null이면 throw.
   if (role) items.push({ href: "/dashboard", label: "전체 현황" });
