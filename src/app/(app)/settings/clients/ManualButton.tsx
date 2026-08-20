@@ -2,10 +2,10 @@
 
 import { useRef, useState } from "react";
 
-// 고객사 설정 화면의 매뉴얼 버튼.
-//  - kind="admin": 고객사 목록 화면에서 관리자만 보는 "고객사 추가" 매뉴얼.
-//  - kind="pm": 고객사 프로젝트 상세 설정 화면에서 관리자·PM 모두 보는 "프로젝트·과업 설정" 매뉴얼.
-export function ManualButton({ kind }: { kind: "admin" | "pm" }) {
+// 설정 화면의 매뉴얼 버튼.
+//  - kind="client-settings": 고객사 설정(목록) 화면. isAdmin이면 "고객사 추가"까지, 아니면 "상세 설정 이동"만.
+//  - kind="project-detail": 프로젝트 상세 설정 화면. 관리자·PM 모두 동일하게 "프로젝트 추가 · 과업 입력" 안내.
+export function ManualButton({ kind, isAdmin = false }: { kind: "client-settings" | "project-detail"; isAdmin?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -17,13 +17,21 @@ export function ManualButton({ kind }: { kind: "admin" | "pm" }) {
       >
         📘 매뉴얼
       </button>
-      {open && <ManualModal kind={kind} onClose={() => setOpen(false)} />}
+      {open && <ManualModal kind={kind} isAdmin={isAdmin} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function ManualModal({ kind, onClose }: { kind: "admin" | "pm"; onClose: () => void }) {
-  const title = kind === "admin" ? "📘 관리자 매뉴얼" : "📘 PM 매뉴얼";
+function ManualModal({
+  kind,
+  isAdmin,
+  onClose,
+}: {
+  kind: "client-settings" | "project-detail";
+  isAdmin: boolean;
+  onClose: () => void;
+}) {
+  const title = kind === "client-settings" ? "📘 고객사 설정 매뉴얼" : "📘 프로젝트 상세 설정 매뉴얼";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
@@ -36,7 +44,7 @@ function ManualModal({ kind, onClose }: { kind: "admin" | "pm"; onClose: () => v
         </div>
 
         <div className="overflow-y-auto pr-1 text-sm text-[var(--color-fg)]">
-          {kind === "admin" ? <AdminManual /> : <PmManual />}
+          {kind === "client-settings" ? <ClientSettingsManual isAdmin={isAdmin} /> : <ProjectDetailManual />}
         </div>
       </div>
     </div>
@@ -56,7 +64,7 @@ function List({ children }: { children: React.ReactNode }) {
 // 실제 폼처럼 보이는 "창" 프레임. 캡션과 신호등 점으로 예시임을 표시한다.
 function Screen({ caption, children }: { caption: string; children: React.ReactNode }) {
   return (
-    <figure className="mb-1 mt-3 select-none overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]">
+    <figure className="mb-4 mt-2 select-none overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]">
       <figcaption className="flex items-center gap-1.5 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5">
         <span className="h-2.5 w-2.5 rounded-full bg-[#F2ACB0]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#F5D77F]" />
@@ -166,11 +174,11 @@ function ProjectScreen() {
       <div className="flex flex-wrap items-end gap-3">
         <Field label="계약 시작" value="2026-01-01" />
         <Field label="계약 종료" value="2026-12-31" />
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--color-muted)]">청구 주기</span>
-          <div className="mt-0.5 flex gap-2">
-            <Check label="월" checked /><Check label="분기" /><Check label="중간" /><Check label="최종" />
-          </div>
+      </div>
+      <div className="mt-3 flex flex-col gap-1">
+        <span className="text-xs text-[var(--color-muted)]">청구 주기</span>
+        <div className="mt-0.5 flex gap-2">
+          <Check label="월" checked /><Check label="분기" /><Check label="중간" /><Check label="최종" />
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-end gap-4">
@@ -187,17 +195,45 @@ function ProjectScreen() {
   );
 }
 
-// 과업 한 건을 카드로 표시(실제 화면처럼 과업마다 별도 카드). 단가·횟수·계약금·버튼 포함.
+// 과업 분류 9종(TaskManager와 동일). 목업에서는 라벨만 표시한다.
+const TASK_CATEGORIES = [
+  "전문가 상담",
+  "프로그램(강의형)",
+  "프로그램(체험형)",
+  "프로그램(1:1코칭)",
+  "심리진단",
+  "긴급심리지원",
+  "홍보 관리",
+  "운영 관리",
+  "기타",
+] as const;
+
+function CategoryChecks({ selected }: { selected: string }) {
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1.5">
+      {TASK_CATEGORIES.map((c) => (
+        <Check key={c} label={c} checked={c === selected} />
+      ))}
+    </div>
+  );
+}
+
+// 과업 한 건을 카드로 표시(실제 화면처럼 과업마다 별도 카드). 단가·횟수·계약금과 제거(✕) 버튼 포함.
+// 저장은 카드가 아니라 상단 "프로젝트 저장" 버튼으로 프로젝트와 함께 이뤄진다.
 function TaskCard({ children, unit, count, amount }: { children: React.ReactNode; unit: string; count: string; amount: string }) {
   return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm">
+    <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm">
       <span className="text-xs text-[var(--color-muted)]">과업명(분류 선택)</span>
       {children}
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <Field label="단가(원)" value={unit} w="w-28" align="right" />
         <Field label="횟수" value={count} w="w-20" align="right" />
         <Field label="계약금(자동·수정가능)" value={amount} w="w-32" align="right" />
-        <FauxButton>과업 추가</FauxButton>
+        <span className="self-end rounded-md p-2 text-[var(--color-muted)]" title="과업 제거" aria-hidden>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </span>
       </div>
     </div>
   );
@@ -205,78 +241,109 @@ function TaskCard({ children, unit, count, amount }: { children: React.ReactNode
 
 function TaskScreen() {
   return (
-    <Screen caption="휴노 · 과업 추가">
+    <Screen caption="휴노 상세 설정 · 과업 입력">
+      {/* 저장은 상단 "프로젝트 저장" 버튼 하나로 프로젝트·과업을 함께 저장한다. */}
+      <div className="mb-3 flex justify-end">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-[#57C15E] px-4 py-1.5 text-sm font-medium text-white">
+          ✓ 프로젝트 저장
+        </span>
+      </div>
+
       {/* 과업 1: 고정 분류 선택 */}
       <TaskCard unit="100,000" count="10" amount="1,000,000">
-        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1.5">
-          <Check label="전문가 상담" checked /><Check label="심리진단" /><Check label="운영 관리" /><Check label="기타" />
-        </div>
+        <CategoryChecks selected="전문가 상담" />
       </TaskCard>
 
       {/* 과업 2: "기타" 선택 → 과업명 직접 입력 */}
-      <p className="mb-1.5 mt-4 text-xs font-medium text-[var(--color-muted)]">「기타」 선택 시 — 과업명을 직접 입력</p>
+      <p className="mb-1.5 mt-1 text-xs font-medium text-[var(--color-muted)]">「기타」 선택 시 — 과업명을 직접 입력</p>
       <TaskCard unit="300,000" count="2" amount="600,000">
-        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1.5">
-          <Check label="전문가 상담" /><Check label="기타" checked />
-        </div>
+        <CategoryChecks selected="기타" />
         <div className="mt-2">
           <Field label="과업명 직접 입력" value="직무 스트레스 특강" w="w-56" />
         </div>
       </TaskCard>
+
+      {/* 과업을 더 추가할 때: 아래 "과업 추가" 버튼으로 새 과업 칸을 만든다. */}
+      <span className="inline-block rounded bg-[var(--color-primary)] px-4 py-1.5 text-sm text-white">과업 추가</span>
     </Screen>
   );
 }
 
-/* ─────────── 관리자 매뉴얼 ─────────── */
-
-function AdminManual() {
+/* ─────────── 고객사 설정 매뉴얼 ─────────── */
+// isAdmin(최고관리자·팀 관리자): "고객사 추가" + "고객사 상세 설정 이동".
+// PM: "배정된 고객사 상세 설정 이동"만.
+function ClientSettingsManual({ isAdmin }: { isAdmin: boolean }) {
   return (
     <>
-      <section className="mb-5">
-        <h3 className="mb-2 text-base font-semibold">고객사 추가</h3>
+      {isAdmin && (
+        <section className="mb-9">
+          <h3 className="mb-2 text-base font-semibold">고객사 추가</h3>
+          <ClientAddScreen />
+          <List>
+            <li>
+              <K>고객사명</K>, <K>사업자 구분</K>, <K>담당 PM</K>을 필수로 입력합니다.{" "}
+              <span className="text-[#B91C1C]">(업종은 선택 입력)</span>
+            </li>
+            <li>
+              <K>담당 PM</K>은 복수 선택이 가능하며, 최소 1명 이상을 지정해야 합니다.
+            </li>
+            <li>
+              <K>고객사 추가</K> 버튼을 누르면 고객사가 등록됩니다.
+            </li>
+            <li>
+              고객사가 등록되면, 배정된 PM이 해당 고객사에 들어가 <K>프로젝트</K>와 <K>과업</K>을 설정할 수 있습니다.
+            </li>
+          </List>
+        </section>
+      )}
+
+      <section className="mb-1">
+        <h3 className="mb-2 text-base font-semibold">프로젝트 및 과업 설정</h3>
+        {isAdmin ? (
+          <p className="mb-2 leading-relaxed text-[var(--color-fg)]">
+            고객사의 <K>프로젝트·과업</K>을 직접 설정해야 하는 경우, 해당 고객사의 상세 설정 화면으로 이동해 프로젝트와
+            과업을 입력합니다.
+          </p>
+        ) : (
+          <p className="mb-2 leading-relaxed text-[var(--color-fg)]">
+            이 화면에서는 팀 관리자가 나에게 배정한 고객사를 확인하고, 각 고객사를 <K>프로젝트·과업</K> 단위로 설정합니다.
+            먼저 설정할 고객사의 상세 화면으로 이동합니다.
+          </p>
+        )}
+        <ClientListScreen />
         <List>
           <li>
-            <K>고객사명</K>, <K>사업자 구분</K>, <K>담당 PM</K>을 필수로 입력합니다.{" "}
-            <span className="text-[#B91C1C]">(업종은 선택 입력)</span>
+            {isAdmin ? (
+              <>
+                프로젝트·과업을 설정할 고객사(예: <K>휴노</K>)의 <K>상세 설정</K>을 클릭합니다.
+              </>
+            ) : (
+              <>
+                고객사 목록에서 본인에게 배정된 고객사(예: <K>휴노</K>)의 <K>상세 설정</K>을 클릭합니다.
+              </>
+            )}
           </li>
           <li>
-            <K>담당 PM</K>은 복수 선택이 가능하며, 최소 1명 이상을 지정해야 합니다.
-          </li>
-          <li>
-            <K>고객사 추가</K> 버튼을 누르면 고객사가 등록됩니다.
-          </li>
-          <li>
-            고객사가 등록되면, 배정된 PM이 해당 고객사에 들어가 <K>프로젝트</K>와 <K>과업</K>을 설정할 수 있습니다.
+            이동한 상세 화면에서 <K>프로젝트</K>와 <K>과업</K>을 설정합니다.
+            <span className="mt-0.5 block">
+              (구체적인 방법은 상세 화면 우측 상단의 <K>📘 매뉴얼</K>을 참고하세요.)
+            </span>
           </li>
         </List>
       </section>
-
-      <ClientAddScreen />
     </>
   );
 }
 
-/* ─────────── PM 매뉴얼 (단계별 좌우 스와이프) ─────────── */
-
-function PmManual() {
+/* ─────────── 프로젝트 상세 설정 매뉴얼 (단계별 좌우 스와이프) ─────────── */
+// 관리자·PM 공통: 프로젝트 추가 → 과업 입력.
+function ProjectDetailManual() {
   const steps = [
     {
-      title: "① 배정된 고객사 상세로 이동",
+      title: "① 프로젝트 추가",
       body: (
         <>
-          <List>
-            <li>
-              고객사 목록에서 본인에게 배정된 고객사(예: <K>휴노</K>)의 <K>상세 설정</K>을 클릭합니다.
-            </li>
-          </List>
-          <ClientListScreen />
-        </>
-      ),
-    },
-    {
-      title: "② 프로젝트 추가",
-      body: (
-        <>
+          <ProjectScreen />
           <List>
             <li>
               프로젝트 상세 설정에서 <K>계약 시작</K>, <K>계약 종료</K>, <K>청구 주기</K>, <K>보고 주기</K>,{" "}
@@ -287,22 +354,25 @@ function PmManual() {
               <K>프로젝트 추가</K> 버튼을 누릅니다. (프로젝트명은 계약 기간 연도로 자동 생성됩니다.)
             </li>
           </List>
-          <ProjectScreen />
         </>
       ),
     },
     {
-      title: "③ 과업 입력 (산출내역서 기준)",
+      title: "② 과업 입력 (산출내역서 기준)",
       body: (
         <>
+          <TaskScreen />
           <List>
             <li>
-              추가한 프로젝트에서 산출내역서에 기재된 대로 <K>과업 항목</K>, <K>단가</K>, <K>횟수</K>를 입력하고{" "}
-              <K>과업 추가</K>(저장)를 누릅니다.
+              산출내역서에 기재된 대로 과업마다 <K>과업명(분류)</K>을 선택하고 <K>단가</K>, <K>횟수</K>를 입력합니다.
             </li>
             <li>
-              과업명은 <K>내부 확인용</K>이므로 완전히 정확하게 입력할 필요는 없습니다.<br />
-              분류 중 <K>기타</K>를 선택하면 목록에 없는 과업명을 직접 기재할 수 있습니다.
+              분류는 <K>내부 확인용</K>이므로 가장 가까운 항목을 고르면 됩니다.<br />
+              목록에 없으면 <K>기타</K>를 선택해 과업명을 직접 입력합니다.
+            </li>
+            <li>
+              과업을 더 추가하려면 <K>과업 추가</K> 버튼으로 새 과업 칸을 만듭니다.<br />
+              잘못 추가한 과업은 우측 <K>✕</K> 버튼으로 제거합니다.
             </li>
             <li>
               <K>단가</K>와 <K>횟수</K>를 입력하면 <K>계약금이 자동으로 계산</K>됩니다. (필요 시 직접 수정 가능)
@@ -310,8 +380,10 @@ function PmManual() {
             <li>
               <K>실적 계약</K>의 경우 <K>단가만</K> 입력하면 됩니다.
             </li>
+            <li>
+              입력을 마치면 화면 상단의 <K>프로젝트 저장</K> 버튼을 눌러 프로젝트와 과업을 <K>함께 저장</K>합니다.
+            </li>
           </List>
-          <TaskScreen />
         </>
       ),
     },

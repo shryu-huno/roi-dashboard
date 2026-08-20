@@ -46,7 +46,7 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
     <div>
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-xl font-semibold">{client.name} — 프로젝트 설정</h1>
-        <ManualButton kind="pm" />
+        <ManualButton kind="project-detail" />
       </div>
       <EditClientForm
         client={{

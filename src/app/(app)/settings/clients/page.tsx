@@ -48,7 +48,7 @@ export default async function SettingsClientsPage() {
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold">고객사 설정</h1>
-          {isAdmin && <ManualButton kind="admin" />}
+          <ManualButton kind="client-settings" isAdmin={isAdmin} />
         </div>
         <VatToggle defaultOn={includeVat} />
       </div>
