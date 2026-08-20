@@ -97,4 +97,5 @@ export async function hardDeleteUser(formData: FormData) {
 - 비활성(`INACTIVE`) 계정에만 "완전 삭제" 버튼이 노출된다.
 - 지급요청 이력이 있는 비활성 계정도 하드 삭제되며, 해당 지급요청 레코드는 보존되고 신청인이 `(삭제된 사용자)`로 표시된다.
 - 활성/대기 계정은 하드 삭제되지 않는다(쿼리 레벨 차단).
+- 신청인이 삭제되어 `requesterId = null`이 된 지급요청은 PM 편집 대상에서 제외된다(앱의 `updatePaymentRequestPmFields`와 RLS `payment_request_update_pm` 모두 `requesterId = 본인`을 요구하므로 자연히 불일치). 정산담당자·관리자는 계속 편집 가능하며, 목록·엑셀 조회에는 영향이 없다. — 신청인이 사라진 건의 의도된 동작.
 - `applyHardDelete` 코어에 대한 단위 테스트: INACTIVE 삭제 성공 / ACTIVE·미존재 시 `{ ok: false }`.
