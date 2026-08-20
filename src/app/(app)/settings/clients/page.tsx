@@ -4,6 +4,7 @@ import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { getRlsContext } from "@/lib/context";
 import { prisma } from "@/lib/db";
 import { listClients, listArchivedClients } from "@/lib/data/clients";
+import { effectiveClientStatus } from "@/lib/clients/status";
 import { getIncludeVat } from "@/lib/vat";
 import { NewClientForm } from "./NewClientForm";
 import { ArchiveClientButton } from "./ArchiveClientButton";
@@ -70,7 +71,7 @@ export default async function SettingsClientsPage() {
           {clients.map((c) => (
             <tr key={c.id} className="border-b border-[var(--color-border)] transition-colors hover:bg-white">
               <td className="py-2">{c.name}</td>
-              <td>{c.status}</td>
+              <td>{effectiveClientStatus(c.status, c.projects)}</td>
               <td className="text-[var(--color-muted)]">{c.businessType ?? "—"}</td>
               <td>
                 <Link href={`/settings/clients/${c.id}`} className="text-[var(--color-primary)]">상세 설정</Link>

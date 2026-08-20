@@ -6,11 +6,10 @@ import { requireRole, requireUser } from "@/lib/auth/session";
 import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { getRlsContext } from "@/lib/context";
 import { VAT_COOKIE } from "@/lib/vat";
-import { clientSchema, projectSchema, taskSchema } from "@/lib/validation/schemas";
+import { clientSchema, projectSchema, projectTasksSchema, type ProjectTaskItem } from "@/lib/validation/schemas";
 import { deriveProjectName } from "@/lib/clients/summary-view";
 import { createClient, updateClient, archiveClient, restoreClient, hardDeleteClient, setClientEasywel } from "@/lib/data/clients";
 import { createProject, updateProject, deleteProject } from "@/lib/data/projects";
-import { createTask, updateTask, deleteTask } from "@/lib/data/tasks";
 import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function createClientAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -53,6 +52,22 @@ export async function updateClientAction(_prev: ActionState, formData: FormData)
   const result = await updateClient(ctx, id, parsed.data);
   revalidatePath(`/settings/clients/${id}`);
   return result.ok ? SAVED : result;
+}
+
+// 프로젝트 폼에 함께 실린 과업 JSON을 파싱·검증한다. 값이 없으면 과업을 건드리지 않는다(undefined).
+function parseProjectTasks(
+  raw: FormDataEntryValue | null,
+): { ok: true; tasks: ProjectTaskItem[] | undefined } | { ok: false; error: string } {
+  if (typeof raw !== "string" || raw.trim() === "") return { ok: true, tasks: undefined };
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "과업 정보를 읽을 수 없습니다." };
+  }
+  const parsed = projectTasksSchema.safeParse(json);
+  if (!parsed.success) return { ok: false, error: "과업 입력값이 올바르지 않습니다. 과업명·단가를 확인하세요." };
+  return { ok: true, tasks: parsed.data };
 }
 
 // 프로젝트명은 항상 계약 기간 연도로 자동 생성한다(입력란 없음). 계약 기간이 없으면 "미정".
@@ -106,7 +121,10 @@ export async function updateProjectAction(_prev: ActionState, formData: FormData
     pmIds: canAssignPms ? formData.getAll("pmIds") : undefined,
   });
   if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다." };
-  const result = await updateProject(ctx, id, parsed.data);
+  // 과업은 상단 '프로젝트 저장'에 JSON으로 함께 실려온다(신규·수정·삭제 일괄 반영).
+  const tasksResult = parseProjectTasks(formData.get("tasks"));
+  if (!tasksResult.ok) return tasksResult;
+  const result = await updateProject(ctx, id, { ...parsed.data, tasks: tasksResult.tasks });
   revalidatePath(`/settings/clients/${clientId}`);
   return result.ok ? SAVED : result;
 }
@@ -151,50 +169,6 @@ export async function hardDeleteClientAction(formData: FormData): Promise<void> 
   const ctx = getRlsContext(user);
   await hardDeleteClient(ctx, String(formData.get("id")));
   revalidatePath("/settings/clients");
-}
-
-export async function createTaskAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("PM");
-  const ctx = getRlsContext(user);
-  const parsed = taskSchema.safeParse({
-    clientId: formData.get("clientId"),
-    projectId: formData.get("projectId"),
-    name: formData.get("name"),
-    unitPrice: formData.get("unitPrice"),
-    contractCount: formData.get("contractCount"),
-    contractAmount: formData.get("contractAmount"),
-  });
-  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 정수여야 합니다(음수 가능)." };
-  await createTask(ctx, parsed.data);
-  revalidatePath(`/settings/clients/${String(formData.get("clientId"))}`);
-  return SAVED;
-}
-
-export async function updateTaskAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("PM");
-  const ctx = getRlsContext(user);
-  const id = String(formData.get("id"));
-  const parsed = taskSchema.safeParse({
-    clientId: formData.get("clientId"),
-    projectId: formData.get("projectId"),
-    name: formData.get("name"),
-    unitPrice: formData.get("unitPrice"),
-    contractCount: formData.get("contractCount"),
-    contractAmount: formData.get("contractAmount"),
-  });
-  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 단가는 정수여야 합니다(음수 가능)." };
-  const result = await updateTask(ctx, id, parsed.data);
-  revalidatePath(`/settings/clients/${String(formData.get("clientId"))}`);
-  return result.ok ? SAVED : result;
-}
-
-export async function deleteTaskAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireRole("PM");
-  const ctx = getRlsContext(user);
-  const id = String(formData.get("id"));
-  const result = await deleteTask(ctx, id);
-  revalidatePath(`/settings/clients/${String(formData.get("clientId"))}`);
-  return result.ok ? { ok: true, message: "삭제되었습니다." } : result;
 }
 
 // 부가세 포함 표시 여부(전체 대시보드·리포트에 적용). 쿠키로 저장, 기본 On.

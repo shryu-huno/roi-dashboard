@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
+import { resolveContractAmount } from "@/lib/data/tasks";
+import type { ProjectTaskItem } from "@/lib/validation/schemas";
 import type { ActionState } from "@/lib/action-state";
 
 export type ProjectInput = {
@@ -12,6 +14,7 @@ export type ProjectInput = {
   reportCycle?: string[]; // 보고 주기(복수). 미선택이면 []로 클리어.
   performanceContract?: boolean; // 실적 계약 여부(미포함=false).
   pmIds?: string[]; // 담당 PM(여러 명). undefined면 배정을 건드리지 않는다.
+  tasks?: ProjectTaskItem[]; // 과업 일괄 저장(신규·수정·삭제). undefined면 과업을 건드리지 않는다.
 };
 
 // 접근 권한(RLS)은 ClientManager(고객사↔PM) 기준을 유지한다. 프로젝트 PM 배정이 접근에
@@ -129,6 +132,27 @@ export async function updateProject(ctx: RlsContext, id: string, input: ProjectI
         await tx.projectManager.createMany({ data: input.pmIds.map((userId) => ({ projectId: id, userId })) });
       }
       await syncClientManagers(tx, project.clientId);
+    }
+    // 과업 일괄 반영: 상단 '프로젝트 저장'이 과업 신규·수정·삭제를 함께 처리한다.
+    // projectId 조건을 함께 걸어 다른 프로젝트의 과업을 건드리지 못하게 한다.
+    if (input.tasks !== undefined) {
+      for (const t of input.tasks) {
+        if (t.deleted) {
+          if (t.id) await tx.task.deleteMany({ where: { id: t.id, projectId: id } });
+          continue;
+        }
+        const data = {
+          name: t.name,
+          unitPrice: t.unitPrice,
+          contractCount: t.contractCount ?? null,
+          contractAmount: resolveContractAmount(t),
+        };
+        if (t.id) {
+          await tx.task.updateMany({ where: { id: t.id, projectId: id }, data });
+        } else {
+          await tx.task.create({ data: { clientId: project.clientId, projectId: id, ...data } });
+        }
+      }
     }
     return { count: 1 };
   });

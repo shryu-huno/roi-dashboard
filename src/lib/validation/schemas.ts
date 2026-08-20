@@ -100,6 +100,19 @@ export const taskSchema = z.object({
   contractAmount: nullableSignedAmount,
 });
 
+// 프로젝트 저장에 함께 실려오는 과업 목록(JSON). id 없으면 신규, deleted면 삭제, 그 외 수정.
+export const projectTasksSchema = z.array(
+  z.object({
+    id: z.string().min(1).optional(),
+    name: z.string().min(1),
+    unitPrice: signedInt,
+    contractCount: nullableAmount,
+    contractAmount: nullableSignedAmount,
+    deleted: z.boolean().optional(),
+  }),
+);
+export type ProjectTaskItem = z.infer<typeof projectTasksSchema>[number];
+
 export const performanceBatchSchema = z.object({
   clientId: z.string().min(1),
   year,
