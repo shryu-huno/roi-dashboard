@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth/session";
 import { roleLabel, statusLabel } from "@/lib/labels";
 import { approveUser, changeStatus } from "./actions";
+import { DeleteUserButton } from "./DeleteUserButton";
 
 export default async function AdminUsersPage() {
   await requireRole("SUPER_ADMIN");
@@ -61,6 +62,9 @@ export default async function AdminUsersPage() {
                       비활성화
                     </button>
                   </form>
+                )}
+                {u.status === "INACTIVE" && (
+                  <DeleteUserButton id={u.id} email={u.email} />
                 )}
               </td>
             </tr>
