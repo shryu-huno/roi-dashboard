@@ -141,10 +141,11 @@ function ClientAddScreen() {
       <div className="mt-3">
         <span className="text-xs text-[var(--color-muted)]">담당 PM* (복수 선택, 최소 1명)</span>
         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
-          <Check label="강규민" />
-          <Check label="류승환" checked />
-          <Check label="류현주" />
-          <Check label="심명섭" />
+          <Check label="PM A" />
+          <Check label="PM B" checked />
+          <Check label="PM C" />
+          <Check label="PM D" />
+          <Check label="PM E" />
         </div>
       </div>
     </Screen>

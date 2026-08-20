@@ -49,7 +49,6 @@ export default async function DashboardPage({
   const showPm = isAllAccess(user.role) || isTeamAdmin(user.role);
   const pms = showPm ? rollupPmSummaries(clients) : [];
 
-  const marginV = margin(totals.performance, totals.expense);
   const attainmentV = attainment(totals.performance, contract);
 
   return (
@@ -64,11 +63,11 @@ export default async function DashboardPage({
       <PeriodFilter year={year} period={period} />
 
       <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <KpiCard title="수익률" value={formatPercent(marginV)} />
+        <KpiCard title="수익률" value="준비중" />
         <KpiCard title="실적 달성률" value={formatPercent(attainmentV)} sub={`계약금 ${formatWon(contract)}`} />
         <KpiCard title="총 실적" value={formatWon(totals.performance)} />
-        <KpiCard title="총 지출" value={formatWon(totals.expense)} />
-        <KpiCard title="총 입금" value={formatWon(totals.deposit)} />
+        <KpiCard title="총 지출" value="준비중" />
+        <KpiCard title="총 입금" value="준비중" />
       </section>
 
       <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">

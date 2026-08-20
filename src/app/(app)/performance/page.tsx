@@ -4,13 +4,13 @@ import { listClients } from "@/lib/data/clients";
 import { listTasks } from "@/lib/data/tasks";
 import { listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { PerformanceGrid } from "./PerformanceGrid";
-import { TotalsBasisToggle } from "./TotalsBasisToggle";
+import { PerformanceManualButton } from "./PerformanceManualButton";
 import { ClientCombobox } from "@/components/ClientCombobox";
 
 export default async function PerformancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; year?: string; month?: string; basis?: string }>;
+  searchParams: Promise<{ clientId?: string; year?: string; month?: string }>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();
@@ -27,14 +27,14 @@ export default async function PerformancePage({
   const clientId = sp.clientId || undefined;
   const year = Number(sp.year) || defaultYear;
   const month = Number(sp.month) || defaultMonth;
-  // 누적표 집계 기준. 기본은 "year"(최신연도=조회 연도 1년치). "project"면 조회 월의 프로젝트 계약기간 전체.
-  const totalsBasis = sp.basis === "project" ? "project" : "year";
 
   const [tasks, perf, totals] = clientId
     ? await Promise.all([
         listTasks(ctx, clientId, { year, month }),
         listPerformance(ctx, clientId, year, month),
-        listPerformanceTotals(ctx, clientId, totalsBasis === "project" ? { basis: "project", year, month } : { basis: "year", year }),
+        // 실적 누적은 조회 월이 속한 프로젝트의 계약기간 전체 기준만 사용한다("최신연도 1년치" 기준은 없음).
+        // 프로젝트/회계연도 기준 전환은 수익률이 있는 화면(대시보드·고객사별 현황 등)에서만 다룬다.
+        listPerformanceTotals(ctx, clientId, { basis: "project", year, month }),
       ])
     : [[], [], []];
   // count가 null인 레코드는 금액 직접입력 모드 → 금액을 초깃값으로 복원.
@@ -44,7 +44,10 @@ export default async function PerformancePage({
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">실적 입력</h1>
+      <div className="mb-4 flex items-center gap-3">
+        <h1 className="text-xl font-semibold">실적 입력</h1>
+        <PerformanceManualButton />
+      </div>
 
       <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <label className="flex flex-col text-xs text-[var(--color-muted)]">
@@ -59,8 +62,6 @@ export default async function PerformancePage({
           월
           <input type="number" name="month" min="1" max="12" defaultValue={month} className="mt-1 w-24 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
         </label>
-        {/* 조회(GET 제출) 시에도 누적 기준 토글 상태를 유지한다. */}
-        {totalsBasis === "project" && <input type="hidden" name="basis" value="project" />}
         <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">조회</button>
       </form>
 
@@ -79,9 +80,8 @@ export default async function PerformancePage({
             initialAmounts={initialAmounts}
           />
 
-          <div className="mb-2 mt-10 flex items-center justify-between">
-            <h2 className="text-[18px] font-medium text-black">{totalsBasis === "project" ? "프로젝트 누적" : `${year}년 누적`}</h2>
-            <TotalsBasisToggle on={totalsBasis === "project"} />
+          <div className="mb-2 mt-10">
+            <h2 className="text-[18px] font-medium text-black">프로젝트 누적</h2>
           </div>
           <table className="w-full border-collapse text-sm">
             <thead>

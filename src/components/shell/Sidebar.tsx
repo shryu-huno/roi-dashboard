@@ -6,7 +6,7 @@ export function Sidebar({ role }: { role: AppRole | null }) {
   const items = navItemsForRole(role);
   return (
     <aside className="sticky top-0 h-screen w-56 shrink-0 self-start overflow-y-auto bg-[var(--color-sidebar)] p-4 text-white">
-      <Link href="/dashboard" className="mb-6 block px-2 text-lg font-semibold">ROI 대시보드</Link>
+      <Link href="/dashboard" className="mb-6 block px-2 text-lg font-semibold">HUNO 대시보드</Link>
       <nav className="flex flex-col gap-1">
         {items.map((i) => (
           <Link key={i.href} href={i.href} className="rounded px-2 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white">
