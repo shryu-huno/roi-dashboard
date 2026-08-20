@@ -10,6 +10,7 @@ import { NewProjectForm } from "./NewProjectForm";
 import { ProjectCard } from "./ProjectCard";
 import { ManualButton } from "../ManualButton";
 import { deriveProjectName } from "@/lib/clients/summary-view";
+import { effectiveClientStatus, effectiveProjectStatus } from "@/lib/clients/status";
 
 function toDateInput(d: Date | null): string {
   return d ? d.toISOString().slice(0, 10) : "";
@@ -51,7 +52,8 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
         client={{
           id: client.id,
           name: client.name,
-          status: client.status,
+          // 프로젝트가 모두 만료되면 고객사 상태도 계약만료로 표시한다.
+          status: effectiveClientStatus(client.status, projects),
           businessType: client.businessType,
           industry: client.industry,
         }}
@@ -64,7 +66,7 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
       {projects.length === 0 ? (
         <p className="text-[var(--color-muted)]">등록된 프로젝트가 없습니다.</p>
       ) : (
-        projects.map((p) => {
+        projects.map((p, index) => {
           const start = toDateInput(p.contractStart);
           const end = toDateInput(p.contractEnd);
           // 소제목 라벨: 계약연도(예: "2026", "2025~2026"). 계약기간 없으면 저장된 이름/"미정".
@@ -72,6 +74,8 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
           return (
             <ProjectCard
               key={p.id}
+              // 목록은 최신순 정렬 → 첫 프로젝트만 펼치고 나머지는 접는다.
+              defaultOpen={index === 0}
               canManagePms={!isPm}
               pms={pmOptions}
               pmIds={p.managers.map((m) => m.userId)}
@@ -86,7 +90,8 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
                 id: p.id,
                 clientId: client.id,
                 label,
-                status: p.status,
+                // 계약 종료일이 지났으면 계약만료로 표시한다.
+                status: effectiveProjectStatus(p.status, p.contractEnd),
                 contractStart: start,
                 contractEnd: end,
                 billingCycle: p.billingCycle,

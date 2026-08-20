@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { listClients } from "@/lib/data/clients";
+import { effectiveClientStatus } from "@/lib/clients/status";
 import { getClientYearProgress } from "@/lib/data/metrics";
 import { attainment } from "@/lib/metrics/formulas";
 import { prisma } from "@/lib/db";
@@ -31,7 +32,8 @@ export default async function ClientsPage() {
     return {
       id: c.id,
       name: c.name,
-      status: c.status,
+      // 프로젝트가 모두 만료되면 고객사도 계약만료로 표시한다.
+      status: effectiveClientStatus(c.status, c.projects),
       industry: c.industry,
       pmLabel: labels.length ? labels.join(", ") : "미배정",
       // 주기·실적계약은 프로젝트 단위 → 고객사 카드에선 활성 프로젝트 전체를 합산해 표시한다.

@@ -23,7 +23,7 @@ function deriveContractAmount(unitPrice: number, contractCount: number | null | 
 }
 
 // 사용자가 계약금을 직접 입력했으면 그 값을, 아니면(빈칸) 단가×횟수 자동값을 쓴다.
-function resolveContractAmount(input: TaskAmounts): number | null {
+export function resolveContractAmount(input: TaskAmounts): number | null {
   return input.contractAmount ?? deriveContractAmount(input.unitPrice, input.contractCount);
 }
 

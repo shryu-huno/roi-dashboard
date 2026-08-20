@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateProjectAction, deleteProjectAction } from "../actions";
 import { OK } from "@/lib/action-state";
 import { CYCLE_VALUES } from "@/lib/clients/summary-view";
+import { STATUS_OPTIONS } from "@/lib/clients/status";
 import { TaskManager } from "./TaskManager";
 
 type Pm = { id: string; label: string };
@@ -56,21 +57,33 @@ export function ProjectCard({
   pms,
   pmIds,
   canManagePms,
+  defaultOpen = false,
 }: {
   project: Project;
   tasks: Task[];
   pms: Pm[];
   pmIds: string[];
   canManagePms: boolean;
+  defaultOpen?: boolean; // 최신 프로젝트만 펼친 채로 시작(그 외는 접힘).
 }) {
   const [state, formAction] = useActionState(updateProjectAction, OK);
   const [open, setOpen] = useState(false);
+  // 프로젝트 전체 아코디언. 접혀도 폼은 DOM에 남겨(hidden) 상단 '프로젝트 저장'이 값을 잃지 않게 한다.
+  const [expanded, setExpanded] = useState(defaultOpen);
   const formId = `project-form-${project.id}`;
 
   return (
     <section className="mb-4 rounded-[14px] border border-[var(--color-border)] p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-[var(--color-fg)]">프로젝트 - {project.label}</h3>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="flex items-center gap-2 text-left"
+          aria-expanded={expanded}
+        >
+          <span className="text-[var(--color-muted)]">{expanded ? "▾" : "▸"}</span>
+          <h3 className="text-base font-semibold text-[var(--color-fg)]">프로젝트 - {project.label}</h3>
+        </button>
         <div className="flex items-center gap-2">
           {state.ok && state.message && <span className="text-sm text-[var(--color-primary)]">{state.message}</span>}
           {!state.ok && state.error && <span className="text-sm text-[var(--color-danger)]">{state.error}</span>}
@@ -100,15 +113,20 @@ export function ProjectCard({
         </div>
       </div>
 
+      <div className={expanded ? "" : "hidden"}>
       <form id={formId} action={formAction} className="flex flex-col gap-3">
         <input type="hidden" name="id" value={project.id} />
         <input type="hidden" name="clientId" value={project.clientId} />
 
-        {/* 항상 보이는 행: 상태 · 계약 기간 */}
+        {/* 상태 · 계약 기간 */}
         <div className="flex flex-wrap items-end gap-3">
           <label className={labelCls}>
             상태
-            <input name="status" defaultValue={project.status} className={`${inputCls} w-28`} />
+            <select name="status" defaultValue={project.status} className={`${inputCls} w-28 bg-[var(--color-surface)] text-[var(--color-fg)]`}>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </label>
           <label className={labelCls}>
             계약 시작
@@ -178,7 +196,9 @@ export function ProjectCard({
       </form>
 
       <div className="mt-4">
-        <TaskManager clientId={project.clientId} projectId={project.id} tasks={tasks} />
+        {/* 과업 신규·수정·삭제는 상단 '프로젝트 저장'에 통합 저장된다. key로 저장 후 최신 과업으로 재초기화. */}
+        <TaskManager key={tasks.map((t) => t.id).join("|")} tasks={tasks} formId={formId} />
+      </div>
       </div>
     </section>
   );

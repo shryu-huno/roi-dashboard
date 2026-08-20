@@ -17,7 +17,8 @@ const withManagersAndProjects = {
     managers: true,
     projects: {
       where: { deletedAt: null },
-      select: { billingCycle: true, reportCycle: true, performanceContract: true },
+      // status·contractEnd는 고객사 상태(모든 프로젝트 만료 시 계약만료) 파생에 쓰인다.
+      select: { billingCycle: true, reportCycle: true, performanceContract: true, status: true, contractEnd: true },
     },
   },
 } as const;

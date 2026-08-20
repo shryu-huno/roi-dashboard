@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateClientAction } from "../actions";
 import { OK } from "@/lib/action-state";
+import { STATUS_OPTIONS } from "@/lib/clients/status";
 
 type ClientInit = {
   id: string;
@@ -27,7 +28,11 @@ export function EditClientForm({ client }: { client: ClientInit }) {
       </label>
       <label className={labelCls}>
         상태
-        <input name="status" defaultValue={client.status} className={`${inputCls} w-32`} />
+        <select name="status" defaultValue={client.status} className={`${inputCls} w-32 bg-[var(--color-surface)] text-[var(--color-fg)]`}>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </label>
       <label className={labelCls}>
         사업자 구분
