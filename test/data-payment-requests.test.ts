@@ -1206,3 +1206,25 @@ describe("payment-requests 데이터 계층", () => {
     });
   });
 });
+
+describe("listPaymentRequests — 삭제된 신청인", () => {
+  beforeEach(reset);
+  afterAll(reset);
+
+  it("신청인 계정이 하드 삭제되면 requesterId=null, 이름은 (삭제된 사용자)", async () => {
+    const { pmA, clientA } = await seed();
+    const payee = await createPayee("1112233445", "삭제테스트업체");
+    const created = await createPaymentRequestsBulk({ userId: pmA.id, role: "PM" }, pmA.id, [
+      { entity: "HUNO", clientId: clientA.id, payeeId: payee.id, unitPrice: 100000, transportFee: 0, materialFee: 0, count: 1, memo: "삭제테스트" },
+    ]);
+    expect(created.ok).toBe(true);
+
+    // 신청인(PM) 하드 삭제 — FK SET NULL로 지급요청은 보존되어야 한다.
+    await prisma.user.delete({ where: { id: pmA.id } });
+
+    const { rows } = await listPaymentRequests(ADMIN);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].requesterId).toBeNull();
+    expect(rows[0].requesterName).toBe("(삭제된 사용자)");
+  });
+});

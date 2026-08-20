@@ -49,7 +49,7 @@ export type PaymentRequestRow = {
   id: string;
   seqNo: number;
   requestedAt: Date;
-  requesterId: string;
+  requesterId: string | null;
   requesterName: string;
   entity: PaymentRequestEntity;
   clientId: string;
@@ -121,7 +121,7 @@ export async function listPaymentRequests(
     seqNo: r.seqNo,
     requestedAt: r.requestedAt,
     requesterId: r.requesterId,
-    requesterName: r.requester.name ?? r.requester.email,
+    requesterName: r.requester?.name ?? r.requester?.email ?? "(삭제된 사용자)",
     entity: r.entity,
     clientId: r.clientId,
     clientName: r.client.name,
@@ -189,7 +189,7 @@ export async function listPaymentRequestsForExport(
 
   return rows.map((r) => ({
     seqNo: r.seqNo,
-    requesterName: r.requester.name ?? r.requester.email,
+    requesterName: r.requester?.name ?? r.requester?.email ?? "(삭제된 사용자)",
     entity: r.entity,
     clientName: r.client.name,
     bizName: r.bizName,
