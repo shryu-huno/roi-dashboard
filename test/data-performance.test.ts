@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { upsertPerformanceBatch, listPerformance, listPerformanceTotals } from "@/lib/data/performance";
-import { createProject } from "@/lib/data/projects";
-import { createTask } from "@/lib/data/tasks";
-import { mkClient, mkTask } from "./factories";
+import { createProject, updateProject } from "@/lib/data/projects";
+import { createTask, updateTask } from "@/lib/data/tasks";
+import { mkClient, mkTask, projectIdOf } from "./factories";
 
 const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
@@ -36,6 +36,30 @@ describe("performance data layer", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].amount).toBe(40000);
     expect(rows[0].count).toBe(4);
+  });
+
+  it("단가 변경 시 횟수 모드 실적 금액을 새 단가로 다시 계산한다(updateTask)", async () => {
+    // 3월: 횟수 모드 4회 → 40000, 5월: 금액 직접입력 500000(count null).
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 4, amount: null }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 5, rows: [{ taskId: taskA1, count: null, amount: 500000 }] });
+
+    await updateTask(ADMIN, taskA1, { name: "심리진단", unitPrice: 12000, contractCount: null });
+
+    const mar = await listPerformance(ADMIN, clientA, 2026, 3);
+    expect(mar[0].amount).toBe(48000); // 12000 × 4 (옛 40000이 아님)
+    const may = await listPerformance(ADMIN, clientA, 2026, 5);
+    expect(may[0].amount).toBe(500000); // 금액 직접입력 모드는 그대로
+  });
+
+  it("단가 변경 시 프로젝트 저장(updateProject) 경로에서도 실적 금액을 다시 계산한다", async () => {
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 6, rows: [{ taskId: taskA1, count: 3, amount: null }] });
+    const projectId = await projectIdOf(ADMIN, clientA);
+    await updateProject(ADMIN, projectId, {
+      name: "기본 프로젝트",
+      tasks: [{ id: taskA1, name: "심리진단", unitPrice: 20000, contractCount: null, contractAmount: null }],
+    });
+    const jun = await listPerformance(ADMIN, clientA, 2026, 6);
+    expect(jun[0].amount).toBe(60000); // 20000 × 3 (옛 30000이 아님)
   });
 
   it("stores amount directly and leaves count null in amount mode", async () => {

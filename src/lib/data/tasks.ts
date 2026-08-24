@@ -1,4 +1,5 @@
 import { withRLS, type RlsContext } from "@/lib/rls";
+import { recomputePerformanceAmounts } from "@/lib/data/performance";
 import type { ActionState } from "@/lib/action-state";
 
 // 과업 금액 필드(생성·수정 공용). 계약금은 단가×횟수 파생 또는 수동값.
@@ -66,8 +67,8 @@ export function createTask(ctx: RlsContext, input: TaskInput) {
 }
 
 export async function updateTask(ctx: RlsContext, id: string, input: TaskUpdateInput): Promise<ActionState> {
-  const result = await withRLS(ctx, (tx) =>
-    tx.task.updateMany({
+  const result = await withRLS(ctx, async (tx) => {
+    const r = await tx.task.updateMany({
       where: { id },
       data: {
         name: input.name,
@@ -76,8 +77,11 @@ export async function updateTask(ctx: RlsContext, id: string, input: TaskUpdateI
         contractAmount: resolveContractAmount(input),
         vatExempt: input.vatExempt ?? false,
       },
-    }),
-  );
+    });
+    // 단가가 바뀌었을 수 있으므로 횟수 모드 실적 금액을 새 단가로 다시 계산한다.
+    if (r.count > 0) await recomputePerformanceAmounts(tx, id, input.unitPrice);
+    return r;
+  });
   if (result.count === 0) return { ok: false, error: "과업을 찾을 수 없거나 권한이 없습니다." };
   return { ok: true };
 }

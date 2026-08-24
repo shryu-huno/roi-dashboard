@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
 import { resolveContractAmount } from "@/lib/data/tasks";
+import { recomputePerformanceAmounts } from "@/lib/data/performance";
 import type { ProjectTaskItem } from "@/lib/validation/schemas";
 import type { ActionState } from "@/lib/action-state";
 
@@ -150,6 +151,8 @@ export async function updateProject(ctx: RlsContext, id: string, input: ProjectI
         };
         if (t.id) {
           await tx.task.updateMany({ where: { id: t.id, projectId: id }, data });
+          // 단가가 바뀌었을 수 있으므로 이 과업의 횟수 모드 실적 금액을 새 단가로 다시 계산한다.
+          await recomputePerformanceAmounts(tx, t.id, t.unitPrice);
         } else {
           await tx.task.create({ data: { clientId: project.clientId, projectId: id, ...data } });
         }
