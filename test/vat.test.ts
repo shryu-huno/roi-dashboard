@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withVat } from "@/lib/vat";
+import { withVat, withVatSplit } from "@/lib/vat";
 
 describe("withVat", () => {
   it("returns the raw amount when not included", () => {
@@ -19,5 +19,17 @@ describe("withVat", () => {
     for (const v of [1, 7, 99, 12345, 987654, 1000001]) {
       expect(withVat(v, true) % 10).toBe(0);
     }
+  });
+});
+
+describe("withVatSplit", () => {
+  it("applies ×1.1 to the taxable part only, adds the exempt part raw", () => {
+    expect(withVatSplit(40000, 10000, true)).toBe(54000); // 44000 + 10000
+    expect(withVatSplit(40000, 10000, false)).toBe(50000); // 원값 합
+  });
+
+  it("all-exempt is never grossed up; all-taxable matches withVat", () => {
+    expect(withVatSplit(0, 50000, true)).toBe(50000);
+    expect(withVatSplit(50000, 0, true)).toBe(withVat(50000, true));
   });
 });

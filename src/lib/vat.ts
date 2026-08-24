@@ -14,3 +14,8 @@ export async function getIncludeVat(): Promise<boolean> {
 export function withVat(amount: number, include: boolean): number {
   return include ? Math.round((amount * (1 + VAT_RATE)) / 10) * 10 : amount;
 }
+
+/** 과세분(taxable)에만 부가세를 적용하고, 면세분(exempt)은 원값으로 합산한다. */
+export function withVatSplit(taxable: number, exempt: number, include: boolean): number {
+  return withVat(taxable, include) + exempt;
+}

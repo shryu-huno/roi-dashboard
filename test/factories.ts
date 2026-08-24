@@ -32,7 +32,7 @@ export async function projectIdOf(ctx: RlsContext, clientId: string): Promise<st
 // clientId만으로 그 고객사의 기본 프로젝트에 과업 생성(projectId 자동 결합).
 export async function mkTask(
   ctx: RlsContext,
-  input: { clientId: string; name: string; unitPrice: number; contractCount?: number | null; contractAmount?: number | null },
+  input: { clientId: string; name: string; unitPrice: number; contractCount?: number | null; contractAmount?: number | null; vatExempt?: boolean },
 ) {
   const { clientId, ...rest } = input;
   const projectId = await projectIdOf(ctx, clientId);

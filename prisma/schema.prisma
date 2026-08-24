@@ -188,6 +188,7 @@ model Task {
   unitPrice      Int
   contractCount  Int?
   contractAmount Int?
+  vatExempt      Boolean    @default(false) // 면세 여부(기본: 과세). true면 부가세 토글 무시.
   source         TaskSource @default(MANUAL)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt

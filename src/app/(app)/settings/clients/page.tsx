@@ -28,11 +28,15 @@ export default async function SettingsClientsPage() {
     isAdmin ? listArchivedClients(ctx) : Promise.resolve([]),
     getIncludeVat(),
     // 담당 PM 후보(생성 폼용): 전체 접근은 전원, 팀 관리자는 자기 팀 소속만(그 외 배정 시 RLS로 막힌다). PM은 생성하지 않는다.
+    // 팀에 소속된 최고관리자도 후보에 포함한다(특정 팀의 PM 역할을 겸하는 예외 계정).
     canCreate
       ? prisma.user.findMany({
           where: {
-            role: { in: ["PM", "ADMIN"] },
             status: "ACTIVE",
+            OR: [
+              { role: { in: ["PM", "ADMIN"] } },
+              { role: "SUPER_ADMIN", teamId: { not: null } },
+            ],
             ...(isAllAccess(user.role) ? {} : { teamId: user.teamId ?? undefined }),
           },
           orderBy: { name: "asc" },

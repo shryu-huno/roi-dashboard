@@ -102,10 +102,10 @@ function Field({
   );
 }
 
-// 체크박스(선택/미선택) 목업.
-function Check({ label, checked = false }: { label: string; checked?: boolean }) {
+// 체크박스(선택/미선택) 목업. labelClassName으로 라벨 색을 덮어쓸 수 있다(예: 면세=검붉은색).
+function Check({ label, checked = false, labelClassName = "text-[var(--color-fg)]" }: { label: string; checked?: boolean; labelClassName?: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm text-[var(--color-fg)]">
+    <span className={`inline-flex items-center gap-1.5 text-sm ${labelClassName}`}>
       <span
         className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border ${
           checked ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-[var(--color-border)] bg-[var(--color-surface)]"
@@ -221,7 +221,7 @@ function CategoryChecks({ selected }: { selected: string }) {
 
 // 과업 한 건을 카드로 표시(실제 화면처럼 과업마다 별도 카드). 단가·횟수·계약금과 제거(✕) 버튼 포함.
 // 저장은 카드가 아니라 상단 "프로젝트 저장" 버튼으로 프로젝트와 함께 이뤄진다.
-function TaskCard({ children, unit, count, amount }: { children: React.ReactNode; unit: string; count: string; amount: string }) {
+function TaskCard({ children, unit, count, amount, exempt = false }: { children: React.ReactNode; unit: string; count: string; amount: string; exempt?: boolean }) {
   return (
     <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm">
       <span className="text-xs text-[var(--color-muted)]">과업명(분류 선택)</span>
@@ -230,6 +230,10 @@ function TaskCard({ children, unit, count, amount }: { children: React.ReactNode
         <Field label="단가(원)" value={unit} w="w-28" align="right" />
         <Field label="횟수" value={count} w="w-20" align="right" />
         <Field label="계약금(자동·수정가능)" value={amount} w="w-32" align="right" />
+        {/* 면세 과업 체크(검붉은색). 부가세 포함 표시에서 제외된다. */}
+        <span className="self-end pb-1.5">
+          <Check label="면세" checked={exempt} labelClassName="text-[#991B1B] font-medium" />
+        </span>
         <span className="self-end rounded-md p-2 text-[var(--color-muted)]" title="과업 제거" aria-hidden>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 6 6 18M6 6l12 12" />
@@ -255,9 +259,9 @@ function TaskScreen() {
         <CategoryChecks selected="전문가 상담" />
       </TaskCard>
 
-      {/* 과업 2: "기타" 선택 → 과업명 직접 입력 */}
+      {/* 과업 2: "기타" 선택 → 과업명 직접 입력. 면세 과업 예시로 「면세」 체크 표시. */}
       <p className="mb-1.5 mt-1 text-xs font-medium text-[var(--color-muted)]">「기타」 선택 시 — 과업명을 직접 입력</p>
-      <TaskCard unit="300,000" count="2" amount="600,000">
+      <TaskCard unit="300,000" count="2" amount="600,000" exempt>
         <CategoryChecks selected="기타" />
         <div className="mt-2">
           <Field label="과업명 직접 입력" value="직무 스트레스 특강" w="w-56" />
@@ -380,6 +384,11 @@ function ProjectDetailManual() {
             </li>
             <li>
               <K>실적 계약</K>의 경우 <K>단가만</K> 입력하면 됩니다.
+            </li>
+            <li>
+              부가세가 <K>면세</K>인 과업은 계약금 우측의 <span className="font-semibold text-[#991B1B]">면세</span> 항목을 체크합니다.{" "}
+              대부분의 과업은 과세이므로 <K>기본은 미체크</K>이며, 체크한 과업은{" "}
+              <K>완전 부가세가 제외</K>되어 계약금·실적이 원래 금액 그대로 집계됩니다.
             </li>
             <li>
               입력을 마치면 화면 상단의 <K>프로젝트 저장</K> 버튼을 눌러 프로젝트와 과업을 <K>함께 저장</K>합니다.

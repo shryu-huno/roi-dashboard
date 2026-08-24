@@ -106,6 +106,14 @@ describe("taskSchema", () => {
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.unitPrice).toBe(-1000000);
   });
+  it("accepts an explicit vatExempt and leaves it undefined when omitted", () => {
+    const on = taskSchema.safeParse({ clientId: "c1", projectId: "p1", name: "면세", unitPrice: 10000, contractCount: "", vatExempt: true });
+    expect(on.success).toBe(true);
+    if (on.success) expect(on.data.vatExempt).toBe(true);
+    const off = taskSchema.safeParse({ clientId: "c1", projectId: "p1", name: "과세", unitPrice: 10000, contractCount: "" });
+    expect(off.success).toBe(true);
+    if (off.success) expect(off.data.vatExempt).toBeUndefined();
+  });
 });
 
 describe("expenseSchema – blank amount", () => {

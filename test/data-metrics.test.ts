@@ -92,6 +92,34 @@ describe("metrics: period totals & contract total", () => {
     expect(await getContractTotal(ADMIN, true)).toBe(1430000); // 1300000 × 1.1
   });
 
+  it("면세 과업은 includeVat=true여도 계약금·실적에 ×1.1을 적용하지 않는다", async () => {
+    // A사에 면세 과업 추가: 계약금 100000, 3월 실적 10000.
+    const exempt = await mkTask(ADMIN, { clientId: clientA, name: "면세과업", unitPrice: 10000, contractCount: 10, vatExempt: true });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: exempt.id, count: 1, amount: null }] });
+
+    // VAT 미포함: 면세/과세 모두 원값.
+    expect(await getContractTotal(ADMIN)).toBe(1400000); // 1300000 + 100000
+    const off = await getPeriodTotals(ADMIN, 2026, "h1");
+    expect(off.performance).toBe(70000); // 60000 + 10000
+
+    // VAT 포함: 과세분만 ×1.1, 면세분은 원값.
+    expect(await getContractTotal(ADMIN, true)).toBe(1530000); // 1300000×1.1 + 100000
+    const on = await getPeriodTotals(ADMIN, 2026, "h1", true);
+    expect(on.performance).toBe(76000); // 60000×1.1 + 10000
+
+    // 고객사 단위(요약·상세)도 동일하게 분리 적용.
+    const sumA = (await getClientSummaries(ADMIN, 2026, "all", true)).find((r) => r.name === "A사")!;
+    expect(sumA.contract).toBe(650000); // 500000×1.1 + 100000
+    expect(sumA.performance).toBe(76000); // (40000+20000)×1.1 + 10000
+    const detail = await getClientDetail(ADMIN, clientA, 2026, "all", true);
+    expect(detail!.contract).toBe(650000);
+    // 면세 과업의 월별 실적은 원값(3월 10000), 과세 과업은 ×1.1.
+    const exemptRow = detail!.tasks.find((t) => t.name === "면세과업")!;
+    expect(exemptRow.monthly.find((m) => m.month === 3)!.amount).toBe(10000);
+    const taxableRow = detail!.tasks.find((t) => t.name === "진단")!;
+    expect(taxableRow.monthly.find((m) => m.month === 3)!.amount).toBe(44000); // 40000×1.1
+  });
+
   it("archived client is excluded from company-wide totals and contract", async () => {
     await archiveClient(ADMIN, clientB); // B사 보관
     const t = await getPeriodTotals(ADMIN, 2026, "h1");
