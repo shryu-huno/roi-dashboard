@@ -1,6 +1,14 @@
+import { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import type { ActionState } from "@/lib/action-state";
 import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
+
+// 횟수 모드(count!=null)로 입력한 실적 금액은 단가×횟수 파생값이라, 입력 시점 단가로 스냅샷된다.
+// 과업 단가가 바뀌면 과거 실적 금액이 옛 단가로 남으므로, 단가 변경 시 이 함수로 새 단가로 다시 계산한다.
+// 금액 직접입력 모드(count==null)는 사용자가 넣은 확정 금액이므로 건드리지 않는다.
+export function recomputePerformanceAmounts(tx: Prisma.TransactionClient, taskId: string, unitPrice: number) {
+  return tx.$executeRaw`UPDATE "MonthlyPerformance" SET "amount" = "count" * ${unitPrice}, "updatedAt" = now() WHERE "taskId" = ${taskId} AND "count" IS NOT NULL`;
+}
 
 export type PerformanceBatchInput = {
   clientId: string;
