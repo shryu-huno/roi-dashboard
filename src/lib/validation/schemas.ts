@@ -98,6 +98,8 @@ export const taskSchema = z.object({
   // 계약금은 단가×횟수로 자동 계산되지만 사용자가 직접 수정할 수 있다.
   // 빈칸이면 서버가 단가×횟수로 파생한다.
   contractAmount: nullableSignedAmount,
+  // 면세 과업이면 true(부가세 토글이 켜져도 ×1.1 미적용).
+  vatExempt: z.boolean().optional(),
 });
 
 // 프로젝트 저장에 함께 실려오는 과업 목록(JSON). id 없으면 신규, deleted면 삭제, 그 외 수정.
@@ -108,6 +110,7 @@ export const projectTasksSchema = z.array(
     unitPrice: signedInt,
     contractCount: nullableAmount,
     contractAmount: nullableSignedAmount,
+    vatExempt: z.boolean().optional(),
     deleted: z.boolean().optional(),
   }),
 );

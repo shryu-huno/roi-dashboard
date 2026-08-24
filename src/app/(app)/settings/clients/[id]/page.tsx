@@ -25,12 +25,16 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
   if (!client) notFound();
   const [projects, pms] = await Promise.all([
     listProjects(ctx, id),
-    // 담당 PM 후보: PM·팀 관리자 중 활성 사용자. 팀 관리자가 배정할 때는 자기 팀 소속만 후보로
-    // 노출한다(ClientManager/ProjectManager RLS WITH CHECK의 팀 제약에 더한 서버측 방어).
+    // 담당 PM 후보: PM·팀 관리자 중 활성 사용자. 팀에 소속된 최고관리자도 후보에 포함한다
+    // (전체 접근은 유지하되 특정 팀의 PM 역할을 겸하는 예외 계정). 팀 관리자가 배정할 때는
+    // 자기 팀 소속만 후보로 노출한다(ClientManager/ProjectManager RLS WITH CHECK의 팀 제약에 더한 서버측 방어).
     prisma.user.findMany({
       where: {
-        role: { in: ["PM", "ADMIN"] },
         status: "ACTIVE",
+        OR: [
+          { role: { in: ["PM", "ADMIN"] } },
+          { role: "SUPER_ADMIN", teamId: { not: null } },
+        ],
         ...(isTeamAdmin(user.role) ? { teamId: user.teamId } : {}),
       },
       orderBy: { name: "asc" },
@@ -85,6 +89,7 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
                 unitPrice: t.unitPrice,
                 contractCount: t.contractCount,
                 contractAmount: t.contractAmount,
+                vatExempt: t.vatExempt,
               }))}
               project={{
                 id: p.id,

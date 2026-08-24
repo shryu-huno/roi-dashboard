@@ -7,6 +7,7 @@ type TaskAmounts = {
   unitPrice: number;
   contractCount?: number | null;
   contractAmount?: number | null;
+  vatExempt?: boolean;
 };
 
 export type TaskInput = TaskAmounts & {
@@ -58,6 +59,7 @@ export function createTask(ctx: RlsContext, input: TaskInput) {
         unitPrice: input.unitPrice,
         contractCount: input.contractCount ?? null,
         contractAmount: resolveContractAmount(input),
+        vatExempt: input.vatExempt ?? false,
       },
     }),
   );
@@ -72,6 +74,7 @@ export async function updateTask(ctx: RlsContext, id: string, input: TaskUpdateI
         unitPrice: input.unitPrice,
         contractCount: input.contractCount ?? null,
         contractAmount: resolveContractAmount(input),
+        vatExempt: input.vatExempt ?? false,
       },
     }),
   );

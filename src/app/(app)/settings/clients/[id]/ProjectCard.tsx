@@ -8,7 +8,7 @@ import { STATUS_OPTIONS } from "@/lib/clients/status";
 import { TaskManager } from "./TaskManager";
 
 type Pm = { id: string; label: string };
-type Task = { id: string; name: string; unitPrice: number; contractCount: number | null; contractAmount: number | null };
+type Task = { id: string; name: string; unitPrice: number; contractCount: number | null; contractAmount: number | null; vatExempt?: boolean };
 
 type Project = {
   id: string;

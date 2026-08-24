@@ -146,6 +146,7 @@ export async function updateProject(ctx: RlsContext, id: string, input: ProjectI
           unitPrice: t.unitPrice,
           contractCount: t.contractCount ?? null,
           contractAmount: resolveContractAmount(t),
+          vatExempt: t.vatExempt ?? false,
         };
         if (t.id) {
           await tx.task.updateMany({ where: { id: t.id, projectId: id }, data });

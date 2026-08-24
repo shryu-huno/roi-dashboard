@@ -9,6 +9,7 @@ type Task = {
   unitPrice: number;
   contractCount: number | null;
   contractAmount: number | null;
+  vatExempt?: boolean;
 };
 
 const labelCls = "flex flex-col text-xs text-[var(--color-muted)]";
@@ -91,6 +92,7 @@ type Row = {
   unit: string;
   count: string;
   amount: string;
+  vatExempt: boolean; // 면세 여부(체크 시 부가세 토글 무시).
   deleted: boolean; // 기존 과업을 삭제 표시(프로젝트 저장 시 반영).
 };
 
@@ -104,6 +106,7 @@ function toRow(t: Task): Row {
     unit: formatThousandsSigned(t.unitPrice),
     count: t.contractCount != null ? String(t.contractCount) : "",
     amount: t.contractAmount != null ? formatThousandsSigned(t.contractAmount) : "",
+    vatExempt: t.vatExempt ?? false,
     deleted: false,
   };
 }
@@ -148,10 +151,14 @@ export function TaskManager({ tasks, formId }: { tasks: Task[]; formId: string }
       }),
     );
 
+  // 면세 체크박스 전용 setter(boolean이라 setField의 문자열 경유를 피한다).
+  const setExempt = (key: string, v: boolean) =>
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, vatExempt: v } : r)));
+
   const addRow = () =>
     setRows((rs) => [
       ...rs,
-      { key: `new-${seq.current++}`, category: "", etcName: "", unit: "", count: "", amount: "", deleted: false },
+      { key: `new-${seq.current++}`, category: "", etcName: "", unit: "", count: "", amount: "", vatExempt: false, deleted: false },
     ]);
 
   // 신규 행은 완전히 제거, 기존 행은 삭제 표시(프로젝트 저장 시 실제 삭제).
@@ -169,6 +176,7 @@ export function TaskManager({ tasks, formId }: { tasks: Task[]; formId: string }
       unitPrice: r.unit,
       contractCount: r.count,
       contractAmount: r.amount,
+      vatExempt: r.vatExempt,
       ...(r.deleted ? { deleted: true } : {}),
     }));
 
@@ -212,6 +220,11 @@ export function TaskManager({ tasks, formId }: { tasks: Task[]; formId: string }
                 onChange={(e) => setField(r.key, "amount", e.target.value)}
                 className={`${inputCls} w-44 text-right`}
               />
+            </label>
+            {/* 면세 과업(체크 시 부가세 토글이 켜져도 ×1.1 미적용). 대부분 과세라 기본 uncheck. */}
+            <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium text-[#991B1B]">
+              <input type="checkbox" checked={r.vatExempt} onChange={(e) => setExempt(r.key, e.target.checked)} />
+              면세
             </label>
           </fieldset>
           {r.deleted ? (

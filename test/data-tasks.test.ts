@@ -54,6 +54,17 @@ describe("tasks data layer", () => {
     expect(t.contractCount).toBe(50);
   });
 
+  it("defaults vatExempt to false and persists an explicit true across create/update", async () => {
+    const def = await mkTask(ADMIN, { clientId: clientA, name: "과세과업", unitPrice: 10000, contractCount: 1 });
+    expect(def.vatExempt).toBe(false);
+    const ex = await mkTask(ADMIN, { clientId: clientA, name: "면세과업", unitPrice: 10000, contractCount: 1, vatExempt: true });
+    expect(ex.vatExempt).toBe(true);
+    // 수정으로 면세 해제.
+    await updateTask(ADMIN, ex.id, { name: "면세과업", unitPrice: 10000, contractCount: 1, vatExempt: false });
+    const rows = await listTasks(ADMIN, clientA);
+    expect(rows.find((r) => r.name === "면세과업")!.vatExempt).toBe(false);
+  });
+
   it("updates a manual contractAmount override", async () => {
     const t = await mkTask(ADMIN, { clientId: clientA, name: "심리진단", unitPrice: 10000, contractCount: 50 });
     await updateTask(ADMIN, t.id, {name: "심리진단", unitPrice: 10000, contractCount: 50, contractAmount: 480000 });

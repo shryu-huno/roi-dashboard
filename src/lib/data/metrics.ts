@@ -2,7 +2,7 @@ import type { ExpenseCategory } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { resolvePeriod } from "@/lib/period";
 import { prisma } from "@/lib/db";
-import { withVat } from "@/lib/vat";
+import { withVat, withVatSplit } from "@/lib/vat";
 import { sessionDateBetween, sessionMonth } from "@/lib/consulting-basis";
 import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
 import { deriveProjectName } from "@/lib/clients/summary-view";
@@ -34,8 +34,13 @@ export function getPeriodTotals(
   return withRLS(ctx, async (tx) => {
     // 순차 await (같은 tx에서 병렬 쿼리 금지).
     // 보관(소프트 삭제)된 고객사의 실적·청구·입금·지출은 전사 집계에서 제외한다.
-    const perf = await tx.monthlyPerformance.aggregate({
-      where: { year, month: monthRange, task: { client: cw } },
+    // 실적은 면세/과세를 나눠 집계해, 과세분에만 부가세를 적용한다(면세 과업은 토글 무시).
+    const perfTaxable = await tx.monthlyPerformance.aggregate({
+      where: { year, month: monthRange, task: { client: cw, vatExempt: false } },
+      _sum: { amount: true },
+    });
+    const perfExempt = await tx.monthlyPerformance.aggregate({
+      where: { year, month: monthRange, task: { client: cw, vatExempt: true } },
       _sum: { amount: true },
     });
     const billing = await tx.monthlyBilling.aggregate({
@@ -65,7 +70,7 @@ export function getPeriodTotals(
     const expenseTotal =
       (expense._sum.amount ?? 0) + (consulting._sum.amount ?? 0) + (corporateCard._sum.amount ?? 0);
     return {
-      performance: withVat(perf._sum.amount ?? 0, includeVat),
+      performance: withVatSplit(perfTaxable._sum.amount ?? 0, perfExempt._sum.amount ?? 0, includeVat),
       billing: withVat(billing._sum.amount ?? 0, includeVat),
       deposit: withVat(deposit._sum.amount ?? 0, includeVat),
       // 지출은 부가세 미포함(원장 원값). 실적/청구/입금만 VAT 토글을 따른다.
@@ -81,16 +86,21 @@ export function getContractTotal(ctx: RlsContext, includeVat = false, easywelOnl
     const projects = await tx.project.findMany({
       where: { deletedAt: null, client: clientWhere(easywelOnly) },
       orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-      select: { clientId: true, tasks: { select: { contractAmount: true } } },
+      select: { clientId: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
     });
     const seen = new Set<string>();
-    let total = 0;
+    let taxable = 0;
+    let exempt = 0;
     for (const p of projects) {
       if (seen.has(p.clientId)) continue; // 고객사별 첫 행 = 가장 최근 프로젝트
       seen.add(p.clientId);
-      total += p.tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
+      for (const t of p.tasks) {
+        const amt = t.contractAmount ?? 0;
+        if (t.vatExempt) exempt += amt;
+        else taxable += amt;
+      }
     }
-    return withVat(total, includeVat);
+    return withVatSplit(taxable, exempt, includeVat);
   });
 }
 
@@ -126,9 +136,15 @@ export type TrendPoint = { month: number; performance: number; expense: number }
 export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = false, easywelOnly = false, fiscalBasis = false): Promise<TrendPoint[]> {
   const cw = clientWhere(easywelOnly);
   return withRLS(ctx, async (tx) => {
-    const perf = await tx.monthlyPerformance.groupBy({
+    // 실적은 면세/과세를 나눠 집계(과세분만 부가세 적용).
+    const perfTaxable = await tx.monthlyPerformance.groupBy({
       by: ["month"],
-      where: { year, task: { client: cw } },
+      where: { year, task: { client: cw, vatExempt: false } },
+      _sum: { amount: true },
+    });
+    const perfExempt = await tx.monthlyPerformance.groupBy({
+      by: ["month"],
+      where: { year, task: { client: cw, vatExempt: true } },
       _sum: { amount: true },
     });
     const exp = await tx.expense.groupBy({
@@ -161,14 +177,15 @@ export function getMonthlyTrend(ctx: RlsContext, year: number, includeVat = fals
       where: { year, client: cw },
       _sum: { amount: true },
     });
-    const perfByMonth = new Map(perf.map((r) => [r.month, r._sum.amount ?? 0]));
+    const perfTaxByMonth = new Map(perfTaxable.map((r) => [r.month, r._sum.amount ?? 0]));
+    const perfExByMonth = new Map(perfExempt.map((r) => [r.month, r._sum.amount ?? 0]));
     const expByMonth = new Map(exp.map((r) => [r.month, r._sum.amount ?? 0]));
     const ccByMonth = new Map(cc.map((r) => [r.month, r._sum.amount ?? 0]));
     return Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       return {
         month,
-        performance: withVat(perfByMonth.get(month) ?? 0, includeVat),
+        performance: withVatSplit(perfTaxByMonth.get(month) ?? 0, perfExByMonth.get(month) ?? 0, includeVat),
         // 지출은 부가세 미포함(원장 원값).
         expense: (expByMonth.get(month) ?? 0) + (consByMonth.get(month) ?? 0) + (ccByMonth.get(month) ?? 0),
       };
@@ -221,7 +238,7 @@ export async function getClientSummaries(
     const clients = await tx.client.findMany({ where: clientWhere(easywelOnly), orderBy: { name: "asc" }, include: { managers: true } });
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange },
-      select: { amount: true, task: { select: { clientId: true } } },
+      select: { amount: true, task: { select: { clientId: true, vatExempt: true } } },
     });
     const expRows = await tx.expense.groupBy({
       by: ["clientId"],
@@ -241,31 +258,37 @@ export async function getClientSummaries(
       _sum: { amount: true },
     });
     const contractRows = await tx.task.groupBy({
-      by: ["clientId"],
+      by: ["clientId", "vatExempt"],
       _sum: { contractAmount: true },
     });
-    const perfByClient = new Map<string, number>();
+    // 실적·계약금 모두 고객사별로 면세/과세를 나눠 둔다(과세분만 부가세 적용).
+    const perfTaxable = new Map<string, number>();
+    const perfExempt = new Map<string, number>();
     for (const r of perfRows) {
       const cid = r.task.clientId;
-      perfByClient.set(cid, (perfByClient.get(cid) ?? 0) + r.amount);
+      const m = r.task.vatExempt ? perfExempt : perfTaxable;
+      m.set(cid, (m.get(cid) ?? 0) + r.amount);
     }
     // 고객사별 지출 = Expense + ConsultingExpense(상담비) + CorporateCardExpense(법인카드).
     const expByClient = new Map<string, number>();
     for (const r of expRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
     for (const r of consRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
     for (const r of ccRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
-    const contractByClient = new Map(
-      contractRows.map((r) => [r.clientId, r._sum.contractAmount ?? 0]),
-    );
+    const contractTaxable = new Map<string, number>();
+    const contractExempt = new Map<string, number>();
+    for (const r of contractRows) {
+      const m = r.vatExempt ? contractExempt : contractTaxable;
+      m.set(r.clientId, (m.get(r.clientId) ?? 0) + (r._sum.contractAmount ?? 0));
+    }
     return clients.map((c) => ({
       id: c.id,
       name: c.name,
       pmIds: c.managers.map((m) => m.userId),
       industry: c.industry,
-      performance: withVat(perfByClient.get(c.id) ?? 0, includeVat),
+      performance: withVatSplit(perfTaxable.get(c.id) ?? 0, perfExempt.get(c.id) ?? 0, includeVat),
       // 지출은 부가세 미포함(원장 원값).
       expense: expByClient.get(c.id) ?? 0,
-      contract: withVat(contractByClient.get(c.id) ?? 0, includeVat),
+      contract: withVatSplit(contractTaxable.get(c.id) ?? 0, contractExempt.get(c.id) ?? 0, includeVat),
     }));
   });
 
@@ -370,7 +393,10 @@ export function getClientDetail(
     if (!client) return null; // 없거나 RLS로 은닉
 
     const tasks = await tx.task.findMany({ where: { clientId: id }, orderBy: { name: "asc" } });
-    const contract = withVat(tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0), includeVat);
+    // 면세 과업 계약금은 부가세 토글과 무관하게 원값 유지.
+    const contractTaxable = tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
+    const contractExempt = tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);
+    const contract = withVatSplit(contractTaxable, contractExempt, includeVat);
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange, task: { clientId: id } },
       select: { taskId: true, month: true, amount: true },
@@ -384,12 +410,20 @@ export function getClientDetail(
     const months = Array.from({ length: endMonth - startMonth + 1 }, (_, i) => startMonth + i);
     const taskRows: TaskPerf[] = tasks.map((t) => {
       const mm = byTaskMonth.get(t.id) ?? new Map<number, number>();
-      const monthly = months.map((month) => ({ month, amount: withVat(mm.get(month) ?? 0, includeVat) }));
+      // 면세 과업은 실적에도 부가세를 적용하지 않는다.
+      const monthly = months.map((month) => {
+        const raw = mm.get(month) ?? 0;
+        return { month, amount: t.vatExempt ? raw : withVat(raw, includeVat) };
+      });
       return { id: t.id, name: t.name, monthly, total: monthly.reduce((s, x) => s + x.amount, 0) };
     });
 
-    const perfM = await tx.monthlyPerformance.groupBy({
-      by: ["month"], where: { year, task: { clientId: id } }, _sum: { amount: true },
+    // 월별 실적 합계도 면세/과세를 나눠 집계(과세분만 부가세 적용).
+    const perfMTaxable = await tx.monthlyPerformance.groupBy({
+      by: ["month"], where: { year, task: { clientId: id, vatExempt: false } }, _sum: { amount: true },
+    });
+    const perfMExempt = await tx.monthlyPerformance.groupBy({
+      by: ["month"], where: { year, task: { clientId: id, vatExempt: true } }, _sum: { amount: true },
     });
     const billM = await tx.monthlyBilling.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
@@ -428,12 +462,12 @@ export function getClientDetail(
     const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
     const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
       new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
-    const p = map(perfM), b = map(billM), d = map(depM), e = map(expM), cc = map(ccM);
+    const pTax = map(perfMTaxable), pEx = map(perfMExempt), b = map(billM), d = map(depM), e = map(expM), cc = map(ccM);
     const monthly: MonthlyRow[] = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       return {
         month,
-        performance: withVat(p.get(month) ?? 0, includeVat),
+        performance: withVatSplit(pTax.get(month) ?? 0, pEx.get(month) ?? 0, includeVat),
         billing: withVat(b.get(month) ?? 0, includeVat),
         deposit: withVat(d.get(month) ?? 0, includeVat),
         // 지출은 부가세 미포함(원장 원값).
@@ -479,7 +513,7 @@ export function getClientProjectBreakdown(
       where: { clientId, deletedAt: null },
       // 계약 시작일이 최신인 프로젝트가 위로. 시작일 없으면 등록일 최신순.
       orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-      include: { tasks: { select: { id: true, contractAmount: true } } },
+      include: { tasks: { select: { id: true, contractAmount: true, vatExempt: true } } },
     });
     const rows: ProjectBreakdownRow[] = [];
     for (const p of projects) {
@@ -489,11 +523,16 @@ export function getClientProjectBreakdown(
           ? orderRange(toYm(p.contractStart), toYm(p.contractEnd))
           : [{ year, month: 1 }, { year, month: 12 }];
       const ym = eachMonth(from, to).map((m) => ({ year: m.year, month: m.month }));
-      const taskIds = p.tasks.map((t) => t.id);
+      // 실적·계약금 모두 면세/과세를 나눠 집계(과세분만 부가세 적용).
+      const taxableIds = p.tasks.filter((t) => !t.vatExempt).map((t) => t.id);
+      const exemptIds = p.tasks.filter((t) => t.vatExempt).map((t) => t.id);
 
       // 순차 await (같은 tx에서 병렬 쿼리 금지).
-      const perf = taskIds.length
-        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: taskIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
+      const perfTaxable = taxableIds.length
+        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: taxableIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
+        : 0;
+      const perfExempt = exemptIds.length
+        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: exemptIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
         : 0;
       const billing = (await tx.monthlyBilling.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
       const deposit = (await tx.monthlyDeposit.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
@@ -503,7 +542,8 @@ export function getClientProjectBreakdown(
         _sum: { amount: true },
       }))._sum.amount ?? 0;
       const corporateCard = (await tx.corporateCardExpense.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
-      const contract = p.tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
+      const contractTaxable = p.tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
+      const contractExempt = p.tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);
 
       const start = p.contractStart ? p.contractStart.toISOString().slice(0, 10) : null;
       const end = p.contractEnd ? p.contractEnd.toISOString().slice(0, 10) : null;
@@ -514,12 +554,12 @@ export function getClientProjectBreakdown(
         contractStart: start,
         contractEnd: end,
         performanceContract: p.performanceContract,
-        performance: withVat(perf, includeVat),
+        performance: withVatSplit(perfTaxable, perfExempt, includeVat),
         billing: withVat(billing, includeVat),
         deposit: withVat(deposit, includeVat),
         // 지출은 부가세 미포함(원장 원값).
         expense: expense + consulting + corporateCard,
-        contract: withVat(contract, includeVat),
+        contract: withVatSplit(contractTaxable, contractExempt, includeVat),
       });
     }
     return rows;
