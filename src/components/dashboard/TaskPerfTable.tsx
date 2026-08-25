@@ -42,17 +42,24 @@ export function TaskPerfTable({ tasks, months }: { tasks: TaskPerf[]; months: nu
             </tr>
           </thead>
           <tbody>
-            {tasks.map((t) => (
-              <tr key={t.id} className="border-b border-[var(--color-border)]">
-                <td className="py-2 pr-3 whitespace-nowrap">{t.name}</td>
-                {t.monthly.map((cell) => (
-                  <td key={cell.month} className="px-2 text-right whitespace-nowrap">
-                    {byCount ? (cell.count == null ? "-" : `${cell.count}회`) : formatWon(cell.amount)}
+            {tasks.map((t) => {
+              // 횟수 합계는 count가 있는 셀만 더한다. 전부 null(금액전용 과업)이면 "-".
+              const counts = t.monthly.filter((c) => c.count != null);
+              const countTotal = counts.length ? counts.reduce((s, c) => s + (c.count ?? 0), 0) : null;
+              return (
+                <tr key={t.id} className="border-b border-[var(--color-border)]">
+                  <td className="py-2 pr-3 whitespace-nowrap">{t.name}</td>
+                  {t.monthly.map((cell) => (
+                    <td key={cell.month} className="px-2 text-right whitespace-nowrap">
+                      {byCount ? (cell.count == null ? "-" : `${cell.count}회`) : formatWon(cell.amount)}
+                    </td>
+                  ))}
+                  <td className="px-2 text-right font-semibold whitespace-nowrap">
+                    {byCount ? (countTotal == null ? "-" : `${countTotal}회`) : formatWon(t.total)}
                   </td>
-                ))}
-                <td className="px-2 text-right font-semibold whitespace-nowrap">{formatWon(t.total)}</td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
