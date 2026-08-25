@@ -45,7 +45,10 @@ export function TaskPerfTable({ tasks, months }: { tasks: TaskPerf[]; months: nu
             {tasks.map((t) => {
               // 횟수 합계는 count가 있는 셀만 더한다. 전부 null(금액전용 과업)이면 "-".
               const counts = t.monthly.filter((c) => c.count != null);
-              const countTotal = counts.length ? counts.reduce((s, c) => s + (c.count ?? 0), 0) : null;
+              // 소수 횟수 합계는 부동소수 잔재(0.30000…)를 없애기 위해 소수 2자리로 반올림한다.
+              const countTotal = counts.length
+                ? Math.round(counts.reduce((s, c) => s + (c.count ?? 0), 0) * 100) / 100
+                : null;
               return (
                 <tr key={t.id} className="border-b border-[var(--color-border)]">
                   <td className="py-2 pr-3 whitespace-nowrap">{t.name}</td>

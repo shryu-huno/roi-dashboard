@@ -7,7 +7,7 @@ import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
 // 과업 단가가 바뀌면 과거 실적 금액이 옛 단가로 남으므로, 단가 변경 시 이 함수로 새 단가로 다시 계산한다.
 // 금액 직접입력 모드(count==null)는 사용자가 넣은 확정 금액이므로 건드리지 않는다.
 export function recomputePerformanceAmounts(tx: Prisma.TransactionClient, taskId: string, unitPrice: number) {
-  return tx.$executeRaw`UPDATE "MonthlyPerformance" SET "amount" = "count" * ${unitPrice}, "updatedAt" = now() WHERE "taskId" = ${taskId} AND "count" IS NOT NULL`;
+  return tx.$executeRaw`UPDATE "MonthlyPerformance" SET "amount" = ROUND("count" * ${unitPrice})::int, "updatedAt" = now() WHERE "taskId" = ${taskId} AND "count" IS NOT NULL`;
 }
 
 export type PerformanceBatchInput = {
@@ -98,7 +98,8 @@ export function upsertPerformanceBatch(ctx: RlsContext, input: PerformanceBatchI
       if (!task || task.clientId !== input.clientId) throw new Error(FORBIDDEN);
       // 금액 모드: 입력 금액 저장, count는 null. 횟수 모드: 단가×횟수로 금액 파생.
       const count = row.count;
-      const amount = row.amount != null ? row.amount : task.unitPrice * (row.count as number);
+      // 횟수 모드 파생 금액은 원 단위 정수로 반올림한다(소수 횟수 × 단가 → 소수 원 방지).
+      const amount = row.amount != null ? row.amount : Math.round(task.unitPrice * (row.count as number));
       await tx.monthlyPerformance.upsert({
         where: { taskId_year_month: { taskId: row.taskId, year: input.year, month: input.month } },
         create: { taskId: row.taskId, year: input.year, month: input.month, count, amount },
