@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { parsePeriodParams, resolvePeriod } from "@/lib/period";
+import { parsePeriodParams, resolvePeriod, PERIOD_OPTIONS_WITH_QUARTERS } from "@/lib/period";
 import { getClientDetail, getClientProjectBreakdown } from "@/lib/data/metrics";
 import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
@@ -19,7 +19,7 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ year?: string; period?: string }>;
+  searchParams: Promise<{ year?: string; period?: string; projectId?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -29,10 +29,14 @@ export default async function ClientDetailPage({
   const includeVat = await getIncludeVat();
   const fiscalBasis = await getFiscalBasis();
 
-  const [detail, projectRows] = await Promise.all([
-    getClientDetail(ctx, id, year, period, includeVat, fiscalBasis),
-    getClientProjectBreakdown(ctx, id, year, includeVat, fiscalBasis),
-  ]);
+  // 프로젝트 목록을 먼저 조회해 기본 선택(최신 프로젝트)을 정한다. projectRows는 계약 시작일 최신순.
+  const projectRows = await getClientProjectBreakdown(ctx, id, year, includeVat, fiscalBasis);
+  const selectedProjectId = projectRows.length
+    ? projectRows.some((p) => p.id === sp.projectId)
+      ? sp.projectId
+      : projectRows[0].id
+    : undefined;
+  const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis, selectedProjectId);
   if (!detail) notFound();
 
   const { startMonth, endMonth } = resolvePeriod(period);
@@ -48,13 +52,20 @@ export default async function ClientDetailPage({
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{detail.client.name}</h1>
         <a
-          href={`/clients/${id}/export?year=${year}&period=${period}`}
+          href={`/clients/${id}/export?year=${year}&period=${period}${selectedProjectId ? `&projectId=${selectedProjectId}` : ""}`}
           className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-primary)]"
         >
           CSV 내보내기
         </a>
       </div>
-      <PeriodFilter year={year} period={period} action={`/clients/${id}`} />
+      <PeriodFilter
+        year={year}
+        period={period}
+        action={`/clients/${id}`}
+        projects={projectRows.map((p) => ({ id: p.id, name: p.name }))}
+        projectId={selectedProjectId}
+        options={PERIOD_OPTIONS_WITH_QUARTERS}
+      />
 
       <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard title="수익률" value={formatPercent(margin(perf, expense))} />

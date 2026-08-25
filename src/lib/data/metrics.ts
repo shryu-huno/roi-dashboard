@@ -385,6 +385,7 @@ export function getClientDetail(
   period: string,
   includeVat = false,
   fiscalBasis = false,
+  projectId?: string,
 ): Promise<ClientDetail | null> {
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
@@ -392,13 +393,21 @@ export function getClientDetail(
     const client = await tx.client.findUnique({ where: { id } });
     if (!client) return null; // 없거나 RLS로 은닉
 
-    const tasks = await tx.task.findMany({ where: { clientId: id }, orderBy: { name: "asc" } });
+    // 프로젝트 스코프: projectId가 주어지면 과업·실적을 해당 프로젝트로 한정하고,
+    // 고객사 단위로만 저장되는 청구·입금·지출은 프로젝트 계약기간 창으로 귀속한다.
+    const project = projectId ? await tx.project.findUnique({ where: { id: projectId } }) : null;
+    if (projectId && (!project || project.clientId !== id)) return null;
+    const taskWhere = projectId ? { clientId: id, projectId } : { clientId: id };
+    // 청구·입금·지출을 귀속할 월 집합(선택 연도 내).
+    const windowMonths = projectWindowMonths(year, project, fiscalBasis);
+
+    const tasks = await tx.task.findMany({ where: taskWhere, orderBy: { name: "asc" } });
     // 면세 과업 계약금은 부가세 토글과 무관하게 원값 유지.
     const contractTaxable = tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
     const contractExempt = tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);
     const contract = withVatSplit(contractTaxable, contractExempt, includeVat);
     const perfRows = await tx.monthlyPerformance.findMany({
-      where: { year, month: monthRange, task: { clientId: id } },
+      where: { year, month: monthRange, task: taskWhere },
       select: { taskId: true, month: true, amount: true },
     });
     const byTaskMonth = new Map<string, Map<number, number>>();
@@ -420,10 +429,10 @@ export function getClientDetail(
 
     // 월별 실적 합계도 면세/과세를 나눠 집계(과세분만 부가세 적용).
     const perfMTaxable = await tx.monthlyPerformance.groupBy({
-      by: ["month"], where: { year, task: { clientId: id, vatExempt: false } }, _sum: { amount: true },
+      by: ["month"], where: { year, task: { ...taskWhere, vatExempt: false } }, _sum: { amount: true },
     });
     const perfMExempt = await tx.monthlyPerformance.groupBy({
-      by: ["month"], where: { year, task: { clientId: id, vatExempt: true } }, _sum: { amount: true },
+      by: ["month"], where: { year, task: { ...taskWhere, vatExempt: true } }, _sum: { amount: true },
     });
     const billM = await tx.monthlyBilling.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
@@ -455,8 +464,10 @@ export function getClientDetail(
     const ccM = await tx.corporateCardExpense.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
     });
+    // 지출 구성(도넛)도 프로젝트 계약기간 창 ∩ 선택 구간으로 한정.
+    const expMonths = Array.from({ length: endMonth - startMonth + 1 }, (_, i) => startMonth + i).filter((m) => windowMonths.has(m));
     const expCat = await tx.expense.groupBy({
-      by: ["category"], where: { year, month: monthRange, clientId: id }, _sum: { amount: true },
+      by: ["category"], where: { year, month: { in: expMonths }, clientId: id }, _sum: { amount: true },
     });
     // 지출은 부가세 미포함(원장 원값).
     const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
@@ -465,13 +476,15 @@ export function getClientDetail(
     const pTax = map(perfMTaxable), pEx = map(perfMExempt), b = map(billM), d = map(depM), e = map(expM), cc = map(ccM);
     const monthly: MonthlyRow[] = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
+      // 실적은 프로젝트 과업에서 직접 산출(창 무관). 청구·입금·지출은 계약기간 창에 속하는 월만 귀속.
+      const inWindow = windowMonths.has(month);
       return {
         month,
         performance: withVatSplit(pTax.get(month) ?? 0, pEx.get(month) ?? 0, includeVat),
-        billing: withVat(b.get(month) ?? 0, includeVat),
-        deposit: withVat(d.get(month) ?? 0, includeVat),
+        billing: inWindow ? withVat(b.get(month) ?? 0, includeVat) : 0,
+        deposit: inWindow ? withVat(d.get(month) ?? 0, includeVat) : 0,
         // 지출은 부가세 미포함(원장 원값).
-        expense: (e.get(month) ?? 0) + (ce.get(month) ?? 0) + (cc.get(month) ?? 0),
+        expense: inWindow ? (e.get(month) ?? 0) + (ce.get(month) ?? 0) + (cc.get(month) ?? 0) : 0,
       };
     });
 
@@ -494,6 +507,26 @@ export type ProjectBreakdownRow = {
 
 function toYm(d: Date): Ym {
   return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+// 청구·입금·지출을 귀속할 월 집합(선택 연도 내). getClientProjectBreakdown의 기간 창 규칙과 동일:
+// 프로젝트 기준(fiscalBasis=false)이고 계약기간이 있으면 그 창에 속하는 월만, 아니면(회계연도 기준
+// 또는 계약기간 없음 / 프로젝트 미선택) 전체 12개월.
+function projectWindowMonths(
+  year: number,
+  project: { contractStart: Date | null; contractEnd: Date | null } | null,
+  fiscalBasis: boolean,
+): Set<number> {
+  const all = new Set(Array.from({ length: 12 }, (_, i) => i + 1));
+  if (!project || fiscalBasis || !project.contractStart || !project.contractEnd) return all;
+  const [from, to] = orderRange(toYm(project.contractStart), toYm(project.contractEnd));
+  const res = new Set<number>();
+  for (let m = 1; m <= 12; m++) {
+    const geFrom = year > from.year || (year === from.year && m >= from.month);
+    const leTo = year < to.year || (year === to.year && m <= to.month);
+    if (geFrom && leTo) res.add(m);
+  }
+  return res;
 }
 
 // 고객사의 프로젝트별 요약. 재무 데이터는 고객사 단위로 저장되므로, 각 프로젝트의 기간 창으로

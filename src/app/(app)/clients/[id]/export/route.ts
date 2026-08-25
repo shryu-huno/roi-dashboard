@@ -21,7 +21,8 @@ export async function GET(
 
   const includeVat = await getIncludeVat();
   const fiscalBasis = await getFiscalBasis();
-  const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis);
+  const projectId = url.searchParams.get("projectId") ?? undefined;
+  const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis, projectId);
   if (!detail) return new Response("Not found", { status: 404 });
 
   const rows: string[][] = [
