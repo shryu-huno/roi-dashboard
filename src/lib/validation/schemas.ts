@@ -42,6 +42,15 @@ const nullableAmount = z.preprocess(
   z.coerce.number().int().min(0).nullable(),
 );
 
+// 빈 문자열/undefined → null, 그 외엔 실수(≥0). 실적 횟수용 — 0.6회 등 부분 실적을 허용한다.
+const nullableDecimal = z.preprocess(
+  (v) => {
+    const s = stripCommas(v);
+    return s === "" || s === undefined || s === null ? null : s;
+  },
+  z.coerce.number().min(0).nullable(),
+);
+
 // 빈 문자열/undefined → null, 그 외엔 부호 있는 정수. 계약금 수동 입력용(음수 조정 허용).
 const nullableSignedAmount = z.preprocess(
   (v) => {
@@ -121,8 +130,9 @@ export const performanceBatchSchema = z.object({
   year,
   month,
   // 과업별로 횟수 또는 금액 중 정확히 하나만 입력(택일). 둘 다 오거나 둘 다 비면 거부.
+  // 횟수는 소수 허용(부분 실적), 금액은 원 단위 정수.
   rows: z.array(
-    z.object({ taskId: z.string().min(1), count: nullableAmount, amount: nullableAmount })
+    z.object({ taskId: z.string().min(1), count: nullableDecimal, amount: nullableAmount })
       .refine((r) => (r.count != null) !== (r.amount != null), {
         message: "횟수 또는 금액 중 하나만 입력하세요.",
       }),

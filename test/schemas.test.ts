@@ -35,8 +35,10 @@ describe("performanceBatchSchema", () => {
     expect(performanceBatchSchema.safeParse({ clientId: "c1", year: 2026, month: 13, rows: [] }).success).toBe(false);
     expect(performanceBatchSchema.safeParse({ clientId: "c1", year: 2026, month: 0, rows: [] }).success).toBe(false);
   });
-  it("rejects non-integer count", () => {
-    expect(performanceBatchSchema.safeParse({ clientId: "c1", year: 2026, month: 3, rows: [{ taskId: "t1", count: 1.5 }] }).success).toBe(false);
+  it("accepts a decimal count (부분 실적)", () => {
+    const r = performanceBatchSchema.safeParse({ clientId: "c1", year: 2026, month: 3, rows: [{ taskId: "t1", count: 0.6 }] });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.rows[0].count).toBe(0.6);
   });
 });
 

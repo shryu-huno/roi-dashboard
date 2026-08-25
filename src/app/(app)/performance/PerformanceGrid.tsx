@@ -28,7 +28,7 @@ export function PerformanceGrid({
       return sum + (Number.isFinite(m) ? m : 0);
     }
     const n = Number(counts[t.id]);
-    return sum + (Number.isFinite(n) ? t.unitPrice * n : 0);
+    return sum + (Number.isFinite(n) ? Math.round(t.unitPrice * n) : 0);
   }, 0);
 
   return (
@@ -63,14 +63,14 @@ export function PerformanceGrid({
             const countFilled = (counts[t.id] ?? "").trim() !== "";
             const amountFilled = (amounts[t.id] ?? "").trim() !== "";
             const n = Number(counts[t.id]);
-            const derived = countFilled && Number.isFinite(n) ? t.unitPrice * n : 0;
+            const derived = countFilled && Number.isFinite(n) ? Math.round(t.unitPrice * n) : 0;
             return (
               <tr key={t.id} className="border-b border-[var(--color-border)] transition-colors hover:bg-white">
                 <td className="py-2">{t.name}</td>
                 <td>{t.unitPrice.toLocaleString()}</td>
                 <td>
                   <input
-                    type="number" min="0" name={`count_${t.id}`} value={counts[t.id]}
+                    type="number" min="0" step="any" name={`count_${t.id}`} value={counts[t.id]}
                     disabled={amountFilled}
                     onChange={(e) => setCounts((c) => ({ ...c, [t.id]: e.target.value }))}
                     className="w-24 rounded border border-[var(--color-border)] px-2 py-1 disabled:bg-[var(--color-border)] disabled:text-[var(--color-muted)]"

@@ -38,6 +38,23 @@ describe("performance data layer", () => {
     expect(rows[0].count).toBe(4);
   });
 
+  it("소수 횟수를 저장하고, 파생 금액은 원 단위 정수로 반올림한다", async () => {
+    // 0.6회 × 10000 = 6000(정확). 단가가 반올림을 유발하는 경우도 함께 검증.
+    const res = await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 4, rows: [{ taskId: taskA1, count: 0.6, amount: null }] });
+    expect(res.ok).toBe(true);
+    const rows = await listPerformance(ADMIN, clientA, 2026, 4);
+    expect(rows[0].count).toBe(0.6);
+    expect(rows[0].amount).toBe(6000);
+
+    // 단가 3333 × 0.6 = 1999.8 → 2000으로 반올림.
+    const t2 = (await mkTask(ADMIN, { clientId: clientA, name: "부분상담", unitPrice: 3333 })).id;
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 4, rows: [{ taskId: t2, count: 0.6, amount: null }] });
+    const rows2 = await listPerformance(ADMIN, clientA, 2026, 4);
+    const rec = rows2.find((r) => r.taskId === t2)!;
+    expect(rec.count).toBe(0.6);
+    expect(rec.amount).toBe(2000);
+  });
+
   it("단가 변경 시 횟수 모드 실적 금액을 새 단가로 다시 계산한다(updateTask)", async () => {
     // 3월: 횟수 모드 4회 → 40000, 5월: 금액 직접입력 500000(count null).
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA1, count: 4, amount: null }] });

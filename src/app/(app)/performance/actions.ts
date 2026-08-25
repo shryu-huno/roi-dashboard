@@ -36,7 +36,7 @@ export async function savePerformance(_prev: ActionState, formData: FormData): P
     month: formData.get("month"),
     rows,
   });
-  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 과업별로 횟수 또는 금액 중 하나만, 0 이상의 정수로 입력하세요." };
+  if (!parsed.success) return { ok: false, error: "입력값이 올바르지 않습니다. 과업별로 횟수 또는 금액 중 하나만 입력하세요(횟수는 0 이상 소수 가능, 금액은 0 이상 정수)." };
 
   const result = await upsertPerformanceBatch(ctx, parsed.data);
   if (!result.ok) return result;
