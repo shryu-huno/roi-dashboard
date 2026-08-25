@@ -13,6 +13,7 @@ import { KpiCard } from "@/components/charts/KpiCard";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import { TaskPerfTable } from "@/components/dashboard/TaskPerfTable";
 
 export default async function ClientDetailPage({
   params,
@@ -132,33 +133,7 @@ export default async function ClientDetailPage({
         />
       </section>
 
-      <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">과업별 월 실적 (선택 구간)</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
-                <th className="py-2 pr-3">과업</th>
-                {months.map((m) => (
-                  <th key={m} className="px-2 text-right whitespace-nowrap">{m}월</th>
-                ))}
-                <th className="px-2 text-right">합계</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detail.tasks.map((t) => (
-                <tr key={t.id} className="border-b border-[var(--color-border)]">
-                  <td className="py-2 pr-3 whitespace-nowrap">{t.name}</td>
-                  {t.monthly.map((cell) => (
-                    <td key={cell.month} className="px-2 text-right whitespace-nowrap">{formatWon(cell.amount)}</td>
-                  ))}
-                  <td className="px-2 text-right font-semibold whitespace-nowrap">{formatWon(t.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <TaskPerfTable tasks={detail.tasks} months={months} />
 
       <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">지출 구성 (선택 구간)</h2>

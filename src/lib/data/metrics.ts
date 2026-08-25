@@ -353,7 +353,7 @@ export function rollupPmSummaries(clients: ClientSummary[]): PmSummary[] {
   }));
 }
 
-export type TaskMonthAmount = { month: number; amount: number };
+export type TaskMonthAmount = { month: number; amount: number; count: number | null };
 
 export type TaskPerf = {
   id: string;
@@ -408,21 +408,23 @@ export function getClientDetail(
     const contract = withVatSplit(contractTaxable, contractExempt, includeVat);
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange, task: taskWhere },
-      select: { taskId: true, month: true, amount: true },
+      select: { taskId: true, month: true, amount: true, count: true },
     });
-    const byTaskMonth = new Map<string, Map<number, number>>();
+    // @@unique([taskId, year, month])로 셀당 행이 유일하므로 합산 없이 그대로 매핑한다.
+    const byTaskMonth = new Map<string, Map<number, { amount: number; count: number | null }>>();
     for (const r of perfRows) {
-      const m = byTaskMonth.get(r.taskId) ?? new Map<number, number>();
-      m.set(r.month, (m.get(r.month) ?? 0) + r.amount);
+      const m = byTaskMonth.get(r.taskId) ?? new Map<number, { amount: number; count: number | null }>();
+      m.set(r.month, { amount: r.amount, count: r.count });
       byTaskMonth.set(r.taskId, m);
     }
     const months = Array.from({ length: endMonth - startMonth + 1 }, (_, i) => startMonth + i);
     const taskRows: TaskPerf[] = tasks.map((t) => {
-      const mm = byTaskMonth.get(t.id) ?? new Map<number, number>();
+      const mm = byTaskMonth.get(t.id) ?? new Map<number, { amount: number; count: number | null }>();
       // 면세 과업은 실적에도 부가세를 적용하지 않는다.
       const monthly = months.map((month) => {
-        const raw = mm.get(month) ?? 0;
-        return { month, amount: t.vatExempt ? raw : withVat(raw, includeVat) };
+        const rec = mm.get(month);
+        const raw = rec?.amount ?? 0;
+        return { month, amount: t.vatExempt ? raw : withVat(raw, includeVat), count: rec?.count ?? null };
       });
       return { id: t.id, name: t.name, monthly, total: monthly.reduce((s, x) => s + x.amount, 0) };
     });
