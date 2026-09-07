@@ -19,3 +19,11 @@ export function withVat(amount: number, include: boolean): number {
 export function withVatSplit(taxable: number, exempt: number, include: boolean): number {
   return withVat(taxable, include) + exempt;
 }
+
+/**
+ * 부가세 포함 금액(gross)을 토글에 맞춰 반환한다. 청구/입금(Invoice.amount)은 VAT 포함으로 저장하므로
+ * include=true면 그대로, include=false면 ÷1.1 후 10원 단위 반올림(withVat와 대칭).
+ */
+export function fromGross(gross: number, include: boolean): number {
+  return include ? gross : Math.round(gross / (1 + VAT_RATE) / 10) * 10;
+}

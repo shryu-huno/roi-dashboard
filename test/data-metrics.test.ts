@@ -7,7 +7,6 @@ import { createProject } from "@/lib/data/projects";
 import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
-import { upsertBilling, upsertDeposit } from "@/lib/data/billing";
 import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries, getClientDetail } from "@/lib/data/metrics";
 
 const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
@@ -15,8 +14,7 @@ const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 async function reset() {
   await withRLS(ADMIN, async (tx) => {
     await tx.monthlyPerformance.deleteMany();
-    await tx.monthlyBilling.deleteMany();
-    await tx.monthlyDeposit.deleteMany();
+    await tx.invoice.deleteMany();
     await tx.expense.deleteMany();
     await tx.task.deleteMany();
     await tx.client.deleteMany();
@@ -37,8 +35,16 @@ describe("metrics: period totals & contract total", () => {
     // A사: 3월 실적 4회(40000), 지출 3월 5000, 청구 3월 30000, 입금 3월 20000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
     await upsertExpense(ADMIN, { clientId: clientA, year: 2026, month: 3, category: "OPS_FOOD", amount: 5000 });
-    await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
-    await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
+    // 청구/입금은 Invoice(VAT 포함 gross)에서 산출. 3월 발행 gross 33000(→off 30000, on 33000),
+    // 3월 입금 gross 22000(→off 20000, on 22000)이 되도록 인보이스 2건을 넣는다.
+    await withRLS(ADMIN, (tx) =>
+      tx.invoice.createMany({
+        data: [
+          { clientId: clientA, amount: 22000, issueDate: new Date("2026-03-05"), paidDate: new Date("2026-03-25") },
+          { clientId: clientA, amount: 11000, issueDate: new Date("2026-03-15") },
+        ],
+      }),
+    );
     // A사: 8월 실적 2회(20000) — 하반기
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 8, rows: [{ taskId: taskA, count: 2, amount: null }] });
     // B사: 3월 실적 1회(20000)
@@ -239,8 +245,16 @@ describe("metrics: client detail", () => {
     clientA = (await mkClient(ADMIN, { name: "A사", pmIds: [pmA] })).id;
     taskA = (await mkTask(ADMIN, { clientId: clientA, name: "진단", unitPrice: 10000, contractCount: 50 })).id; // 계약금 500000
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: taskA, count: 4, amount: null }] });
-    await upsertBilling(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 30000 });
-    await upsertDeposit(ADMIN, { clientId: clientA, year: 2026, month: 3, amount: 20000 });
+    // 청구/입금은 Invoice(VAT 포함 gross)에서 산출. 3월 발행 gross 33000(→off 30000, on 33000),
+    // 3월 입금 gross 22000(→off 20000, on 22000)이 되도록 인보이스 2건을 넣는다.
+    await withRLS(ADMIN, (tx) =>
+      tx.invoice.createMany({
+        data: [
+          { clientId: clientA, amount: 22000, issueDate: new Date("2026-03-05"), paidDate: new Date("2026-03-25") },
+          { clientId: clientA, amount: 11000, issueDate: new Date("2026-03-15") },
+        ],
+      }),
+    );
   });
 
   it("returns detail with per-task monthly amounts and contract total", async () => {

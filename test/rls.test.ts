@@ -9,6 +9,7 @@ const ROOT = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 async function reset() {
   await withRLS(ROOT, async (tx) => {
     await tx.expense.deleteMany();
+    await tx.invoice.deleteMany();
     await tx.monthlyDeposit.deleteMany();
     await tx.monthlyBilling.deleteMany();
     await tx.monthlyPerformance.deleteMany();
@@ -71,6 +72,27 @@ describe("RLS: PM sees only own clients", () => {
   it("PM A reads only projects under client A (Project policy via ClientManager)", async () => {
     const rows = await withRLS({ userId: pmA, role: "PM" }, (tx) => tx.project.findMany());
     expect(rows.map((r) => r.id)).toEqual([projectA]);
+  });
+
+  it("PM A reads only invoices under client A (Invoice policy via app_can_see_client)", async () => {
+    await withRLS(ROOT, (tx) =>
+      tx.invoice.createMany({
+        data: [
+          { clientId: clientA, amount: 11000, issueDate: new Date("2026-03-01") },
+          { clientId: clientB, amount: 22000, issueDate: new Date("2026-03-01") },
+        ],
+      }),
+    );
+    const rows = await withRLS({ userId: pmA, role: "PM" }, (tx) => tx.invoice.findMany());
+    expect(rows.map((r) => r.clientId)).toEqual([clientA]);
+  });
+
+  it("PM A cannot create an invoice under PM B's client (Invoice WITH CHECK)", async () => {
+    await expect(
+      withRLS({ userId: pmA, role: "PM" }, (tx) =>
+        tx.invoice.create({ data: { clientId: clientB, amount: 1000, issueDate: new Date("2026-03-01") } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
   });
 
   it("PM A cannot create a project under PM B's client (Project WITH CHECK)", async () => {
