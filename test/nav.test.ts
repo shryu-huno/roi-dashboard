@@ -13,6 +13,9 @@ describe("navItemsForRole", () => {
   it("team ADMIN gets no admin links (팀 관리자는 사용자·팀 관리 없음)", () => {
     expect(hrefs("ADMIN")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients"]);
   });
+  it("PART_LEADER gets the same base items, no admin links", () => {
+    expect(hrefs("PART_LEADER")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients"]);
+  });
   it("SUPER_ADMIN adds team and user management", () => {
     expect(hrefs("SUPER_ADMIN")).toEqual(["/dashboard", "/clients", "/performance", "/expenses", "/billing", "/settings/clients", "/admin/teams", "/admin/users"]);
   });

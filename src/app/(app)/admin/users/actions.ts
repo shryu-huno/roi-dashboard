@@ -10,10 +10,16 @@ export async function applyApproval(input: {
   userId: string;
   role: AppRole;
   teamId?: string | null;
+  partLeaderId?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const result = await prisma.user.updateMany({
     where: { id: input.userId },
-    data: { status: "ACTIVE", role: input.role, teamId: input.teamId ?? null },
+    data: {
+      status: "ACTIVE",
+      role: input.role,
+      teamId: input.teamId ?? null,
+      partLeaderId: input.partLeaderId ?? null,
+    },
   });
   if (result.count === 0) return { ok: false, error: "사용자를 찾을 수 없습니다." };
   return { ok: true };
@@ -50,7 +56,9 @@ export async function approveUser(formData: FormData): Promise<void> {
   const role = String(formData.get("role")) as AppRole;
   // 팀 미지정("")은 null로 저장. 최고관리자·정산담당자는 팀이 무의미하지만 저장돼도 무해하다.
   const teamId = String(formData.get("teamId") ?? "") || null;
-  await applyApproval({ userId, role, teamId });
+  // 파트장 미지정("")은 null. PM에게만 의미가 있으나 저장돼도 무해하다(파트장 스코프는 PM의 값만 참조).
+  const partLeaderId = String(formData.get("partLeaderId") ?? "") || null;
+  await applyApproval({ userId, role, teamId, partLeaderId });
   revalidatePath("/admin/users");
 }
 

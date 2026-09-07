@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
-import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
+import { isAllAccess, isTeamAdmin, isTeamScoped } from "@/lib/auth/rbac";
+import { pmCandidateScope } from "@/lib/auth/pm-scope";
 import { getRlsContext } from "@/lib/context";
 import { prisma } from "@/lib/db";
 import { listClients, listArchivedClients } from "@/lib/data/clients";
@@ -20,24 +21,25 @@ export default async function SettingsClientsPage() {
   // 팀 관리자의 실제 조작은 RLS가 자기 팀 고객사로 범위를 제한한다.
   const isAdmin = user.role === "SUPER_ADMIN" || isTeamAdmin(user.role);
   const isPm = user.role === "PM";
-  // 고객사 생성은 전체 접근(최고관리자·정산담당자)과 팀 관리자만.
-  const canCreate = isAllAccess(user.role) || isTeamAdmin(user.role);
+  // 고객사 생성은 전체 접근(최고관리자·정산담당자)과 팀/파트 단위 관리자(팀 관리자·파트장)만.
+  const canCreate = isAllAccess(user.role) || isTeamScoped(user.role);
   const ctx = getRlsContext(user);
   const [clients, archived, includeVat, pms] = await Promise.all([
     listClients(ctx),
     isAdmin ? listArchivedClients(ctx) : Promise.resolve([]),
     getIncludeVat(),
-    // 담당 PM 후보(생성 폼용): 전체 접근은 전원, 팀 관리자는 자기 팀 소속만(그 외 배정 시 RLS로 막힌다). PM은 생성하지 않는다.
+    // 담당 PM 후보(생성 폼용): 전체 접근은 전원, 팀 관리자는 자기 팀, 파트장은 자기 소속 PM만
+    // (그 외 배정 시 RLS로 막힌다). PM은 생성하지 않는다.
     // 팀에 소속된 최고관리자도 후보에 포함한다(특정 팀의 PM 역할을 겸하는 예외 계정).
     canCreate
       ? prisma.user.findMany({
           where: {
             status: "ACTIVE",
             OR: [
-              { role: { in: ["PM", "ADMIN"] } },
+              { role: { in: ["PM", "ADMIN", "PART_LEADER"] } },
               { role: "SUPER_ADMIN", teamId: { not: null } },
             ],
-            ...(isAllAccess(user.role) ? {} : { teamId: user.teamId ?? undefined }),
+            ...pmCandidateScope(user),
           },
           orderBy: { name: "asc" },
         })

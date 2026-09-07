@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/session";
-import { isTeamAdmin } from "@/lib/auth/rbac";
+import { pmCandidateScope } from "@/lib/auth/pm-scope";
 import { getRlsContext } from "@/lib/context";
 import { getClient } from "@/lib/data/clients";
 import { listProjects } from "@/lib/data/projects";
@@ -25,17 +25,17 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
   if (!client) notFound();
   const [projects, pms] = await Promise.all([
     listProjects(ctx, id),
-    // 담당 PM 후보: PM·팀 관리자 중 활성 사용자. 팀에 소속된 최고관리자도 후보에 포함한다
-    // (전체 접근은 유지하되 특정 팀의 PM 역할을 겸하는 예외 계정). 팀 관리자가 배정할 때는
-    // 자기 팀 소속만 후보로 노출한다(ClientManager/ProjectManager RLS WITH CHECK의 팀 제약에 더한 서버측 방어).
+    // 담당 PM 후보: PM·팀 관리자·파트장 중 활성 사용자. 팀에 소속된 최고관리자도 후보에 포함한다
+    // (전체 접근은 유지하되 특정 팀의 PM 역할을 겸하는 예외 계정). 팀 관리자는 자기 팀, 파트장은
+    // 자기 소속 PM만 후보로 노출한다(ClientManager/ProjectManager RLS WITH CHECK의 스코프 제약에 더한 서버측 방어).
     prisma.user.findMany({
       where: {
         status: "ACTIVE",
         OR: [
-          { role: { in: ["PM", "ADMIN"] } },
+          { role: { in: ["PM", "ADMIN", "PART_LEADER"] } },
           { role: "SUPER_ADMIN", teamId: { not: null } },
         ],
-        ...(isTeamAdmin(user.role) ? { teamId: user.teamId } : {}),
+        ...pmCandidateScope(user),
       },
       orderBy: { name: "asc" },
     }),

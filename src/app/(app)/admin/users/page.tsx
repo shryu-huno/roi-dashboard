@@ -11,6 +11,9 @@ export default async function AdminUsersPage() {
     prisma.team.findMany({ orderBy: { name: "asc" } }),
   ]);
   const teamName = new Map(teams.map((t) => [t.id, t.name]));
+  // 파트장 지정 후보: 활성 파트장. PM 행의 소속 파트장 드롭다운에 노출한다.
+  const partLeaders = users.filter((u) => u.status === "ACTIVE" && u.role === "PART_LEADER");
+  const partLeaderName = new Map(partLeaders.map((p) => [p.id, p.name ?? p.email]));
 
   return (
     <div>
@@ -22,6 +25,7 @@ export default async function AdminUsersPage() {
             <th>이름</th>
             <th>역할</th>
             <th>팀</th>
+            <th>소속 파트장</th>
             <th>상태</th>
             <th>작업</th>
           </tr>
@@ -33,6 +37,7 @@ export default async function AdminUsersPage() {
               <td>{u.name ?? "-"}</td>
               <td>{roleLabel(u.role)}</td>
               <td>{u.teamId ? teamName.get(u.teamId) ?? "(삭제된 팀)" : "-"}</td>
+              <td>{u.partLeaderId ? partLeaderName.get(u.partLeaderId) ?? "(삭제된 파트장)" : "-"}</td>
               <td>{statusLabel(u.status)}</td>
               <td className="flex gap-2 py-2">
                 <form action={approveUser} className="flex gap-1">
@@ -40,14 +45,22 @@ export default async function AdminUsersPage() {
                   <select name="role" defaultValue={u.role ?? "PM"} className="border border-[var(--color-border)] rounded px-1">
                     <option value="SUPER_ADMIN">최고관리자</option>
                     <option value="ADMIN">팀 관리자</option>
+                    <option value="PART_LEADER">파트장</option>
                     <option value="SETTLEMENT">정산담당자</option>
                     <option value="PM">PM</option>
                   </select>
-                  {/* 팀은 팀 관리자·PM에게 의미가 있다(최고관리자·정산담당자는 전체 접근이라 무시됨). */}
+                  {/* 팀은 팀 관리자·PM·파트장에게 의미가 있다(최고관리자·정산담당자는 전체 접근이라 무시됨). */}
                   <select name="teamId" defaultValue={u.teamId ?? ""} className="border border-[var(--color-border)] rounded px-1">
                     <option value="">팀 없음</option>
                     {teams.map((t) => (
                       <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  {/* 소속 파트장: PM이 어느 파트장에게 속하는지 지정. 파트장은 자기 소속 PM의 고객사를 열람·관리한다. */}
+                  <select name="partLeaderId" defaultValue={u.partLeaderId ?? ""} className="border border-[var(--color-border)] rounded px-1">
+                    <option value="">파트장 없음</option>
+                    {partLeaders.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name ?? p.email}</option>
                     ))}
                   </select>
                   <button type="submit" className="rounded bg-[var(--color-primary)] px-2 py-1 text-white">

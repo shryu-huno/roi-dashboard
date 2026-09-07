@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 
 export type RlsContext = {
   userId: string;
-  role: "SUPER_ADMIN" | "ADMIN" | "SETTLEMENT" | "PM";
+  role: "SUPER_ADMIN" | "ADMIN" | "PART_LEADER" | "SETTLEMENT" | "PM";
   // 팀 관리자의 접근 범위 기준. 미지정(전체 접근 역할·테스트)은 생략 가능 → 빈 문자열로 주입된다.
   teamId?: string | null;
 };
