@@ -104,30 +104,52 @@ export function getContractTotal(ctx: RlsContext, includeVat = false, easywelOnl
   });
 }
 
-// 고객사별 진행율 계산용: 해당 연도 누적 실적금액과 전체 계약금액을 고객사별로 반환.
-// 진행율 = perf / contract (attainment)로 목록 카드에서 계산한다.
-export function getClientYearProgress(
+// 고객사 목록 카드용: 각 고객사의 "가장 최근 프로젝트"(계약 시작일 최신, 없으면 등록일 최신) 1건 기준
+// 달성률과 실적계약 여부를 반환한다. 달성률 = 해당 프로젝트 과업의 올해 누적 실적 ÷ 계약금액(attainment).
+export function getClientLatestProjectProgress(
   ctx: RlsContext,
   year: number,
-): Promise<{ perf: Map<string, number>; contract: Map<string, number> }> {
+): Promise<Map<string, { perf: number; contract: number; performanceContract: boolean }>> {
   return withRLS(ctx, async (tx) => {
-    // 순차 await (같은 tx에서 병렬 쿼리 금지).
-    const perfRows = await tx.monthlyPerformance.findMany({
-      where: { year, task: { client: { deletedAt: null } } },
-      select: { amount: true, task: { select: { clientId: true } } },
+    const projects = await tx.project.findMany({
+      where: { deletedAt: null, client: { deletedAt: null } },
+      // 계약 시작일이 최신인 프로젝트가 위로. 시작일 없으면 등록일 최신순.
+      orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      select: {
+        clientId: true,
+        performanceContract: true,
+        tasks: { select: { id: true, contractAmount: true } },
+      },
     });
-    const contractRows = await tx.task.groupBy({
-      by: ["clientId"],
-      where: { client: { deletedAt: null } },
-      _sum: { contractAmount: true },
-    });
-    const perf = new Map<string, number>();
-    for (const r of perfRows) {
-      const cid = r.task.clientId;
-      perf.set(cid, (perf.get(cid) ?? 0) + r.amount);
+    // 고객사별 첫 행 = 가장 최근 프로젝트.
+    const seen = new Set<string>();
+    const latest = new Map<string, { contract: number; performanceContract: boolean }>();
+    const taskToClient = new Map<string, string>();
+    for (const p of projects) {
+      if (seen.has(p.clientId)) continue;
+      seen.add(p.clientId);
+      const contract = p.tasks.reduce((s, t) => s + (t.contractAmount ?? 0), 0);
+      latest.set(p.clientId, { contract, performanceContract: p.performanceContract });
+      for (const t of p.tasks) taskToClient.set(t.id, p.clientId);
     }
-    const contract = new Map(contractRows.map((r) => [r.clientId, r._sum.contractAmount ?? 0]));
-    return { perf, contract };
+    // 최근 프로젝트 과업들의 올해 누적 실적만 조회해 고객사별로 합산.
+    const taskIds = [...taskToClient.keys()];
+    const perfRows = taskIds.length
+      ? await tx.monthlyPerformance.findMany({
+          where: { year, taskId: { in: taskIds } },
+          select: { amount: true, taskId: true },
+        })
+      : [];
+    const perfByClient = new Map<string, number>();
+    for (const r of perfRows) {
+      const cid = taskToClient.get(r.taskId)!;
+      perfByClient.set(cid, (perfByClient.get(cid) ?? 0) + r.amount);
+    }
+    const result = new Map<string, { perf: number; contract: number; performanceContract: boolean }>();
+    for (const [cid, info] of latest) {
+      result.set(cid, { perf: perfByClient.get(cid) ?? 0, ...info });
+    }
+    return result;
   });
 }
 

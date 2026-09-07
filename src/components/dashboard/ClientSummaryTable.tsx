@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { filterClients, sortClients, paginate, type ClientRow, type SortMode } from "@/lib/clients/summary-view";
-import { margin, attainment } from "@/lib/metrics/formulas";
+import { attainment } from "@/lib/metrics/formulas";
 import { formatWon, formatPercent } from "@/lib/format";
 
 const SORTS: { value: SortMode; label: string }[] = [
@@ -57,7 +57,7 @@ export function ClientSummaryTable({ clients }: { clients: ClientRow[] }) {
               <td>{c.industry ?? "—"}</td>
               <td>{formatWon(c.performance)}</td>
               <td>{formatWon(c.expense)}</td>
-              <td>{formatPercent(margin(c.performance, c.expense))}</td>
+              <td>준비중</td>
               <td>{formatPercent(attainment(c.performance, c.contract))}</td>
             </tr>
           ))}

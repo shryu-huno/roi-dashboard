@@ -6,7 +6,7 @@ import {
   getPeriodTotals, getContractTotal, getMonthlyTrend,
   getExpenseBreakdown, getClientSummaries, rollupPmSummaries,
 } from "@/lib/data/metrics";
-import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
+import { attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
 import { getEasywelOnly } from "@/lib/easywel";
 import { formatWon, formatPercent } from "@/lib/format";
@@ -83,12 +83,11 @@ export default async function DashboardPage({
       </section>
 
       <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">월별 추이 (실적 막대 · 수익률 라인)</h2>
+        <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">월별 추이 (실적 막대)</h2>
         <TrendChart
           points={trend.map((t) => ({
             month: t.month,
             performance: t.performance,
-            margin: margin(t.performance, t.expense),
           }))}
         />
       </section>
@@ -114,7 +113,7 @@ export default async function DashboardPage({
                   <td>{p.clientCount}</td>
                   <td>{formatWon(p.performance)}</td>
                   <td>{formatWon(p.expense)}</td>
-                  <td>{formatPercent(margin(p.performance, p.expense))}</td>
+                  <td>준비중</td>
                 </tr>
               ))}
             </tbody>
