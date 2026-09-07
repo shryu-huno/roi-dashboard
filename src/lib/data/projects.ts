@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
-import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
+import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { resolveContractAmount } from "@/lib/data/tasks";
 import { recomputePerformanceAmounts } from "@/lib/data/performance";
 import type { ProjectTaskItem } from "@/lib/validation/schemas";
@@ -48,11 +48,11 @@ export function getProject(ctx: RlsContext, id: string) {
   return withRLS(ctx, (tx) => tx.project.findUnique({ where: { id }, include: { managers: true } }));
 }
 
-// 담당 PM 배정·ClientManager 동기화는 전체 접근(최고관리자·정산담당자)과 팀 관리자만.
-// 팀 관리자는 자기 팀 소속 PM만 배정 가능하며, 그 제약은 ProjectManager·ClientManager의
-// RLS WITH CHECK(User.teamId = app.team_id)가 강제한다.
+// 담당 PM 배정·ClientManager 동기화는 전체 접근(최고관리자·정산담당자)과 팀/파트 단위 관리자
+// (팀 관리자·파트장)만. 팀 관리자는 자기 팀, 파트장은 자기 소속 PM만 배정 가능하며, 그 제약은
+// ProjectManager·ClientManager의 RLS WITH CHECK(teamId=app.team_id / partLeaderId=app.user_id)가 강제한다.
 function isPrivileged(ctx: RlsContext): boolean {
-  return isAllAccess(ctx.role) || isTeamAdmin(ctx.role);
+  return isAllAccess(ctx.role) || isTeamScoped(ctx.role);
 }
 
 // 고객사 담당 PM(ClientManager) 전체를 프로젝트(ProjectManager)로 승계한다.

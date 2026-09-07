@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { requireRole, requireUser } from "@/lib/auth/session";
-import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
+import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { getRlsContext } from "@/lib/context";
 import { VAT_COOKIE } from "@/lib/vat";
 import { clientSchema, projectSchema, projectTasksSchema, type ProjectTaskItem } from "@/lib/validation/schemas";
@@ -13,10 +13,11 @@ import { createProject, updateProject, deleteProject } from "@/lib/data/projects
 import { type ActionState, SAVED } from "@/lib/action-state";
 
 export async function createClientAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  // 고객사 생성은 전체 접근(최고관리자·정산담당자)과 팀 관리자만. 팀 관리자는 자기 팀 소속 PM만
-  // 배정할 수 있고(ClientManager RLS가 강제), Client INSERT는 team_admin_create_client 마이그레이션이 허용한다.
+  // 고객사 생성은 전체 접근(최고관리자·정산담당자)과 팀/파트 단위 관리자(팀 관리자·파트장)만.
+  // 팀 관리자는 자기 팀, 파트장은 자기 소속 PM만 배정할 수 있고(ClientManager RLS가 강제),
+  // Client INSERT는 team_admin_create_client·part_leader_scoping 마이그레이션이 허용한다.
   const user = await requireRole("PM");
-  if (!isAllAccess(user.role) && !isTeamAdmin(user.role)) {
+  if (!isAllAccess(user.role) && !isTeamScoped(user.role)) {
     return { ok: false, error: "고객사를 추가할 권한이 없습니다." };
   }
   const ctx = getRlsContext(user);
@@ -82,7 +83,7 @@ export async function createProjectAction(_prev: ActionState, formData: FormData
   const user = await requireRole("PM");
   const ctx = getRlsContext(user);
   const clientId = String(formData.get("clientId"));
-  const canAssignPms = isAllAccess(user.role) || isTeamAdmin(user.role);
+  const canAssignPms = isAllAccess(user.role) || isTeamScoped(user.role);
   const parsed = projectSchema.safeParse({
     clientId,
     name: projectNameFrom(formData),
@@ -107,7 +108,7 @@ export async function updateProjectAction(_prev: ActionState, formData: FormData
   const ctx = getRlsContext(user);
   const id = String(formData.get("id"));
   const clientId = String(formData.get("clientId"));
-  const canAssignPms = isAllAccess(user.role) || isTeamAdmin(user.role);
+  const canAssignPms = isAllAccess(user.role) || isTeamScoped(user.role);
   const parsed = projectSchema.safeParse({
     clientId,
     name: projectNameFrom(formData), // 계약 기간 연도로 재생성(입력란 없음).

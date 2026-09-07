@@ -30,6 +30,7 @@ describe("RLS: PM sees only own clients", () => {
   let teamT1: string;
   let teamT2: string;
   let adminT1: string;
+  let leaderL: string;
 
   beforeEach(async () => {
     await reset();
@@ -52,6 +53,9 @@ describe("RLS: PM sees only own clients", () => {
     await prisma.user.update({ where: { id: pmA }, data: { teamId: teamT1 } });
     await prisma.user.update({ where: { id: pmB }, data: { teamId: teamT2 } });
     adminT1 = (await prisma.user.create({ data: { email: "admt1@huno.kr", role: "ADMIN", status: "ACTIVE", teamId: teamT1 } })).id;
+    // 파트장 L: pmA를 자기 소속(partLeaderId)으로 둔다. pmB는 소속이 아니다.
+    leaderL = (await prisma.user.create({ data: { email: "leadl@huno.kr", role: "PART_LEADER", status: "ACTIVE", teamId: teamT1 } })).id;
+    await prisma.user.update({ where: { id: pmA }, data: { partLeaderId: leaderL } });
   });
 
   it("PM A reads only client A", async () => {
@@ -170,5 +174,43 @@ describe("RLS: PM sees only own clients", () => {
   it("SETTLEMENT reads all clients", async () => {
     const rows = await withRLS({ userId: "settle", role: "SETTLEMENT" }, (tx) => tx.client.findMany());
     expect(rows.length).toBe(2);
+  });
+
+  it("part leader reads only their member PM's clients (L→pmA ⇒ client A only)", async () => {
+    const rows = await withRLS({ userId: leaderL, role: "PART_LEADER" }, (tx) => tx.client.findMany());
+    expect(rows.map((r) => r.id)).toEqual([clientA]);
+  });
+
+  it("part leader cannot see a non-member PM's client (L ↛ client B)", async () => {
+    const rows = await withRLS({ userId: leaderL, role: "PART_LEADER" }, (tx) =>
+      tx.client.findMany({ where: { id: clientB } }),
+    );
+    expect(rows.length).toBe(0);
+  });
+
+  it("part leader CAN update their member's client (USING/WITH CHECK positive control)", async () => {
+    const result = await withRLS({ userId: leaderL, role: "PART_LEADER" }, (tx) =>
+      tx.client.updateMany({ where: { id: clientA }, data: { status: "보류" } }),
+    );
+    expect(result.count).toBe(1);
+  });
+
+  it("part leader can assign their member PM as a manager (ClientManager WITH CHECK)", async () => {
+    const pmA2 = (await prisma.user.create({
+      data: { email: "pma2@huno.kr", role: "PM", status: "ACTIVE", teamId: teamT1, partLeaderId: leaderL },
+    })).id;
+    await withRLS({ userId: leaderL, role: "PART_LEADER" }, (tx) =>
+      tx.clientManager.create({ data: { clientId: clientA, userId: pmA2 } }),
+    );
+    const rows = await withRLS(ROOT, (tx) => tx.clientManager.findMany({ where: { clientId: clientA } }));
+    expect(rows.map((r) => r.userId)).toContain(pmA2);
+  });
+
+  it("part leader cannot assign a non-member PM (pmB) as a manager (WITH CHECK)", async () => {
+    await expect(
+      withRLS({ userId: leaderL, role: "PART_LEADER" }, (tx) =>
+        tx.clientManager.create({ data: { clientId: clientA, userId: pmB } }),
+      ),
+    ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
   });
 });

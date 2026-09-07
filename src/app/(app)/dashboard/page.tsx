@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { isAllAccess, isTeamAdmin } from "@/lib/auth/rbac";
+import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { parsePeriodParams } from "@/lib/period";
 import {
   getPeriodTotals, getContractTotal, getMonthlyTrend,
@@ -45,8 +45,8 @@ export default async function DashboardPage({
     getExpenseBreakdown(ctx, year, period, easywelOnly),
     getClientSummaries(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
   ]);
-  // PM별 집계는 전체 접근·팀 관리자에게 노출. 데이터(clients)는 RLS로 각자의 범위(팀/전체)로 제한된다.
-  const showPm = isAllAccess(user.role) || isTeamAdmin(user.role);
+  // PM별 집계는 전체 접근·팀 관리자·파트장에게 노출. 데이터(clients)는 RLS로 각자의 범위(전체/팀/파트)로 제한된다.
+  const showPm = isAllAccess(user.role) || isTeamScoped(user.role);
   const pms = showPm ? rollupPmSummaries(clients) : [];
 
   const attainmentV = attainment(totals.performance, contract);

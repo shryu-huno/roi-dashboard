@@ -13,6 +13,7 @@ datasource db {
 enum Role {
   SUPER_ADMIN
   ADMIN
+  PART_LEADER
   SETTLEMENT
   PM
 }
@@ -83,6 +84,11 @@ model User {
   status    UserStatus @default(PENDING)
   teamId    String?    // 소속 팀. 팀 관리자·PM의 접근 범위 기준. SUPER_ADMIN/SETTLEMENT는 무관.
   team      Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  // 소속 파트장. PM에게 의미가 있다(자신을 지정한 파트장이 담당 고객사를 열람·관리). 파트장 접근 범위는
+  // 별도 필드 없이 담당 PM(ClientManager→User.partLeaderId)에서 도출한다. 팀(teamId)의 하위 스코프.
+  partLeaderId String?
+  partLeader   User?  @relation("PartMembers", fields: [partLeaderId], references: [id], onDelete: SetNull)
+  partMembers  User[] @relation("PartMembers")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -95,6 +101,7 @@ model User {
   @@index([role])
   @@index([status])
   @@index([teamId])
+  @@index([partLeaderId])
 }
 
 // 팀. 팀 관리자(ADMIN)와 PM이 소속되며, 팀 관리자는 자기 팀 소속 PM이 담당하는
