@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { parsePeriodParams, resolvePeriod, PERIOD_OPTIONS_WITH_QUARTERS } from "@/lib/period";
 import { getClientDetail, getClientProjectBreakdown } from "@/lib/data/metrics";
-import { margin, attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
+import { attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
 import { getFiscalBasis } from "@/lib/basis";
 import { formatWon, formatPercent } from "@/lib/format";
@@ -37,6 +37,7 @@ export default async function ClientDetailPage({
       ? sp.projectId
       : projectRows[0].id
     : undefined;
+  const selectedProject = projectRows.find((p) => p.id === selectedProjectId);
   const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis, selectedProjectId);
   if (!detail) notFound();
 
@@ -46,7 +47,6 @@ export default async function ClientDetailPage({
   const contract = detail.contract;
   const billing = detail.monthly.reduce((s, m) => s + m.billing, 0);
   const deposit = detail.monthly.reduce((s, m) => s + m.deposit, 0);
-  const expense = detail.monthly.reduce((s, m) => s + m.expense, 0);
 
   return (
     <div>
@@ -69,8 +69,11 @@ export default async function ClientDetailPage({
       />
 
       <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard title="수익률" value={formatPercent(margin(perf, expense))} />
-        <KpiCard title="달성률" value={formatPercent(attainment(perf, contract))} sub={`계약금 ${formatWon(contract)}`} />
+        <KpiCard title="수익률" value="준비중" />
+        <KpiCard
+          title="달성률"
+          value={selectedProject?.performanceContract ? "실적 계약" : formatPercent(attainment(perf, contract))}
+        />
         <KpiCard title="청구율" value={formatPercent(billingRate(billing, perf))} />
         <KpiCard title="수금률" value={formatPercent(collectionRate(deposit, billing))} />
       </section>
@@ -104,7 +107,7 @@ export default async function ClientDetailPage({
                     <td className="px-2 whitespace-nowrap text-[var(--color-muted)]">
                       {p.contractStart && p.contractEnd ? `${p.contractStart} ~ ${p.contractEnd}` : "—"}
                     </td>
-                    <td className="px-2 text-right whitespace-nowrap">{formatPercent(margin(p.performance, p.expense))}</td>
+                    <td className="px-2 text-right whitespace-nowrap">준비중</td>
                     <td className="px-2 text-right whitespace-nowrap">
                       {p.performanceContract ? "실적 계약" : formatPercent(attainment(p.performance, p.contract))}
                     </td>

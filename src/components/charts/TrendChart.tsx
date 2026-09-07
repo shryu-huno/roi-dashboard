@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { formatWon, formatPercent } from "@/lib/format";
+import { formatWon } from "@/lib/format";
 
 export function TrendChart({
   points,
 }: {
-  points: { month: number; performance: number; margin: number | null }[];
+  points: { month: number; performance: number }[];
 }) {
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
   const W = 720, H = 200, pad = 24;
@@ -14,15 +14,6 @@ export function TrendChart({
   const barW = (W - pad * 2) / points.length;
   const x = (i: number) => pad + i * barW + barW / 2;
   const yPerf = (v: number) => H - pad - (v / maxPerf) * (H - pad * 2);
-  // 수익률 라인: 0~1 구간으로 clamp (적자·음수는 하단 고정). 실제 값은 툴팁에 표기.
-  const yMargin = (m: number) => {
-    const clamped = Math.max(0, Math.min(1, m));
-    return H - pad - clamped * (H - pad * 2);
-  };
-  const linePts = points
-    .filter((p) => p.margin !== null)
-    .map((p) => `${x(points.indexOf(p))},${yMargin(p.margin as number)}`)
-    .join(" ");
 
   return (
     <div className="relative">
@@ -30,10 +21,6 @@ export function TrendChart({
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded-sm bg-[var(--color-primary)]" />
           월별 실적(막대)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-4 bg-[var(--color-success)]" />
-          월별 수익률(라인)
         </span>
       </div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="max-w-full" onMouseLeave={() => setHover(null)}>
@@ -48,19 +35,7 @@ export function TrendChart({
             opacity="0.85"
           />
         ))}
-        {linePts && <polyline points={linePts} fill="none" stroke="var(--color-success)" strokeWidth="2" />}
-        {points
-          .filter((p) => p.margin !== null)
-          .map((p) => (
-            <circle
-              key={p.month}
-              cx={x(points.indexOf(p))}
-              cy={yMargin(p.margin as number)}
-              r="4"
-              fill="var(--color-success)"
-            />
-          ))}
-        {/* 월별 투명 오버레이 — 컬럼 전체를 호버 영역으로 잡아 막대·점 어디에 올려도 툴팁 표시 */}
+        {/* 월별 투명 오버레이 — 컬럼 전체를 호버 영역으로 잡아 막대 어디에 올려도 툴팁 표시 */}
         {points.map((p, i) => (
           <rect
             key={`hit-${p.month}`}
@@ -89,10 +64,6 @@ export function TrendChart({
           <div className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-sm bg-[var(--color-primary)]" />
             실적 {formatWon(points[hover.i].performance)}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-2.5 bg-[var(--color-success)]" />
-            수익률 {formatPercent(points[hover.i].margin)}
           </div>
         </div>
       )}

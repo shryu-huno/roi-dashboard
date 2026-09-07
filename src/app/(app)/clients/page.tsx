@@ -3,7 +3,7 @@ import { getRlsContext } from "@/lib/context";
 import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { listClients } from "@/lib/data/clients";
 import { effectiveClientStatus } from "@/lib/clients/status";
-import { getClientYearProgress } from "@/lib/data/metrics";
+import { getClientLatestProjectProgress } from "@/lib/data/metrics";
 import { attainment } from "@/lib/metrics/formulas";
 import { prisma } from "@/lib/db";
 import { ClientsList } from "@/components/clients/ClientsList";
@@ -11,10 +11,10 @@ import { ClientsList } from "@/components/clients/ClientsList";
 export default async function ClientsPage() {
   const user = await requireUser();
   const ctx = getRlsContext(user);
-  // 진행율은 올해 누적 실적 ÷ 전체 계약금액. 두 조회는 독립 트랜잭션이라 병렬 실행.
-  const [clients, { perf, contract }] = await Promise.all([
+  // 달성률·실적계약 표시는 고객사의 가장 최근 프로젝트 1건 기준. 두 조회는 독립 트랜잭션이라 병렬 실행.
+  const [clients, latest] = await Promise.all([
     listClients(ctx),
-    getClientYearProgress(ctx, new Date().getFullYear()),
+    getClientLatestProjectProgress(ctx, new Date().getFullYear()),
   ]);
   const showPm = isAllAccess(user.role) || isTeamScoped(user.role);
   const isAdmin = isAllAccess(user.role);
@@ -36,10 +36,13 @@ export default async function ClientsPage() {
       status: effectiveClientStatus(c.status, c.projects),
       industry: c.industry,
       pmLabel: labels.length ? labels.join(", ") : "미배정",
-      // 주기·실적계약은 프로젝트 단위 → 고객사 카드에선 활성 프로젝트 전체를 합산해 표시한다.
-      // 프로젝트 하나라도 실적 계약이면 달성률 대신 "실적 계약" 표시.
-      performanceContract: c.projects.some((p) => p.performanceContract),
-      progress: attainment(perf.get(c.id) ?? 0, contract.get(c.id) ?? 0),
+      // 달성률·실적계약은 가장 최근 프로젝트 1건 기준. 최근 프로젝트가 실적 계약이면 달성률 대신 "실적 계약" 표시.
+      // (주기는 프로젝트 단위라 활성 프로젝트 전체를 합산해 표시한다.)
+      performanceContract: latest.get(c.id)?.performanceContract ?? false,
+      progress: (() => {
+        const lp = latest.get(c.id);
+        return lp ? attainment(lp.perf, lp.contract) : null;
+      })(),
       billingCycle: [...new Set(c.projects.flatMap((p) => p.billingCycle))],
       reportCycle: [...new Set(c.projects.flatMap((p) => p.reportCycle))],
       hyundaiEasywel: c.hyundaiEasywel,
