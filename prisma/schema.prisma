@@ -132,6 +132,7 @@ model Client {
   tasks        Task[]
   billings     MonthlyBilling[]
   deposits     MonthlyDeposit[]
+  invoices     Invoice[]
   expenses     Expense[]
   consultingExpenses ConsultingExpense[]
   corporateCardExpenses CorporateCardExpense[]
@@ -247,6 +248,25 @@ model MonthlyDeposit {
 
   @@unique([clientId, year, month])
   @@index([year, month])
+}
+
+// 계산서 단위 개별 청구 기록. 금액은 VAT 포함(gross)으로 저장한다.
+// paidDate가 채워지면 입금 완료. 대시보드 청구/입금 지표는 이 테이블에서 산출한다
+// (청구=issueDate 월 합계, 입금=paidDate 월 합계). 기존 MonthlyBilling/MonthlyDeposit은 미사용.
+model Invoice {
+  id        String    @id @default(cuid())
+  clientId  String
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  amount    Int       // 청구금액(VAT 포함, 원 단위)
+  issueDate DateTime  // 계산서 발행일자
+  note      String?   // 비고
+  paidDate  DateTime? // 입금일자(null=미입금)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([issueDate])
+  @@index([paidDate])
 }
 
 model Expense {

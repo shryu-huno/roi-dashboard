@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   performanceBatchSchema,
   expenseSchema,
-  billingSchema,
+  invoiceSchema,
   taskSchema,
   clientSchema,
   projectSchema,
@@ -60,24 +60,30 @@ describe("expenseSchema", () => {
   });
 });
 
-describe("billingSchema (null vs 0)", () => {
-  it("treats empty string as null (미입력)", () => {
-    const r = billingSchema.safeParse({ clientId: "c1", year: 2026, month: 3, amount: "" });
+describe("invoiceSchema (계산서 단위 청구)", () => {
+  it("accepts amount(VAT 포함)·발행일자·비고", () => {
+    const r = invoiceSchema.safeParse({ clientId: "c1", amount: "1,100,000", issueDate: "2026-03-10", note: "3월분" });
     expect(r.success).toBe(true);
-    if (r.success) expect(r.data.amount).toBeNull();
+    if (r.success) {
+      expect(r.data.amount).toBe(1100000); // 천단위 콤마 제거
+      expect(r.data.issueDate).toBeInstanceOf(Date);
+      expect(r.data.note).toBe("3월분");
+    }
   });
-  it("keeps 0 as 0 (0원)", () => {
-    const r = billingSchema.safeParse({ clientId: "c1", year: 2026, month: 3, amount: "0" });
+  it("treats empty note as null", () => {
+    const r = invoiceSchema.safeParse({ clientId: "c1", amount: "1000", issueDate: "2026-03-10", note: "" });
     expect(r.success).toBe(true);
-    if (r.success) expect(r.data.amount).toBe(0);
-  });
-  it("strips thousands separators from amount", () => {
-    const r = billingSchema.safeParse({ clientId: "c1", year: 2026, month: 3, amount: "1,000,000" });
-    expect(r.success).toBe(true);
-    if (r.success) expect(r.data.amount).toBe(1000000);
+    if (r.success) expect(r.data.note).toBeNull();
   });
   it("rejects negative amount", () => {
-    expect(billingSchema.safeParse({ clientId: "c1", year: 2026, month: 3, amount: -5 }).success).toBe(false);
+    expect(invoiceSchema.safeParse({ clientId: "c1", amount: -5, issueDate: "2026-03-10" }).success).toBe(false);
+  });
+  it("rejects empty amount and empty client", () => {
+    expect(invoiceSchema.safeParse({ clientId: "c1", amount: "", issueDate: "2026-03-10" }).success).toBe(false);
+    expect(invoiceSchema.safeParse({ clientId: "", amount: 1000, issueDate: "2026-03-10" }).success).toBe(false);
+  });
+  it("rejects invalid issueDate", () => {
+    expect(invoiceSchema.safeParse({ clientId: "c1", amount: 1000, issueDate: "" }).success).toBe(false);
   });
 });
 

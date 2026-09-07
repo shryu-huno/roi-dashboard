@@ -148,8 +148,16 @@ export const expenseSchema = z.object({
   memo: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
 });
 
-export const billingSchema = z.object({ clientId: z.string().min(1), year, month, amount: nullableAmount });
-export const depositSchema = billingSchema;
+// 계산서 단위 청구(Invoice). amount는 VAT 포함 금액(≥0), issueDate는 "YYYY-MM-DD".
+export const invoiceSchema = z.object({
+  clientId: z.string().min(1),
+  amount: nonNegInt,
+  issueDate: z.coerce.date(),
+  note: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), z.string().trim().max(500).nullable()),
+});
+
+// 입금 확인: 입금일자만 받는다("YYYY-MM-DD").
+export const paymentConfirmSchema = z.object({ paidDate: z.coerce.date() });
 
 // 엑셀/CSV 한 행(문자열)을 검증. 번호는 숫자만 남겨 10/13자리인지 확인(업체/강사 판별 근거).
 const bizNumberDigits = z.preprocess(

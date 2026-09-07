@@ -2,7 +2,7 @@ import type { ExpenseCategory } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { resolvePeriod } from "@/lib/period";
 import { prisma } from "@/lib/db";
-import { withVat, withVatSplit } from "@/lib/vat";
+import { withVat, withVatSplit, fromGross } from "@/lib/vat";
 import { sessionDateBetween, sessionMonth } from "@/lib/consulting-basis";
 import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
 import { deriveProjectName } from "@/lib/clients/summary-view";
@@ -43,12 +43,16 @@ export function getPeriodTotals(
       where: { year, month: monthRange, task: { client: cw, vatExempt: true } },
       _sum: { amount: true },
     });
-    const billing = await tx.monthlyBilling.aggregate({
-      where: { year, month: monthRange, client: cw },
+    // 청구/입금은 Invoice(계산서 단위)에서 산출: 청구=발행월(issueDate), 입금=입금월(paidDate).
+    // 금액은 VAT 포함(gross)으로 저장하므로 토글은 fromGross로 반영한다.
+    const start = new Date(Date.UTC(year, startMonth - 1, 1));
+    const endExcl = new Date(Date.UTC(year, endMonth, 1));
+    const billing = await tx.invoice.aggregate({
+      where: { issueDate: { gte: start, lt: endExcl }, client: cw },
       _sum: { amount: true },
     });
-    const deposit = await tx.monthlyDeposit.aggregate({
-      where: { year, month: monthRange, client: cw },
+    const deposit = await tx.invoice.aggregate({
+      where: { paidDate: { gte: start, lt: endExcl }, client: cw },
       _sum: { amount: true },
     });
     // 지출 = Expense(법인/개인카드·홍보비 등 카테고리) + ConsultingExpense(상담비) + CorporateCardExpense(법인카드).
@@ -71,8 +75,8 @@ export function getPeriodTotals(
       (expense._sum.amount ?? 0) + (consulting._sum.amount ?? 0) + (corporateCard._sum.amount ?? 0);
     return {
       performance: withVatSplit(perfTaxable._sum.amount ?? 0, perfExempt._sum.amount ?? 0, includeVat),
-      billing: withVat(billing._sum.amount ?? 0, includeVat),
-      deposit: withVat(deposit._sum.amount ?? 0, includeVat),
+      billing: fromGross(billing._sum.amount ?? 0, includeVat),
+      deposit: fromGross(deposit._sum.amount ?? 0, includeVat),
       // 지출은 부가세 미포함(원장 원값). 실적/청구/입금만 VAT 토글을 따른다.
       expense: expenseTotal,
     };
@@ -458,12 +462,28 @@ export function getClientDetail(
     const perfMExempt = await tx.monthlyPerformance.groupBy({
       by: ["month"], where: { year, task: { ...taskWhere, vatExempt: true } }, _sum: { amount: true },
     });
-    const billM = await tx.monthlyBilling.groupBy({
-      by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
+    // 청구/입금 월별 — Invoice에서 발행월(issueDate)·입금월(paidDate)로 버킷팅.
+    const yearStart = new Date(Date.UTC(year, 0, 1));
+    const yearEndExcl = new Date(Date.UTC(year + 1, 0, 1));
+    const b = new Map<number, number>();
+    const invBill = await tx.invoice.findMany({
+      where: { clientId: id, issueDate: { gte: yearStart, lt: yearEndExcl } },
+      select: { issueDate: true, amount: true },
     });
-    const depM = await tx.monthlyDeposit.groupBy({
-      by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
+    for (const r of invBill) {
+      const m = r.issueDate.getUTCMonth() + 1;
+      b.set(m, (b.get(m) ?? 0) + r.amount);
+    }
+    const d = new Map<number, number>();
+    const invDep = await tx.invoice.findMany({
+      where: { clientId: id, paidDate: { gte: yearStart, lt: yearEndExcl } },
+      select: { paidDate: true, amount: true },
     });
+    for (const r of invDep) {
+      if (!r.paidDate) continue;
+      const m = r.paidDate.getUTCMonth() + 1;
+      d.set(m, (d.get(m) ?? 0) + r.amount);
+    }
     const expM = await tx.expense.groupBy({
       by: ["month"], where: { year, clientId: id }, _sum: { amount: true },
     });
@@ -497,7 +517,7 @@ export function getClientDetail(
     const expenses: ExpenseSlice[] = expCat.map((r) => ({ category: r.category, amount: r._sum.amount ?? 0 }));
     const map = (rows: { month: number; _sum: { amount: number | null } }[]) =>
       new Map(rows.map((r) => [r.month, r._sum.amount ?? 0]));
-    const pTax = map(perfMTaxable), pEx = map(perfMExempt), b = map(billM), d = map(depM), e = map(expM), cc = map(ccM);
+    const pTax = map(perfMTaxable), pEx = map(perfMExempt), e = map(expM), cc = map(ccM);
     const monthly: MonthlyRow[] = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       // 실적은 프로젝트 과업에서 직접 산출(창 무관). 청구·입금·지출은 계약기간 창에 속하는 월만 귀속.
@@ -505,8 +525,8 @@ export function getClientDetail(
       return {
         month,
         performance: withVatSplit(pTax.get(month) ?? 0, pEx.get(month) ?? 0, includeVat),
-        billing: inWindow ? withVat(b.get(month) ?? 0, includeVat) : 0,
-        deposit: inWindow ? withVat(d.get(month) ?? 0, includeVat) : 0,
+        billing: inWindow ? fromGross(b.get(month) ?? 0, includeVat) : 0,
+        deposit: inWindow ? fromGross(d.get(month) ?? 0, includeVat) : 0,
         // 지출은 부가세 미포함(원장 원값).
         expense: inWindow ? (e.get(month) ?? 0) + (ce.get(month) ?? 0) + (cc.get(month) ?? 0) : 0,
       };
@@ -591,8 +611,11 @@ export function getClientProjectBreakdown(
       const perfExempt = exemptIds.length
         ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: exemptIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
         : 0;
-      const billing = (await tx.monthlyBilling.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
-      const deposit = (await tx.monthlyDeposit.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
+      // 청구/입금은 Invoice에서 기간 창(from~to, 연속 월)으로 집계: 청구=issueDate, 입금=paidDate.
+      const rangeStart = new Date(Date.UTC(from.year, from.month - 1, 1));
+      const rangeEndExcl = new Date(Date.UTC(to.year, to.month, 1));
+      const billing = (await tx.invoice.aggregate({ where: { clientId, issueDate: { gte: rangeStart, lt: rangeEndExcl } }, _sum: { amount: true } }))._sum.amount ?? 0;
+      const deposit = (await tx.invoice.aggregate({ where: { clientId, paidDate: { gte: rangeStart, lt: rangeEndExcl } }, _sum: { amount: true } }))._sum.amount ?? 0;
       const expense = (await tx.expense.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
       const consulting = (await tx.consultingExpense.aggregate({
         where: fiscalBasis ? { clientId, OR: ym } : { clientId, sessionDate: sessionDateBetween(from, to) },
@@ -612,8 +635,8 @@ export function getClientProjectBreakdown(
         contractEnd: end,
         performanceContract: p.performanceContract,
         performance: withVatSplit(perfTaxable, perfExempt, includeVat),
-        billing: withVat(billing, includeVat),
-        deposit: withVat(deposit, includeVat),
+        billing: fromGross(billing, includeVat),
+        deposit: fromGross(deposit, includeVat),
         // 지출은 부가세 미포함(원장 원값).
         expense: expense + consulting + corporateCard,
         contract: withVatSplit(contractTaxable, contractExempt, includeVat),
