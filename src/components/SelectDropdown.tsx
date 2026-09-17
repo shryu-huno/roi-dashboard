@@ -87,7 +87,7 @@ export function SelectDropdown({
         aria-expanded={open}
         className="flex w-full items-center justify-center gap-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm"
       >
-        <span>{current?.label ?? ""}</span>
+        <span className={value ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]"}>{current?.label ?? ""}</span>
         <span aria-hidden>⌄</span>
       </button>
       <FloatingList anchorRef={boxRef} open={open}>

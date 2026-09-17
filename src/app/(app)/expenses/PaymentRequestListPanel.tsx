@@ -187,9 +187,9 @@ export function PaymentRequestListPanel({
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
             <span className="font-bold">지급일</span>
             <span className="mt-1 flex items-center gap-1">
-              <input type="date" name="payDateFrom" defaultValue={filterValues.payDateFrom} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm" />
+              <input type="date" name="payDateFrom" defaultValue={filterValues.payDateFrom} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm text-[var(--color-muted)] [&:not(:placeholder-shown)]:text-[var(--color-fg)]" />
               ~
-              <input type="date" name="payDateTo" defaultValue={filterValues.payDateTo} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm" />
+              <input type="date" name="payDateTo" defaultValue={filterValues.payDateTo} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm text-[var(--color-muted)] [&:not(:placeholder-shown)]:text-[var(--color-fg)]" />
             </span>
           </label>
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
