@@ -69,6 +69,8 @@ export function PaymentRequestListPanel({
   const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [payDateFrom, setPayDateFrom] = useState(filterValues.payDateFrom ?? "");
+  const [payDateTo, setPayDateTo] = useState(filterValues.payDateTo ?? "");
   const canExport = role === "ADMIN" || role === "SETTLEMENT";
 
   // PM은 지급준비+본인 신청 건만 선택 가능 — "전체선택"도 그 범위로 제한한다.
@@ -187,9 +189,21 @@ export function PaymentRequestListPanel({
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
             <span className="font-bold">지급일</span>
             <span className="mt-1 flex items-center gap-1">
-              <input type="date" name="payDateFrom" defaultValue={filterValues.payDateFrom} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm text-[var(--color-muted)] [&:not(:placeholder-shown)]:text-[var(--color-fg)]" />
+              <input
+                type="date"
+                name="payDateFrom"
+                value={payDateFrom ?? ""}
+                onChange={(e) => setPayDateFrom(e.target.value)}
+                className={`w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm ${payDateFrom ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]"}`}
+              />
               ~
-              <input type="date" name="payDateTo" defaultValue={filterValues.payDateTo} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm text-[var(--color-muted)] [&:not(:placeholder-shown)]:text-[var(--color-fg)]" />
+              <input
+                type="date"
+                name="payDateTo"
+                value={payDateTo ?? ""}
+                onChange={(e) => setPayDateTo(e.target.value)}
+                className={`w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm ${payDateTo ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]"}`}
+              />
             </span>
           </label>
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
