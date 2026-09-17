@@ -24,7 +24,7 @@ export function PaymentRequestExcelUploadModal({ onClose }: { onClose: () => voi
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-[14px] bg-[var(--color-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">⬆ 엑셀 업로드</h2>
+          <h2 className="text-lg font-semibold">⬆ 일괄 업로드</h2>
           <button type="button" onClick={onClose} className="text-[var(--color-muted)]" aria-label="닫기">✕</button>
         </div>
         <p className="mb-4 text-sm text-[var(--color-muted)]">
@@ -33,10 +33,6 @@ export function PaymentRequestExcelUploadModal({ onClose }: { onClose: () => voi
 
         <form action={formAction}>
           <FileDropzone name="file" accept=".xlsx" hint="지원 확장자: .xlsx" />
-
-          <p className="mt-3 rounded bg-[var(--color-hover)] px-3 py-2 text-xs text-[var(--color-muted)]">
-            반영 항목: 지급일, 지급여부
-          </p>
 
           {state.ok && state.message && (
             <p className="mt-3 text-sm text-[var(--color-primary)]">{state.message}</p>

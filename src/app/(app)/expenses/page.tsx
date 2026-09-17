@@ -172,7 +172,7 @@ async function PaymentRequestTab({
 }: {
   sp: {
     clientId?: string; page?: string;
-    payDateFrom?: string; payDateTo?: string; entity?: string; status?: string; bizName?: string;
+    payDateFrom?: string; payDateTo?: string; entity?: string; status?: string; bizName?: string; requesterName?: string;
   };
   user: SessionUser;
 }) {
@@ -189,6 +189,7 @@ async function PaymentRequestTab({
     entity: parsePaymentRequestEntity(sp.entity),
     status: parsePaymentRequestStatus(sp.status),
     bizName: sp.bizName || undefined,
+    requesterName: sp.requesterName || undefined,
   };
   const page = parsePaymentRequestPage(sp.page);
   const result = await listPaymentRequests(ctx, filter, page);
@@ -209,6 +210,7 @@ async function PaymentRequestTab({
         entity: sp.entity ?? "",
         status: sp.status ?? "",
         bizName: sp.bizName ?? "",
+        requesterName: sp.requesterName ?? "",
       }}
       role={user.role!}
       currentUserId={user.id}
@@ -230,7 +232,7 @@ export default async function ExpensesPage({
 }: {
   searchParams: Promise<{
     tab?: string; clientId?: string; from?: string; to?: string; field?: string; q?: string; page?: string;
-    payDateFrom?: string; payDateTo?: string; entity?: string; status?: string; bizName?: string;
+    payDateFrom?: string; payDateTo?: string; entity?: string; status?: string; bizName?: string; requesterName?: string;
   }>;
 }) {
   const sp = await searchParams;

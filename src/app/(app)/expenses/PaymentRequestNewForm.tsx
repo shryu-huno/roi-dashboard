@@ -58,7 +58,7 @@ export function PaymentRequestNewForm({
         <h1 className="text-lg font-semibold">지급요청 등록</h1>
         <div className="flex gap-2">
           <button type="button" onClick={() => setIsUploadOpen(true)} className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
-            엑셀 업로드
+            일괄 등록
           </button>
           <Link href="/expenses?tab=payment-request" className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
             취소

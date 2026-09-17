@@ -298,6 +298,7 @@ model PaymentRequest {
   entity        PaymentRequestEntity                     // 지급명의
   clientId      String                                   // 고객사
   client        Client                @relation(fields: [clientId], references: [id])
+  clientName    String                                   // 고객사명 스냅샷 — PM 전체조회 시 Client RLS와 무관하게 표시하기 위함
   payeeId       String?                                  // 지급 리스트 연동(있으면 FK)
   payee         Payee?                @relation(fields: [payeeId], references: [id])
   bizName       String                                   // 사업자명(이름) 스냅샷

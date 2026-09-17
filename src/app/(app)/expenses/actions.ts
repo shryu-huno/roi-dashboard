@@ -30,9 +30,9 @@ export async function saveExpense(_prev: ActionState, formData: FormData): Promi
 
 // PM 지급요청 등록 화면(행 편집기)의 여러 행을 한 번에 저장한다. FormData가 아니라 배열을 직접
 // 받는 이유는 이 화면이 동적 행 개수를 다루는 표 편집기라 FormData로 표현하기 부적합하기 때문이다
-// (다른 액션들과의 시그니처 차이는 이 화면의 특수성 때문). clientId RLS 위반(담당하지 않는
-// 고객사)은 예상 가능한 보안 경계라 createPaymentRequestsBulk가 던지므로 여기서 잡아 일반
-// 사용자 메시지로 바꾼다.
+// (다른 액션들과의 시그니처 차이는 이 화면의 특수성 때문). 담당하지 않는 고객사는
+// createPaymentRequestsBulk가 { ok: false }로 안내하지만, 그 외 예기치 못한 DB 오류(RLS 등)는
+// 여전히 예외로 올라올 수 있어 여기서 잡아 일반 사용자 메시지로 바꾼다.
 export async function createPaymentRequests(rows: PaymentRequestCreateInput[]): Promise<ActionState> {
   const user = await requireUser();
   if (user.role !== "PM") return { ok: false, error: "권한이 없습니다." };

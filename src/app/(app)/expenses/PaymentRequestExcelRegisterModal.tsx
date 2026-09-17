@@ -27,7 +27,7 @@ export function PaymentRequestExcelRegisterModal({ open, onClose }: { open: bool
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-[14px] bg-[var(--color-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">📗 지급요청 엑셀 등록</h2>
+          <h2 className="text-lg font-semibold">📗 지급요청 일괄 등록</h2>
           <button type="button" onClick={onClose} className="text-[var(--color-muted)]" aria-label="닫기">✕</button>
         </div>
         <p className="mb-4 text-sm text-[var(--color-muted)]">
@@ -36,12 +36,6 @@ export function PaymentRequestExcelRegisterModal({ open, onClose }: { open: bool
 
         <form action={formAction}>
           <FileDropzone name="file" accept=".xlsx" hint="지원 확장자: .xlsx" />
-
-          <p className="mt-3 rounded bg-[var(--color-hover)] px-3 py-2 text-xs text-[var(--color-muted)]">
-            업로드 항목: 지급명의, 고객사명, 사업자명(이름), 은행명, 계좌번호, 예금주, 단가, 교통비, 재료비, 횟수, 청구방식, 상세내역
-            <br />
-            사업자명+계좌번호가 지급 리스트와 일치하면 자동 연동됩니다.
-          </p>
 
           {state.ok && state.message && (
             <p className="mt-3 text-sm text-[var(--color-primary)]">{state.message}</p>

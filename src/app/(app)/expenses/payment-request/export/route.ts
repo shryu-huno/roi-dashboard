@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       entity: parsePaymentRequestEntity(sp.get("entity") ?? undefined),
       status: parsePaymentRequestStatus(sp.get("status") ?? undefined),
       bizName: sp.get("bizName") || undefined,
+      requesterName: sp.get("requesterName") || undefined,
     });
 
   const buf = await buildPaymentRequestExportXlsxBuffer(rows);

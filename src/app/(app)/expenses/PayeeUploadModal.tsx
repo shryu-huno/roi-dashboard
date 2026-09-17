@@ -40,10 +40,6 @@ export function PayeeUploadModal({ open, onClose }: { open: boolean; onClose: ()
         <form action={formAction}>
           <FileDropzone name="file" accept=".xlsx,.xls,.csv" hint="지원 확장자: .xlsx, .xls, .csv" />
 
-          <p className="mt-3 rounded bg-[var(--color-hover)] px-3 py-2 text-xs text-[var(--color-muted)]">
-            업로드 항목: 사업자명(이름), 사업자번호, 연락처, 은행명, 계좌번호, 예금주, 청구방식
-          </p>
-
           {state.ok && state.message && (
             <p className="mt-3 text-sm text-[var(--color-primary)]">{state.message}</p>
           )}

@@ -75,7 +75,7 @@ async function createPayee(
 }
 
 function baseInput(overrides: Partial<{
-  requesterId: string; entity: "HUNO" | "HUNO_INC"; clientId: string; bizName: string;
+  requesterId: string; entity: "HUNO" | "HUNO_INC"; clientId: string; clientName: string; bizName: string;
   bankName: string; accountNumberEnc: string; accountHolder: string;
   unitPrice: number; transportFee: number; materialFee: number; count: number;
   taxType: "TAX_INVOICE" | "BUSINESS_INCOME"; memo: string; payDate: Date | null; status: "PREPARING" | "COMPLETED";
@@ -84,6 +84,7 @@ function baseInput(overrides: Partial<{
     requesterId: overrides.requesterId!,
     entity: overrides.entity ?? "HUNO",
     clientId: overrides.clientId!,
+    clientName: overrides.clientName ?? "테스트고객사",
     bizName: overrides.bizName ?? "홍길동",
     bankName: overrides.bankName ?? "국민",
     accountNumberEnc: overrides.accountNumberEnc ?? encrypt("1101234567"),
@@ -115,17 +116,17 @@ describe("payment-requests 데이터 계층", () => {
     expect(totalPages).toBe(1);
   });
 
-  it("PM은 자신이 담당하는 고객사의 지급요청만 조회한다(RLS)", async () => {
+  it("PM은 담당 고객사와 무관하게 전체 지급요청을 조회한다(RLS)", async () => {
     const { pmA, pmB, clientA, clientB } = await seed();
     await withRLS(ADMIN, (tx) => tx.paymentRequest.create({ data: baseInput({ requesterId: pmA.id, clientId: clientA.id, bizName: "A사건" }) }));
     await withRLS(ADMIN, (tx) => tx.paymentRequest.create({ data: baseInput({ requesterId: pmB.id, clientId: clientB.id, bizName: "B사건" }) }));
     const { rows } = await listPaymentRequests({ userId: pmA.id, role: "PM" });
-    expect(rows.map((r) => r.bizName)).toEqual(["A사건"]);
+    expect(rows.map((r) => r.bizName).sort()).toEqual(["A사건", "B사건"]);
   });
 
   it("신청인 이름과 고객사명을 조인해서 반환한다", async () => {
     const { pmA, clientA } = await seed();
-    await withRLS(ADMIN, (tx) => tx.paymentRequest.create({ data: baseInput({ requesterId: pmA.id, clientId: clientA.id }) }));
+    await withRLS(ADMIN, (tx) => tx.paymentRequest.create({ data: baseInput({ requesterId: pmA.id, clientId: clientA.id, clientName: clientA.name }) }));
     const { rows: [row] } = await listPaymentRequests(ADMIN);
     expect(row.requesterName).toBe("김PM");
     expect(row.clientName).toBe("A사");
@@ -350,15 +351,14 @@ describe("payment-requests 데이터 계층", () => {
       expect(result.ok).toBe(false);
     });
 
-    it("PM이 담당하지 않는 고객사로 저장을 시도하면 RLS로 거부된다", async () => {
+    it("PM이 담당하지 않는 고객사로 저장을 시도하면 거부된다(Client RLS로 조회조차 안 됨)", async () => {
       const { pmA, clientB } = await seed();
       const payee = await createPayee("1234567890", "업체A");
-      await expect(
-        createPaymentRequestsBulk(
-          { userId: pmA.id, role: "PM" }, pmA.id,
-          [{ entity: "HUNO", clientId: clientB.id, payeeId: payee.id, unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" }],
-        ),
-      ).rejects.toThrow(/로우 단위 보안 정책|row-level security/i);
+      const result = await createPaymentRequestsBulk(
+        { userId: pmA.id, role: "PM" }, pmA.id,
+        [{ entity: "HUNO", clientId: clientB.id, payeeId: payee.id, unitPrice: 10000, transportFee: 0, materialFee: 0, count: 1, memo: "" }],
+      );
+      expect(result.ok).toBe(false);
     });
 
     it("여러 행을 한 번에 저장한다", async () => {

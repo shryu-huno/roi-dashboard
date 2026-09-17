@@ -81,7 +81,9 @@ export function PaymentRequestNoticeBanner({
 
   return (
     <div className="mb-4 flex items-start justify-between gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-hover)] px-4 py-3 text-sm text-[var(--color-muted)]">
-      <p className="whitespace-pre-wrap">{content || "📢 등록된 공지가 없습니다."}</p>
+      <p className="whitespace-pre-wrap font-bold text-black">
+        {content ? `📢 ${content}` : "📢 등록된 공지가 없습니다."}
+      </p>
       {canEdit && (
         <button
           type="button"

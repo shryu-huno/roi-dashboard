@@ -25,7 +25,7 @@ import {
 } from "@/lib/labels";
 
 type FilterValues = {
-  payDateFrom: string; payDateTo: string; clientId: string; entity: string; status: string; bizName: string;
+  payDateFrom: string; payDateTo: string; clientId: string; entity: string; status: string; bizName: string; requesterName: string;
 };
 
 function dateStr(d: Date | null): string {
@@ -132,6 +132,7 @@ export function PaymentRequestListPanel({
     entity: filterValues.entity,
     status: filterValues.status,
     bizName: filterValues.bizName,
+    requesterName: filterValues.requesterName,
   };
 
   // 체크된 행이 있으면 그 항목만, 없으면 현재 검색/필터 결과 전체를 다운로드 대상으로 삼는다.
@@ -146,9 +147,19 @@ export function PaymentRequestListPanel({
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-hover)] p-4">
         <input type="hidden" name="tab" value="payment-request" />
-        <div className="flex flex-1 flex-wrap items-end justify-center gap-3">
+        <div className="flex flex-1 flex-wrap items-end justify-start gap-3">
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
-            지급명의
+            <span className="font-bold">신청인</span>
+            <input
+              type="text"
+              name="requesterName"
+              defaultValue={filterValues.requesterName}
+              placeholder="신청인 검색"
+              className="mt-1 w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm"
+            />
+          </label>
+          <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
+            <span className="font-bold">지급명의</span>
             <SelectDropdown
               name="entity"
               defaultValue={filterValues.entity}
@@ -160,21 +171,21 @@ export function PaymentRequestListPanel({
             />
           </label>
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
-            고객사
+            <span className="font-bold">고객사</span>
             <ClientCombobox clients={clients} defaultClientId={filterValues.clientId || undefined} className="mt-1 w-64" />
           </label>
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
-            사업자명(이름)
+            <span className="font-bold">사업자명(이름)</span>
             <SuggestInput
               name="bizName"
               defaultValue={filterValues.bizName}
               suggestions={bizNames}
               placeholder="사업자명(이름) 검색"
-              className="mt-1 w-56"
+              className="mt-1 w-64"
             />
           </label>
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
-            지급일
+            <span className="font-bold">지급일</span>
             <span className="mt-1 flex items-center gap-1">
               <input type="date" name="payDateFrom" defaultValue={filterValues.payDateFrom} className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-2 text-center text-sm" />
               ~
@@ -182,7 +193,7 @@ export function PaymentRequestListPanel({
             </span>
           </label>
           <label className="flex flex-col items-center text-sm text-[var(--color-fg)]">
-            지급여부
+            <span className="font-bold">지급여부</span>
             <SelectDropdown
               name="status"
               defaultValue={filterValues.status}
@@ -217,7 +228,7 @@ export function PaymentRequestListPanel({
         )}
         {canExport && (
           <button type="button" onClick={() => setExcelUploadOpen(true)} className="rounded border border-[var(--color-border)] px-4 py-2 text-sm">
-            ⬆ 엑셀 업로드
+            ⬆ 일괄 업로드
           </button>
         )}
         {canExport && (
@@ -227,7 +238,7 @@ export function PaymentRequestListPanel({
             disabled={selected.size === 0}
             className="rounded border border-[var(--color-border)] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
           >
-            🗓️ 수정{selected.size > 0 ? ` (${selected.size}건 선택)` : ""}
+            ✏️ 수정{selected.size > 0 ? ` (${selected.size}건 선택)` : ""}
           </button>
         )}
         <button

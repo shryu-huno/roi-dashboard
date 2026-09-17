@@ -41,6 +41,7 @@ export type PaymentRequestFilter = {
   entity?: PaymentRequestEntity;
   status?: PaymentRequestStatus;
   bizName?: string;
+  requesterName?: string;
 };
 
 // 목록 화면(11개 고정 컬럼)과 상세보기 모달이 함께 쓰는 행 타입. 상세 전용 필드(단가/교통비/
@@ -76,6 +77,10 @@ function buildWhere(filter?: PaymentRequestFilter): Prisma.PaymentRequestWhereIn
   if (filter.entity) where.entity = filter.entity;
   if (filter.status) where.status = filter.status;
   if (filter.bizName?.trim()) where.bizName = { contains: filter.bizName.trim(), mode: "insensitive" };
+  if (filter.requesterName?.trim()) {
+    const q = filter.requesterName.trim();
+    where.requester = { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] };
+  }
   if (filter.payDateFrom || filter.payDateTo) {
     where.payDate = {
       ...(filter.payDateFrom ? { gte: filter.payDateFrom } : {}),
@@ -85,7 +90,9 @@ function buildWhere(filter?: PaymentRequestFilter): Prisma.PaymentRequestWhereIn
   return where;
 }
 
-// RLS(ClientManager 경유)가 PM 범위를 자동 제한하므로 role별 함수 분기가 필요 없다
+// PM은 담당 고객사와 무관하게 전체 지급요청을 조회할 수 있다(payment_request_select RLS).
+// 고객사명은 Client 조인 대신 clientName 스냅샷을 쓴다 — Client 자체는 여전히 담당 고객사로
+// RLS가 제한돼 있어, 조인하면 담당 외 고객사 행에서 필수 관계가 null로 와 런타임 에러가 난다.
 // (Payee와 달리 필드 마스킹도 없다 — 화면 차이는 엑셀 다운로드 버튼 노출 여부뿐).
 export async function listPaymentRequests(
   ctx: RlsContext,
@@ -99,7 +106,7 @@ export async function listPaymentRequests(
       tx.paymentRequest.findMany({
         where,
         orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
-        include: { requester: { select: { name: true, email: true } }, client: { select: { name: true } } },
+        include: { requester: { select: { name: true, email: true } } },
         skip: (p - 1) * PAYMENT_REQUEST_PAGE_SIZE,
         take: PAYMENT_REQUEST_PAGE_SIZE,
       }),
@@ -124,7 +131,7 @@ export async function listPaymentRequests(
     requesterName: r.requester.name ?? r.requester.email,
     entity: r.entity,
     clientId: r.clientId,
-    clientName: r.client.name,
+    clientName: r.clientName,
     payeeId: r.payeeId,
     bizName: r.bizName,
     unitPrice: r.unitPrice,
@@ -182,7 +189,6 @@ export async function listPaymentRequestsForExport(
     orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
     include: {
       requester: { select: { name: true, email: true } },
-      client: { select: { name: true } },
       payee: { select: { keyId: true, phone: true, bizNumberEnc: true } },
     },
   }));
@@ -191,7 +197,7 @@ export async function listPaymentRequestsForExport(
     seqNo: r.seqNo,
     requesterName: r.requester.name ?? r.requester.email,
     entity: r.entity,
-    clientName: r.client.name,
+    clientName: r.clientName,
     bizName: r.bizName,
     payeeKeyId: r.payee?.keyId ?? "",
     phone: r.payee?.phone ?? "",
@@ -232,12 +238,22 @@ export async function createPaymentRequestsBulk(
       return { ok: false, error: "선택한 사업자 중 존재하지 않거나 삭제된 항목이 있습니다. 다시 선택해 주세요." };
     }
 
+    const clientIds = [...new Set(inputs.map((i) => i.clientId))];
+    const clients = await tx.client.findMany({
+      where: { id: { in: clientIds }, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    const clientMap = new Map(clients.map((c) => [c.id, c.name]));
+    if (clientMap.size !== clientIds.length) {
+      return { ok: false, error: "선택한 고객사 중 존재하지 않거나 삭제된 항목이 있습니다. 다시 선택해 주세요." };
+    }
+
     for (const input of inputs) {
       const payee = payeeMap.get(input.payeeId)!;
       const amount = (input.unitPrice + input.transportFee + input.materialFee) * input.count;
       await tx.paymentRequest.create({
         data: {
-          requesterId, entity: input.entity, clientId: input.clientId, payeeId: input.payeeId,
+          requesterId, entity: input.entity, clientId: input.clientId, clientName: clientMap.get(input.clientId)!, payeeId: input.payeeId,
           bizName: payee.bizName, unitPrice: input.unitPrice, transportFee: input.transportFee,
           materialFee: input.materialFee, count: input.count, amount, taxType: payee.taxType, memo: input.memo,
           bankName: payee.bankName, accountNumberEnc: payee.accountNumberEnc, accountHolder: payee.accountHolder,
@@ -305,7 +321,7 @@ export async function updatePaymentRequest(
   return withRLS(ctx, async (tx) => {
     const current = await tx.paymentRequest.findFirst({
       where: { id, deletedAt: null },
-      select: { payeeId: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
+      select: { clientId: true, clientName: true, payeeId: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
     });
     if (!current) return { ok: false, error: "수정할 항목을 찾을 수 없습니다." };
 
@@ -333,11 +349,21 @@ export async function updatePaymentRequest(
       accountHolder = payee.accountHolder;
     }
 
+    let clientName: string;
+    if (input.clientId === current.clientId) {
+      clientName = current.clientName;
+    } else {
+      const client = await tx.client.findFirst({ where: { id: input.clientId, deletedAt: null }, select: { name: true } });
+      if (!client) return { ok: false, error: "선택한 고객사를 찾을 수 없습니다. 다시 선택해 주세요." };
+      clientName = client.name;
+    }
+
     await tx.paymentRequest.update({
       where: { id },
       data: {
         entity: input.entity,
         clientId: input.clientId,
+        clientName,
         payeeId: input.payeeId,
         bizName,
         taxType,
@@ -375,7 +401,7 @@ export async function updatePaymentRequestPmFields(
   return withRLS(ctx, async (tx) => {
     const current = await tx.paymentRequest.findFirst({
       where: { id, deletedAt: null },
-      select: { status: true, requesterId: true, payeeId: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
+      select: { status: true, requesterId: true, clientId: true, clientName: true, payeeId: true, bizName: true, taxType: true, bankName: true, accountNumberEnc: true, accountHolder: true },
     });
     if (!current || current.status !== "PREPARING" || current.requesterId !== ctx.userId) {
       return { ok: false, error: "수정할 수 없는 건입니다." };
@@ -407,12 +433,22 @@ export async function updatePaymentRequestPmFields(
       accountHolder = payee.accountHolder;
     }
 
+    let clientName: string;
+    if (input.clientId === current.clientId) {
+      clientName = current.clientName;
+    } else {
+      const client = await tx.client.findFirst({ where: { id: input.clientId, deletedAt: null }, select: { name: true } });
+      if (!client) return { ok: false, error: "선택한 고객사를 찾을 수 없습니다. 다시 선택해 주세요." };
+      clientName = client.name;
+    }
+
     const amount = (input.unitPrice + input.transportFee + input.materialFee) * input.count;
     await tx.paymentRequest.update({
       where: { id },
       data: {
         entity: input.entity,
         clientId: input.clientId,
+        clientName,
         payeeId: input.payeeId,
         bizName,
         taxType,
@@ -521,7 +557,7 @@ export async function createPaymentRequestsFromUpload(
   return withRLS(ctx, async (tx) => {
     const errors: { row: number; message: string }[] = [];
     const resolved: {
-      entity: PaymentRequestEntity; clientId: string; payeeId: string | null;
+      entity: PaymentRequestEntity; clientId: string; clientName: string; payeeId: string | null;
       bizName: string; taxType: TaxType; bankName: string; accountNumberEnc: string; accountHolder: string;
       unitPrice: number; transportFee: number; materialFee: number; count: number; memo: string;
     }[] = [];
@@ -593,6 +629,7 @@ export async function createPaymentRequestsFromUpload(
       resolved.push({
         entity: data.entity,
         clientId: clients[0].id,
+        clientName: data.clientName,
         payeeId: payee?.id ?? null,
         bizName: payee?.bizName ?? data.bizNameRaw,
         taxType: TAX_TYPE_BY_LABEL[taxTypeResult.value as keyof typeof TAX_TYPE_BY_LABEL],
@@ -613,7 +650,7 @@ export async function createPaymentRequestsFromUpload(
       const amount = (r.unitPrice + r.transportFee + r.materialFee) * r.count;
       await tx.paymentRequest.create({
         data: {
-          requesterId, entity: r.entity, clientId: r.clientId, payeeId: r.payeeId,
+          requesterId, entity: r.entity, clientId: r.clientId, clientName: r.clientName, payeeId: r.payeeId,
           bizName: r.bizName, unitPrice: r.unitPrice, transportFee: r.transportFee,
           materialFee: r.materialFee, count: r.count, amount, taxType: r.taxType, memo: r.memo,
           bankName: r.bankName, accountNumberEnc: r.accountNumberEnc, accountHolder: r.accountHolder,
