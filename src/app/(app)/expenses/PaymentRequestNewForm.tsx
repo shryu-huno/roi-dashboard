@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { PayeeOption } from "@/lib/data/payees";
 import { PaymentRequestRowsTable, newDraftRow, type DraftRow } from "./PaymentRequestRowsTable";
 import { createPaymentRequests } from "./actions";
-import { validateDraftRows, toPaymentRequestCreateInputs } from "@/lib/payment-request-validation";
+import { validateDraftRows, toPaymentRequestCreateInputs, describeDraftRowError } from "@/lib/payment-request-validation";
 import { PaymentRequestExcelRegisterModal } from "./PaymentRequestExcelRegisterModal";
 
 // PM 전용 지급요청 등록 화면. 저장 전 클라이언트에서 행별 필수값을 먼저 검증해 하나라도
@@ -37,7 +37,7 @@ export function PaymentRequestNewForm({
     if (errors.size > 0) {
       setRowErrors(errors);
       const firstBadIndex = rows.findIndex((r) => errors.has(r.key));
-      setSaveError(`${firstBadIndex + 1}번째 행에 입력하지 않은 항목이 있습니다.`);
+      setSaveError(describeDraftRowError(firstBadIndex, errors.get(rows[firstBadIndex].key)!));
       return;
     }
     setRowErrors(new Map());

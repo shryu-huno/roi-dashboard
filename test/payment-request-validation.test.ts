@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  validateDraftRows, toPaymentRequestCreateInputs, type PaymentRequestDraftRow,
+  validateDraftRows, toPaymentRequestCreateInputs, describeDraftRowError, type PaymentRequestDraftRow,
 } from "@/lib/payment-request-validation";
 
 function row(overrides: Partial<PaymentRequestDraftRow> = {}): PaymentRequestDraftRow {
@@ -34,6 +34,16 @@ describe("validateDraftRows", () => {
     const errors = validateDraftRows([row({ key: "ok" }), row({ key: "bad", clientId: "" })]);
     expect(errors.has("ok")).toBe(false);
     expect(errors.get("bad")).toEqual(new Set(["clientId"]));
+  });
+});
+
+describe("describeDraftRowError", () => {
+  it("누락된 필드명을 콕 집어 안내한다", () => {
+    expect(describeDraftRowError(0, new Set(["clientId"]))).toBe("1번째 행에 고객사 항목을 입력해주세요.");
+  });
+
+  it("여러 필드가 누락되면 모두 나열한다", () => {
+    expect(describeDraftRowError(2, new Set(["unitPrice", "count"]))).toBe("3번째 행에 단가, 횟수 항목을 입력해주세요.");
   });
 });
 

@@ -16,6 +16,20 @@ export type PaymentRequestDraftRow = {
 
 export type PaymentRequestRowField = "entity" | "clientId" | "payeeId" | "unitPrice" | "count";
 
+const PAYMENT_REQUEST_ROW_FIELD_LABELS: Record<PaymentRequestRowField, string> = {
+  entity: "지급명의",
+  clientId: "고객사",
+  payeeId: "사업자명(이름)",
+  unitPrice: "단가",
+  count: "횟수",
+};
+
+// 검증 실패 시 "1번째 행에 고객사, 단가 항목을 입력해주세요." 형태의 안내 문구를 만든다.
+export function describeDraftRowError(rowIndex: number, fields: Set<PaymentRequestRowField>): string {
+  const labels = Array.from(fields, (f) => PAYMENT_REQUEST_ROW_FIELD_LABELS[f]).join(", ");
+  return `${rowIndex + 1}번째 행에 ${labels} 항목을 입력해주세요.`;
+}
+
 export type PaymentRequestCreateInput = {
   entity: "HUNO" | "HUNO_INC";
   clientId: string;
