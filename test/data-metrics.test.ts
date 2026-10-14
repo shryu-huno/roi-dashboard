@@ -7,7 +7,7 @@ import { createProject, updateProject } from "@/lib/data/projects";
 import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
-import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries, getClientDetail } from "@/lib/data/metrics";
+import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries, getClientDetail, getClientTaskMatrix } from "@/lib/data/metrics";
 
 const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
@@ -299,6 +299,52 @@ describe("metrics: client detail", () => {
     expect(res.ok).toBe(true);
     const d = await getClientDetail(ADMIN, clientA, 2026, "all");
     expect(d!.tasks.map((t) => t.name)).toEqual(["추가2", "추가1", "진단"]);
+  });
+
+  it("task matrix: 계약기간이 없으면 fallback 연도 1~12월 12열", async () => {
+    const projectId = await projectIdOf(ADMIN, clientA); // 기본 프로젝트(계약일 null)
+    const m = await getClientTaskMatrix(ADMIN, clientA, projectId, false, 2026);
+    expect(m).not.toBeNull();
+    expect(m!.columns).toHaveLength(12);
+    expect(m!.columns[0]).toEqual({ year: 2026, month: 1 });
+    const t = m!.tasks[0];
+    expect(t.name).toBe("진단");
+    expect(t.total).toBe(40000);
+    expect(t.cells.find((c) => c.year === 2026 && c.month === 3)!.amount).toBe(40000);
+  });
+
+  it("task matrix: 다년 계약을 계약 시작월부터 해를 넘겨 전개한다", async () => {
+    const proj = await createProject(ADMIN, clientA, {
+      name: "다년계약",
+      contractStart: new Date("2025-06-01"),
+      contractEnd: new Date("2026-05-31"),
+      pmIds: [pmA],
+    });
+    const t = await createTask(ADMIN, { clientId: clientA, projectId: proj.id, name: "운영", unitPrice: 10000, contractCount: 12 });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2025, month: 6, rows: [{ taskId: t.id, count: 1, amount: null }] });
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 5, rows: [{ taskId: t.id, count: 2, amount: null }] });
+
+    const m = await getClientTaskMatrix(ADMIN, clientA, proj.id, false, 2026);
+    expect(m!.columns).toHaveLength(12);
+    expect(m!.columns[0]).toEqual({ year: 2025, month: 6 });
+    expect(m!.columns[11]).toEqual({ year: 2026, month: 5 });
+    const row = m!.tasks.find((r) => r.name === "운영")!;
+    expect(row.cells).toHaveLength(12);
+    expect(row.cells[0]).toMatchObject({ year: 2025, month: 6, amount: 10000, count: 1 });
+    expect(row.cells[11]).toMatchObject({ year: 2026, month: 5, amount: 20000, count: 2 });
+    expect(row.total).toBe(30000); // 10000 + 20000, 계약 전체 합계
+  });
+
+  it("task matrix: 과세 과업에 includeVat ×1.1 적용", async () => {
+    const projectId = await projectIdOf(ADMIN, clientA);
+    const m = await getClientTaskMatrix(ADMIN, clientA, projectId, true, 2026);
+    const t = m!.tasks.find((r) => r.name === "진단")!;
+    expect(t.cells.find((c) => c.month === 3)!.amount).toBe(44000); // 40000 × 1.1
+  });
+
+  it("task matrix: 다른 PM의 고객사는 RLS로 null", async () => {
+    const m = await getClientTaskMatrix({ userId: pmB, role: "PM" }, clientA, undefined, false, 2026);
+    expect(m).toBeNull();
   });
 });
 

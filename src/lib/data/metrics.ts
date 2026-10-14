@@ -546,6 +546,71 @@ export function getClientDetail(
   });
 }
 
+export type TaskMatrixCol = { year: number; month: number };
+export type TaskPerfCell = { year: number; month: number; amount: number; count: number | null };
+export type TaskPerfRow = { id: string; name: string; cells: TaskPerfCell[]; total: number };
+export type ClientTaskMatrix = { columns: TaskMatrixCol[]; tasks: TaskPerfRow[] };
+
+// 과업별 월 실적 매트릭스. getClientDetail(연도 스코프)과 달리 선택 프로젝트의 계약기간
+// (contractStart~contractEnd) 전체를 해를 넘겨 전개한다. 계약기간이 없으면 fallbackYear 1~12월.
+export function getClientTaskMatrix(
+  ctx: RlsContext,
+  id: string,
+  projectId: string | undefined,
+  includeVat = false,
+  fallbackYear = new Date().getFullYear(),
+): Promise<ClientTaskMatrix | null> {
+  return withRLS(ctx, async (tx) => {
+    const client = await tx.client.findUnique({ where: { id } });
+    if (!client) return null; // 없거나 RLS로 은닉
+    const project = projectId ? await tx.project.findUnique({ where: { id: projectId } }) : null;
+    if (projectId && (!project || project.clientId !== id)) return null;
+    const taskWhere = projectId ? { clientId: id, projectId } : { clientId: id };
+
+    // 열 범위: 계약기간이 있으면 그 전체를, 없으면 fallbackYear 1~12월.
+    const columns: TaskMatrixCol[] =
+      project?.contractStart && project.contractEnd
+        ? eachMonth(...orderRange(toYm(project.contractStart), toYm(project.contractEnd)))
+        : Array.from({ length: 12 }, (_, i) => ({ year: fallbackYear, month: i + 1 }));
+    const minYear = columns[0].year;
+    const maxYear = columns[columns.length - 1].year;
+
+    // getClientDetail과 동일한 정렬 규칙(프로젝트 계약시작 최신순 → 과업 sortOrder).
+    const tasks = await tx.task.findMany({
+      where: taskWhere,
+      orderBy: [
+        { project: { contractStart: { sort: "desc", nulls: "last" } } },
+        { project: { createdAt: "desc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
+    });
+    const perfRows = await tx.monthlyPerformance.findMany({
+      where: { year: { gte: minYear, lte: maxYear }, task: taskWhere },
+      select: { taskId: true, year: true, month: true, amount: true, count: true },
+    });
+    // @@unique([taskId, year, month])로 셀당 행이 유일하므로 합산 없이 그대로 매핑한다.
+    const byTaskYm = new Map<string, Map<string, { amount: number; count: number | null }>>();
+    for (const r of perfRows) {
+      const m = byTaskYm.get(r.taskId) ?? new Map<string, { amount: number; count: number | null }>();
+      m.set(`${r.year}-${r.month}`, { amount: r.amount, count: r.count });
+      byTaskYm.set(r.taskId, m);
+    }
+    const taskRows: TaskPerfRow[] = tasks.map((t) => {
+      const mm = byTaskYm.get(t.id) ?? new Map<string, { amount: number; count: number | null }>();
+      // 면세 과업은 실적에도 부가세를 적용하지 않는다.
+      const cells = columns.map(({ year, month }) => {
+        const rec = mm.get(`${year}-${month}`);
+        const raw = rec?.amount ?? 0;
+        return { year, month, amount: t.vatExempt ? raw : withVat(raw, includeVat), count: rec?.count ?? null };
+      });
+      return { id: t.id, name: t.name, cells, total: cells.reduce((s, x) => s + x.amount, 0) };
+    });
+
+    return { columns, tasks: taskRows };
+  });
+}
+
 export type ProjectBreakdownRow = {
   id: string;
   name: string;

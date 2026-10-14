@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
-import { parsePeriodParams, resolvePeriod, PERIOD_OPTIONS_WITH_QUARTERS } from "@/lib/period";
-import { getClientDetail, getClientProjectBreakdown } from "@/lib/data/metrics";
+import { parsePeriodParams, PERIOD_OPTIONS_WITH_QUARTERS } from "@/lib/period";
+import { getClientDetail, getClientProjectBreakdown, getClientTaskMatrix } from "@/lib/data/metrics";
 import { attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
 import { getFiscalBasis } from "@/lib/basis";
@@ -40,9 +40,9 @@ export default async function ClientDetailPage({
   const selectedProject = projectRows.find((p) => p.id === selectedProjectId);
   const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis, selectedProjectId);
   if (!detail) notFound();
+  // 과업별 월 실적 표는 기간 필터와 무관하게 선택 프로젝트의 계약기간 전체를 전개한다.
+  const taskMatrix = await getClientTaskMatrix(ctx, id, selectedProjectId, includeVat, year);
 
-  const { startMonth, endMonth } = resolvePeriod(period);
-  const months = Array.from({ length: endMonth - startMonth + 1 }, (_, i) => startMonth + i);
   const perf = detail.tasks.reduce((s, t) => s + t.total, 0);
   const contract = detail.contract;
   const billing = detail.monthly.reduce((s, m) => s + m.billing, 0);
@@ -136,7 +136,7 @@ export default async function ClientDetailPage({
         />
       </section>
 
-      <TaskPerfTable tasks={detail.tasks} months={months} />
+      {taskMatrix && <TaskPerfTable matrix={taskMatrix} />}
 
       <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">지출 구성 (선택 구간)</h2>
