@@ -6,6 +6,7 @@ import { formatWon } from "@/lib/format";
 
 // 과업별 월 실적 표. 셀 값을 금액/횟수로 전환하는 토글을 제공한다(기본: 금액).
 // 횟수 모드에서 count가 없는 셀(금액전용 과업·기록 없는 달)은 "-"로 표시하고, 합계 열은 항상 금액 합계를 유지한다.
+// 금액 모드에서는 0원 셀을 "-"로 표시해 실적 있는 달을 눈에 띄게 한다.
 export function TaskPerfTable({ tasks, months }: { tasks: TaskPerf[]; months: number[] }) {
   const [byCount, setByCount] = useState(false);
 
@@ -54,11 +55,11 @@ export function TaskPerfTable({ tasks, months }: { tasks: TaskPerf[]; months: nu
                   <td className="py-2 pr-3 whitespace-nowrap">{t.name}</td>
                   {t.monthly.map((cell) => (
                     <td key={cell.month} className="px-2 text-right whitespace-nowrap">
-                      {byCount ? (cell.count == null ? "-" : `${cell.count}회`) : formatWon(cell.amount)}
+                      {byCount ? (cell.count == null ? "-" : `${cell.count}회`) : cell.amount === 0 ? "-" : formatWon(cell.amount)}
                     </td>
                   ))}
                   <td className="px-2 text-right font-semibold whitespace-nowrap">
-                    {byCount ? (countTotal == null ? "-" : `${countTotal}회`) : formatWon(t.total)}
+                    {byCount ? (countTotal == null ? "-" : `${countTotal}회`) : t.total === 0 ? "-" : formatWon(t.total)}
                   </td>
                 </tr>
               );
