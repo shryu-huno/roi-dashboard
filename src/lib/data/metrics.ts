@@ -427,7 +427,17 @@ export function getClientDetail(
     // 청구·입금·지출을 귀속할 월 집합(선택 연도 내).
     const windowMonths = projectWindowMonths(year, project, fiscalBasis);
 
-    const tasks = await tx.task.findMany({ where: taskWhere, orderBy: { name: "asc" } });
+    // 설정 화면의 프로젝트 정렬(계약시작 최신순)과 동일하게 프로젝트별로 묶고,
+    // 프로젝트 내에서는 저장된 과업 순서(sortOrder)로 정렬한다(실적 입력 화면과 일관).
+    const tasks = await tx.task.findMany({
+      where: taskWhere,
+      orderBy: [
+        { project: { contractStart: { sort: "desc", nulls: "last" } } },
+        { project: { createdAt: "desc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
+    });
     // 면세 과업 계약금은 부가세 토글과 무관하게 원값 유지.
     const contractTaxable = tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
     const contractExempt = tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);

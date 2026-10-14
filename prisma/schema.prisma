@@ -197,6 +197,7 @@ model Task {
   contractCount  Int?
   contractAmount Int?
   vatExempt      Boolean    @default(false) // 면세 여부(기본: 과세). true면 부가세 토글 무시.
+  sortOrder      Int        @default(0) // 과업 표시 순서(프로젝트 내). 설정 화면 드래그 순서를 저장한다.
   source         TaskSource @default(MANUAL)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt

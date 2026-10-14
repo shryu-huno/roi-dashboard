@@ -39,7 +39,7 @@ export function listProjects(ctx: RlsContext, clientId: string) {
       where: { clientId, deletedAt: null },
       // 계약 시작일이 최신인 프로젝트가 위. 시작일 없으면 등록일 최신순.
       orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-      include: { managers: true, tasks: { orderBy: { name: "asc" } } },
+      include: { managers: true, tasks: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
     }),
   );
 }
@@ -137,6 +137,9 @@ export async function updateProject(ctx: RlsContext, id: string, input: ProjectI
     // 과업 일괄 반영: 상단 '프로젝트 저장'이 과업 신규·수정·삭제를 함께 처리한다.
     // projectId 조건을 함께 걸어 다른 프로젝트의 과업을 건드리지 못하게 한다.
     if (input.tasks !== undefined) {
+      // 전달된 과업 배열은 설정 화면의 '보이는 순서' 그대로다. 삭제되지 않은 과업에
+      // 배열 위치(0,1,2…)를 sortOrder로 부여해 드래그로 바꾼 순서를 저장한다.
+      let sortOrder = 0;
       for (const t of input.tasks) {
         if (t.deleted) {
           if (t.id) await tx.task.deleteMany({ where: { id: t.id, projectId: id } });
@@ -148,6 +151,7 @@ export async function updateProject(ctx: RlsContext, id: string, input: ProjectI
           contractCount: t.contractCount ?? null,
           contractAmount: resolveContractAmount(t),
           vatExempt: t.vatExempt ?? false,
+          sortOrder: sortOrder++,
         };
         if (t.id) {
           await tx.task.updateMany({ where: { id: t.id, projectId: id }, data });

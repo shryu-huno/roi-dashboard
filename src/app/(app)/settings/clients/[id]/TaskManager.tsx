@@ -124,12 +124,42 @@ function CloseIcon() {
   );
 }
 
+// 드래그 핸들(점 6개). 이 핸들을 잡고 과업 카드를 위아래로 옮겨 순서를 바꾼다.
+function GripIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="9" cy="5" r="1.6" /><circle cx="15" cy="5" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="19" r="1.6" /><circle cx="15" cy="19" r="1.6" />
+    </svg>
+  );
+}
+
 // 과업 관리자. 과업 추가/수정/삭제 표시는 모두 클라이언트 상태에 모았다가,
 // 상단 "프로젝트 저장" 폼(formId)에 hidden JSON 한 필드로 실어 한 번에 저장한다.
 // 삭제는 각 행의 "×"로 표시(되돌리기 가능)하고 프로젝트 저장 시 확정된다.
 export function TaskManager({ tasks, formId }: { tasks: Task[]; formId: string }) {
   const [rows, setRows] = useState<Row[]>(() => tasks.map(toRow));
   const seq = useRef(0);
+
+  // 드래그앤드롭 순서 변경: 드래그 시작 행 인덱스(ref)와 현재 올려둔 대상 행(상태, 테두리 표시용).
+  const dragFrom = useRef<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  // 시작→대상 위치로 rows를 재배열한다. payload가 rows 순서를 그대로 직렬화하므로
+  // 이 상태 변경만으로 저장 시 서버에 새 순서가 전달된다.
+  const dropAt = (target: number) => {
+    const from = dragFrom.current;
+    dragFrom.current = null;
+    setOverIndex(null);
+    if (from == null || from === target) return;
+    setRows((rs) => {
+      const next = [...rs];
+      const [moved] = next.splice(from, 1);
+      next.splice(target, 0, moved);
+      return next;
+    });
+  };
 
   const setField = (key: string, field: "category" | "etcName" | "unit" | "count" | "amount", value: string) =>
     setRows((rs) =>
@@ -185,8 +215,34 @@ export function TaskManager({ tasks, formId }: { tasks: Task[]; formId: string }
       {/* 과업 전체를 프로젝트 저장 폼에 JSON 한 필드로 전달(form 속성으로 상단 폼에 연결). */}
       <input type="hidden" name="tasks" form={formId} value={JSON.stringify(payload)} readOnly />
 
-      {rows.map((r) => (
-        <div key={r.key} className={`${cardCls} ${r.deleted ? "opacity-60" : ""}`}>
+      {rows.map((r, index) => (
+        <div
+          key={r.key}
+          className={`${cardCls} ${r.deleted ? "opacity-60" : ""} ${overIndex === index ? "ring-2 ring-[var(--color-primary)]" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (overIndex !== index) setOverIndex(index);
+          }}
+          onDragLeave={() => setOverIndex((i) => (i === index ? null : i))}
+          onDrop={() => dropAt(index)}
+        >
+          {/* 드래그 핸들(핸들만 draggable → 입력창 텍스트 선택을 방해하지 않는다). */}
+          <button
+            type="button"
+            draggable
+            onDragStart={() => {
+              dragFrom.current = index;
+            }}
+            onDragEnd={() => {
+              dragFrom.current = null;
+              setOverIndex(null);
+            }}
+            aria-label="과업 순서 이동"
+            title="드래그하여 순서 변경"
+            className="flex shrink-0 cursor-grab items-center self-center text-[var(--color-muted)] active:cursor-grabbing"
+          >
+            <GripIcon />
+          </button>
           <fieldset disabled={r.deleted} className="contents">
             <CategoryPicker
               category={r.category}

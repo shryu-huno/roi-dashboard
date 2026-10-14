@@ -47,7 +47,19 @@ export function listTasks(ctx: RlsContext, clientId: string, period?: { year: nu
       },
     };
   }
-  return withRLS(ctx, (tx) => tx.task.findMany({ where: { clientId, ...projectFilter }, orderBy: { name: "asc" } }));
+  // 고객사 단위 조회라 여러 프로젝트가 섞인다. 설정 화면의 프로젝트 정렬(계약시작 최신순)과
+  // 동일하게 프로젝트별로 묶고, 프로젝트 내에서는 저장된 과업 순서(sortOrder)로 정렬한다.
+  return withRLS(ctx, (tx) =>
+    tx.task.findMany({
+      where: { clientId, ...projectFilter },
+      orderBy: [
+        { project: { contractStart: { sort: "desc", nulls: "last" } } },
+        { project: { createdAt: "desc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
+    }),
+  );
 }
 
 export function createTask(ctx: RlsContext, input: TaskInput) {

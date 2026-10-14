@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { archiveClient, setClientEasywel } from "@/lib/data/clients";
-import { mkClient, mkTask, setClientPms } from "./factories";
-import { createProject } from "@/lib/data/projects";
+import { mkClient, mkTask, setClientPms, projectIdOf } from "./factories";
+import { createProject, updateProject } from "@/lib/data/projects";
 import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
@@ -281,6 +281,24 @@ describe("metrics: client detail", () => {
   it("returns null for another PM's client (RLS)", async () => {
     const d = await getClientDetail({ userId: pmB, role: "PM" }, clientA, 2026, "all");
     expect(d).toBeNull();
+  });
+
+  it("과업을 저장된 순서(sortOrder)대로 반환한다", async () => {
+    const projectId = await projectIdOf(ADMIN, clientA);
+    // 기존 "진단" 외에 두 과업 추가 후, 설정 저장으로 역순(추가2·추가1·진단)으로 재배치한다.
+    const t1 = await createTask(ADMIN, { clientId: clientA, projectId, name: "추가1", unitPrice: 1000 });
+    const t2 = await createTask(ADMIN, { clientId: clientA, projectId, name: "추가2", unitPrice: 1000 });
+    const res = await updateProject(ADMIN, projectId, {
+      name: "기본 프로젝트",
+      tasks: [
+        { id: t2.id, name: "추가2", unitPrice: 1000, contractCount: null, contractAmount: null },
+        { id: t1.id, name: "추가1", unitPrice: 1000, contractCount: null, contractAmount: null },
+        { id: taskA, name: "진단", unitPrice: 10000, contractCount: 50, contractAmount: null },
+      ],
+    });
+    expect(res.ok).toBe(true);
+    const d = await getClientDetail(ADMIN, clientA, 2026, "all");
+    expect(d!.tasks.map((t) => t.name)).toEqual(["추가2", "추가1", "진단"]);
   });
 });
 

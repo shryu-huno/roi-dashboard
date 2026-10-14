@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS } from "@/lib/rls";
 import { listTasks, updateTask, deleteTask, createTask } from "@/lib/data/tasks";
-import { createProject } from "@/lib/data/projects";
-import { mkClient, mkTask } from "./factories";
+import { createProject, updateProject } from "@/lib/data/projects";
+import { mkClient, mkTask, projectIdOf } from "./factories";
 
 const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
@@ -120,5 +120,27 @@ describe("tasks data layer", () => {
     // period 미전달이면 전체 반환.
     const all = await listTasks(ADMIN, clientA);
     expect(all.map((r) => r.name).sort()).toEqual(["과거과업", "현재과업"]);
+  });
+
+  it("프로젝트 저장 시 과업 배열 위치를 sortOrder로 기록하고 그 순서로 조회된다", async () => {
+    const projectId = await projectIdOf(ADMIN, clientA);
+    const a = await createTask(ADMIN, { clientId: clientA, projectId, name: "가", unitPrice: 1000 });
+    const b = await createTask(ADMIN, { clientId: clientA, projectId, name: "나", unitPrice: 1000 });
+    const c = await createTask(ADMIN, { clientId: clientA, projectId, name: "다", unitPrice: 1000 });
+    // 저장 전에는 모두 기본 sortOrder 0이라 과업명순(가·나·다)으로 조회된다.
+    expect((await listTasks(ADMIN, clientA)).map((r) => r.name)).toEqual(["가", "나", "다"]);
+    // 다 → 가 → 나 순으로 재배치 저장(보이는 순서 그대로 전달).
+    const res = await updateProject(ADMIN, projectId, {
+      name: "기본 프로젝트",
+      tasks: [c, a, b].map((t) => ({
+        id: t.id,
+        name: t.name,
+        unitPrice: t.unitPrice,
+        contractCount: t.contractCount,
+        contractAmount: t.contractAmount,
+      })),
+    });
+    expect(res.ok).toBe(true);
+    expect((await listTasks(ADMIN, clientA)).map((r) => r.name)).toEqual(["다", "가", "나"]);
   });
 });
