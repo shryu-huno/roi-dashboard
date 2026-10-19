@@ -333,6 +333,8 @@ describe("metrics: client detail", () => {
     expect(row.cells[0]).toMatchObject({ year: 2025, month: 6, amount: 10000, count: 1 });
     expect(row.cells[11]).toMatchObject({ year: 2026, month: 5, amount: 20000, count: 2 });
     expect(row.total).toBe(30000); // 10000 + 20000, 계약 전체 합계
+    expect(row.contract).toBe(120000); // unitPrice 10000 × contractCount 12 (진행률 분모)
+    expect(row.contractCount).toBe(12);
   });
 
   it("task matrix: 과세 과업에 includeVat ×1.1 적용", async () => {

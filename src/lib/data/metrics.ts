@@ -548,7 +548,7 @@ export function getClientDetail(
 
 export type TaskMatrixCol = { year: number; month: number };
 export type TaskPerfCell = { year: number; month: number; amount: number; count: number | null };
-export type TaskPerfRow = { id: string; name: string; cells: TaskPerfCell[]; total: number };
+export type TaskPerfRow = { id: string; name: string; cells: TaskPerfCell[]; total: number; contract: number; contractCount: number | null };
 export type ClientTaskMatrix = { columns: TaskMatrixCol[]; tasks: TaskPerfRow[] };
 
 // 과업별 월 실적 매트릭스. getClientDetail(연도 스코프)과 달리 선택 프로젝트의 계약기간
@@ -604,7 +604,17 @@ export function getClientTaskMatrix(
         const raw = rec?.amount ?? 0;
         return { year, month, amount: t.vatExempt ? raw : withVat(raw, includeVat), count: rec?.count ?? null };
       });
-      return { id: t.id, name: t.name, cells, total: cells.reduce((s, x) => s + x.amount, 0) };
+      // 진행률 분모용 계약금. 셀 값과 동일한 부가세 규칙(면세 과업은 원값, 과세분만 토글 적용).
+      const contractRaw = t.contractAmount ?? 0;
+      const contract = t.vatExempt ? contractRaw : withVat(contractRaw, includeVat);
+      return {
+        id: t.id,
+        name: t.name,
+        cells,
+        total: cells.reduce((s, x) => s + x.amount, 0),
+        contract,
+        contractCount: t.contractCount ?? null,
+      };
     });
 
     return { columns, tasks: taskRows };
