@@ -4,10 +4,11 @@ import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { parsePeriodParams, PERIOD_OPTIONS_WITH_QUARTERS } from "@/lib/period";
 import { getClientDetail, getClientProjectBreakdown, getClientTaskMatrix } from "@/lib/data/metrics";
+import { listClientMemos } from "@/lib/data/clientMemos";
 import { attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
 import { getFiscalBasis } from "@/lib/basis";
-import { formatWon, formatPercent } from "@/lib/format";
+import { formatWon, formatPercent, formatDateTime } from "@/lib/format";
 import { expenseCategoryLabel } from "@/lib/labels";
 import { KpiCard } from "@/components/charts/KpiCard";
 import { FunnelChart } from "@/components/charts/FunnelChart";
@@ -42,6 +43,8 @@ export default async function ClientDetailPage({
   if (!detail) notFound();
   // 과업별 월 실적 표는 기간 필터와 무관하게 선택 프로젝트의 계약기간 전체를 전개한다.
   const taskMatrix = await getClientTaskMatrix(ctx, id, selectedProjectId, includeVat, year);
+  // 특이사항 메모(이력, 최신순). 작성·수정은 고객사 상세 설정 화면에서만, 여기선 읽기 전용.
+  const memos = await listClientMemos(ctx, id);
 
   const perf = detail.tasks.reduce((s, t) => s + t.total, 0);
   const contract = detail.contract;
@@ -59,6 +62,22 @@ export default async function ClientDetailPage({
           CSV 내보내기
         </a>
       </div>
+      {memos.length > 0 && (
+        <section className="mb-6 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-hover)] p-5">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">📝 특이사항 메모</h2>
+          <ul className="flex flex-col gap-2">
+            {memos.map((m) => (
+              <li key={m.id} className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <p className="whitespace-pre-wrap text-sm text-[var(--color-fg)]">{m.content}</p>
+                <p className="mt-1.5 text-xs text-[var(--color-muted)]">
+                  {(m.author?.name ?? m.author?.email ?? "(알 수 없음)")} · {formatDateTime(m.createdAt)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <PeriodFilter
         year={year}
         period={period}

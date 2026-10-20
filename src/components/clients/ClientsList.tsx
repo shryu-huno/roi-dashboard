@@ -16,6 +16,8 @@ type ClientItem = {
   billingCycle: string[];
   reportCycle: string[];
   hyundaiEasywel: boolean;
+  memoCount: number; // 특이사항 메모 건수(0이면 미표시).
+  latestMemo: string | null; // 최신 메모(미리보기·툴팁용).
 };
 
 const SORTS: { value: SortMode; label: string }[] = [
@@ -97,6 +99,15 @@ export function ClientsList({ clients, showPm, isAdmin }: { clients: ClientItem[
                   청구:{formatCycle(c.billingCycle)} | 보고:{formatCycle(c.reportCycle)}
                 </div>
               </div>
+              {c.memoCount > 0 && c.latestMemo && (
+                <div
+                  className="mt-2 flex items-start gap-1 border-t border-[var(--color-border)] pt-2 text-xs text-[var(--color-muted)]"
+                  title={c.latestMemo}
+                >
+                  <span className="shrink-0">📝 {c.memoCount}</span>
+                  <span className="truncate">{c.latestMemo}</span>
+                </div>
+              )}
             </Link>
           ))}
         </div>

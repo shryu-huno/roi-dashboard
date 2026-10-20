@@ -95,6 +95,7 @@ model User {
   managedClients ClientManager[]
   managedProjects ProjectManager[]
   paymentRequests PaymentRequest[]
+  authoredMemos ClientMemo[]
   accounts  Account[]
   sessions  Session[]
 
@@ -137,6 +138,25 @@ model Client {
   consultingExpenses ConsultingExpense[]
   corporateCardExpenses CorporateCardExpense[]
   paymentRequests PaymentRequest[]
+  memos        ClientMemo[]
+}
+
+// 고객사 특이사항 메모(이력). 담당 PM·관리자가 고객사별로 자유 텍스트 메모를 여러 건 남긴다
+// (작성자·시각 기록). 접근제어(RLS)는 고객사와 동일한 app_can_see_client 헬퍼를 쓴다 → 그 고객사를
+// 볼 수 있는 사용자(담당 PM·소속 파트장·팀 관리자·전체 접근 역할)가 읽기·쓰기 모두 가능하다.
+// 작성자 계정이 하드 삭제돼도 메모 이력은 보존한다(authorId SET NULL).
+model ClientMemo {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  authorId  String?  // 작성자. 계정 하드 삭제 시 NULL(메모는 보존).
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([authorId])
 }
 
 // 고객사 아래의 프로젝트(계약). 청구·보고 주기, 계약기간, 담당 PM, 과업을 소유한다.

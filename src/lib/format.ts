@@ -35,3 +35,12 @@ export function formatPercent(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
   return `${(v * 100).toFixed(1)}%`;
 }
+
+/** 일시 → 한국시간(KST) "2026. 10. 20. 오후 3:04". 서버/클라이언트 TZ와 무관하게 Asia/Seoul 기준. */
+export function formatDateTime(d: Date): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Seoul",
+  }).format(d);
+}

@@ -4,13 +4,16 @@ import { pmCandidateScope } from "@/lib/auth/pm-scope";
 import { getRlsContext } from "@/lib/context";
 import { getClient } from "@/lib/data/clients";
 import { listProjects } from "@/lib/data/projects";
+import { listClientMemos } from "@/lib/data/clientMemos";
 import { prisma } from "@/lib/db";
 import { EditClientForm } from "./EditClientForm";
 import { NewProjectForm } from "./NewProjectForm";
 import { ProjectCard } from "./ProjectCard";
+import { ClientMemoSection } from "./ClientMemoSection";
 import { ManualButton } from "../ManualButton";
 import { deriveProjectName } from "@/lib/clients/summary-view";
 import { effectiveClientStatus, effectiveProjectStatus } from "@/lib/clients/status";
+import { formatDateTime } from "@/lib/format";
 
 function toDateInput(d: Date | null): string {
   return d ? d.toISOString().slice(0, 10) : "";
@@ -23,8 +26,9 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
   const ctx = getRlsContext(user);
   const client = await getClient(ctx, id);
   if (!client) notFound();
-  const [projects, pms] = await Promise.all([
+  const [projects, memos, pms] = await Promise.all([
     listProjects(ctx, id),
+    listClientMemos(ctx, id),
     // 담당 PM 후보: PM·팀 관리자·파트장 중 활성 사용자. 팀에 소속된 최고관리자도 후보에 포함한다
     // (전체 접근은 유지하되 특정 팀의 PM 역할을 겸하는 예외 계정). 팀 관리자는 자기 팀, 파트장은
     // 자기 소속 PM만 후보로 노출한다(ClientManager/ProjectManager RLS WITH CHECK의 스코프 제약에 더한 서버측 방어).
@@ -61,6 +65,16 @@ export default async function SettingsClientDetailPage({ params }: { params: Pro
           businessType: client.businessType,
           industry: client.industry,
         }}
+      />
+
+      <ClientMemoSection
+        clientId={client.id}
+        memos={memos.map((m) => ({
+          id: m.id,
+          content: m.content,
+          authorName: m.author?.name ?? m.author?.email ?? "(알 수 없음)",
+          createdAt: formatDateTime(m.createdAt),
+        }))}
       />
 
       <h2 className="mb-2 text-base font-semibold">프로젝트</h2>

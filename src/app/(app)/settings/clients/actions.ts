@@ -6,9 +6,10 @@ import { requireRole, requireUser } from "@/lib/auth/session";
 import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { getRlsContext } from "@/lib/context";
 import { VAT_COOKIE } from "@/lib/vat";
-import { clientSchema, projectSchema, projectTasksSchema, type ProjectTaskItem } from "@/lib/validation/schemas";
+import { clientSchema, clientMemoSchema, projectSchema, projectTasksSchema, type ProjectTaskItem } from "@/lib/validation/schemas";
 import { deriveProjectName } from "@/lib/clients/summary-view";
 import { createClient, updateClient, archiveClient, restoreClient, hardDeleteClient, setClientEasywel } from "@/lib/data/clients";
+import { createClientMemo, updateClientMemo, deleteClientMemo } from "@/lib/data/clientMemos";
 import { createProject, updateProject, deleteProject } from "@/lib/data/projects";
 import { type ActionState, SAVED } from "@/lib/action-state";
 
@@ -53,6 +54,46 @@ export async function updateClientAction(_prev: ActionState, formData: FormData)
   const result = await updateClient(ctx, id, parsed.data);
   revalidatePath(`/settings/clients/${id}`);
   return result.ok ? SAVED : result;
+}
+
+// 고객사 특이사항 메모 추가 — 그 고객사를 볼 수 있는 사용자(담당 PM·관리자). RLS가 범위를 강제한다.
+// 작성자는 세션 사용자. 입력·수정은 고객사 상세 설정 화면에서만 한다.
+export async function createClientMemoAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("PM");
+  const ctx = getRlsContext(user);
+  const parsed = clientMemoSchema.safeParse({
+    clientId: formData.get("clientId"),
+    content: formData.get("content"),
+  });
+  if (!parsed.success) return { ok: false, error: "메모 내용을 입력해주세요." };
+  await createClientMemo(ctx, { ...parsed.data, authorId: user.id });
+  revalidatePath(`/settings/clients/${parsed.data.clientId}`);
+  revalidatePath(`/clients/${parsed.data.clientId}`);
+  return SAVED;
+}
+
+// 메모 수정 — 내용만. 담당 PM 전원·관리자가 수정 가능(RLS로 범위 제한).
+export async function updateClientMemoAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("PM");
+  const ctx = getRlsContext(user);
+  const id = String(formData.get("id"));
+  const clientId = String(formData.get("clientId"));
+  const parsed = clientMemoSchema.safeParse({ clientId, content: formData.get("content") });
+  if (!parsed.success) return { ok: false, error: "메모 내용을 입력해주세요." };
+  const result = await updateClientMemo(ctx, id, parsed.data.content);
+  revalidatePath(`/settings/clients/${clientId}`);
+  revalidatePath(`/clients/${clientId}`);
+  return result.ok ? SAVED : result;
+}
+
+// 메모 삭제 — 담당 PM 전원·관리자(RLS로 범위 제한). 되돌릴 수 없어 화면에서 확인을 받는다.
+export async function deleteClientMemoAction(formData: FormData): Promise<void> {
+  const user = await requireRole("PM");
+  const ctx = getRlsContext(user);
+  const clientId = String(formData.get("clientId"));
+  await deleteClientMemo(ctx, String(formData.get("id")));
+  revalidatePath(`/settings/clients/${clientId}`);
+  revalidatePath(`/clients/${clientId}`);
 }
 
 // 프로젝트 폼에 함께 실린 과업 JSON을 파싱·검증한다. 값이 없으면 과업을 건드리지 않는다(undefined).

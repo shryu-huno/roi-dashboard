@@ -82,6 +82,12 @@ export const clientSchema = z.object({
   pmIds,
 });
 
+// 고객사 특이사항 메모 — 자유 텍스트(앞뒤 공백 제거 후 1자 이상, 최대 2000자).
+export const clientMemoSchema = z.object({
+  clientId: z.string().min(1),
+  content: z.string().trim().min(1).max(2000),
+});
+
 // 프로젝트: 청구·보고 주기, 계약기간, 실적계약 여부, 담당 PM을 소유한다.
 export const projectSchema = z.object({
   clientId: z.string().min(1),
