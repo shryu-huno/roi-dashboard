@@ -29,7 +29,7 @@ export function ClientMemoSection({ clientId, memos }: { clientId: string; memos
           name="content"
           rows={3}
           className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none"
-          placeholder="예) 고객사 자체에서 EAP 도입만 했지 실질적 운영은 하지 않으려 함"
+          placeholder="특이사항을 기재해주세요."
         />
         <div className="mt-2 flex items-center justify-end gap-2">
           {state.ok && state.message && <span className="mr-auto text-sm text-[var(--color-primary)]">{state.message}</span>}
