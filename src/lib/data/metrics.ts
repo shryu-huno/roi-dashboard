@@ -6,6 +6,30 @@ import { withVat, withVatSplit, fromGross } from "@/lib/vat";
 import { sessionDateBetween, sessionMonth } from "@/lib/consulting-basis";
 import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
 import { deriveProjectName } from "@/lib/clients/summary-view";
+import { overlapRatio } from "@/lib/metrics/proration";
+import { usesProratedAttainment } from "@/lib/auth/rbac";
+
+// 프로젝트 목록을 "달력연도 기간 비례" 계약금 버킷(과세/면세)으로 합산한다.
+// 각 프로젝트의 과업 contractAmount에 overlapRatio(연도+기간 ∩ 계약기간)를 곱해 누적한다.
+// VAT는 호출부에서 withVatSplit로 1회 적용한다(반올림 일관).
+function proratedContractBuckets(
+  projects: { contractStart: Date | null; contractEnd: Date | null; tasks: { contractAmount: number | null; vatExempt: boolean }[] }[],
+  year: number,
+  period: string,
+): { taxable: number; exempt: number } {
+  let taxable = 0;
+  let exempt = 0;
+  for (const p of projects) {
+    const ratio = overlapRatio(year, period, p.contractStart, p.contractEnd);
+    if (ratio === 0) continue;
+    for (const t of p.tasks) {
+      const amt = (t.contractAmount ?? 0) * ratio;
+      if (t.vatExempt) exempt += amt;
+      else taxable += amt;
+    }
+  }
+  return { taxable, exempt };
+}
 
 // 고객사 where 조각: 보관(소프트 삭제) 제외 + (옵션) 현대이지웰 고객사만.
 function clientWhere(easywelOnly: boolean) {
@@ -83,27 +107,43 @@ export function getPeriodTotals(
   });
 }
 
-export function getContractTotal(ctx: RlsContext, includeVat = false, easywelOnly = false): Promise<number> {
+export function getContractTotal(
+  ctx: RlsContext,
+  year: number,
+  period: string,
+  includeVat = false,
+  easywelOnly = false,
+): Promise<number> {
   return withRLS(ctx, async (tx) => {
-    // 전체 프로젝트가 아니라 고객사마다 "가장 최근 프로젝트"(계약 시작일이 가장 늦은 것,
-    // 시작일이 없으면 등록일 최신) 1건의 계약금만 합산한다.
+    // PM은 기존 동작 유지: 고객사마다 "가장 최근 프로젝트"(계약 시작일이 가장 늦은 것,
+    // 시작일이 없으면 등록일 최신) 1건의 계약금 전액만 합산(기간 무관).
+    if (!usesProratedAttainment(ctx.role)) {
+      const projects = await tx.project.findMany({
+        where: { deletedAt: null, client: clientWhere(easywelOnly) },
+        orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+        select: { clientId: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
+      });
+      const seen = new Set<string>();
+      let taxable = 0;
+      let exempt = 0;
+      for (const p of projects) {
+        if (seen.has(p.clientId)) continue; // 고객사별 첫 행 = 가장 최근 프로젝트
+        seen.add(p.clientId);
+        for (const t of p.tasks) {
+          const amt = t.contractAmount ?? 0;
+          if (t.vatExempt) exempt += amt;
+          else taxable += amt;
+        }
+      }
+      return withVatSplit(taxable, exempt, includeVat);
+    }
+    // 관리자(PM 외): 선택 연도+기간에 걸친 "모든" 프로젝트의 계약금을 계약기간 월수 비례로 합산.
+    // (두 해에 걸친 계약이 각 달력연도에 자기 몫만큼 귀속된다.)
     const projects = await tx.project.findMany({
       where: { deletedAt: null, client: clientWhere(easywelOnly) },
-      orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-      select: { clientId: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
+      select: { contractStart: true, contractEnd: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
     });
-    const seen = new Set<string>();
-    let taxable = 0;
-    let exempt = 0;
-    for (const p of projects) {
-      if (seen.has(p.clientId)) continue; // 고객사별 첫 행 = 가장 최근 프로젝트
-      seen.add(p.clientId);
-      for (const t of p.tasks) {
-        const amt = t.contractAmount ?? 0;
-        if (t.vatExempt) exempt += amt;
-        else taxable += amt;
-      }
-    }
+    const { taxable, exempt } = proratedContractBuckets(projects, year, period);
     return withVatSplit(taxable, exempt, includeVat);
   });
 }
@@ -115,6 +155,48 @@ export function getClientLatestProjectProgress(
   year: number,
 ): Promise<Map<string, { perf: number; contract: number; performanceContract: boolean }>> {
   return withRLS(ctx, async (tx) => {
+    // 관리자(PM 외): 분모를 고객사의 "모든" 프로젝트 계약금을 연도 비례로 합산한 값으로,
+    // 분자(perf)도 그 고객사 전 과업의 올해 실적으로 맞춘다. 표시용 실적계약 플래그는 최근 프로젝트 기준.
+    if (usesProratedAttainment(ctx.role)) {
+      const projects = await tx.project.findMany({
+        where: { deletedAt: null, client: { deletedAt: null } },
+        orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+        select: {
+          clientId: true,
+          performanceContract: true,
+          contractStart: true,
+          contractEnd: true,
+          tasks: { select: { id: true, contractAmount: true, vatExempt: true } },
+        },
+      });
+      const latestFlag = new Map<string, boolean>(); // 고객사별 첫 행 = 가장 최근 프로젝트
+      const contractByClient = new Map<string, number>();
+      const taskToClient = new Map<string, string>();
+      for (const p of projects) {
+        if (!latestFlag.has(p.clientId)) latestFlag.set(p.clientId, p.performanceContract);
+        const ratio = overlapRatio(year, "all", p.contractStart, p.contractEnd);
+        for (const t of p.tasks) {
+          taskToClient.set(t.id, p.clientId);
+          if (ratio !== 0) contractByClient.set(p.clientId, (contractByClient.get(p.clientId) ?? 0) + (t.contractAmount ?? 0) * ratio);
+        }
+      }
+      const taskIds = [...taskToClient.keys()];
+      const perfRows = taskIds.length
+        ? await tx.monthlyPerformance.findMany({ where: { year, taskId: { in: taskIds } }, select: { amount: true, taskId: true } })
+        : [];
+      const perfByClient = new Map<string, number>();
+      for (const r of perfRows) {
+        const cid = taskToClient.get(r.taskId)!;
+        perfByClient.set(cid, (perfByClient.get(cid) ?? 0) + r.amount);
+      }
+      const result = new Map<string, { perf: number; contract: number; performanceContract: boolean }>();
+      for (const [cid, flag] of latestFlag) {
+        result.set(cid, { perf: perfByClient.get(cid) ?? 0, contract: contractByClient.get(cid) ?? 0, performanceContract: flag });
+      }
+      return result;
+    }
+
+    // PM: 기존 동작 유지 — 고객사별 "가장 최근 프로젝트" 1건의 계약금 전액과 그 과업의 올해 실적.
     const projects = await tx.project.findMany({
       where: { deletedAt: null, client: { deletedAt: null } },
       // 계약 시작일이 최신인 프로젝트가 위로. 시작일 없으면 등록일 최신순.
@@ -283,10 +365,6 @@ export async function getClientSummaries(
       where: { year, month: monthRange },
       _sum: { amount: true },
     });
-    const contractRows = await tx.task.groupBy({
-      by: ["clientId", "vatExempt"],
-      _sum: { contractAmount: true },
-    });
     // 실적·계약금 모두 고객사별로 면세/과세를 나눠 둔다(과세분만 부가세 적용).
     const perfTaxable = new Map<string, number>();
     const perfExempt = new Map<string, number>();
@@ -300,11 +378,33 @@ export async function getClientSummaries(
     for (const r of expRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
     for (const r of consRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
     for (const r of ccRows) expByClient.set(r.clientId, (expByClient.get(r.clientId) ?? 0) + (r._sum.amount ?? 0));
+    // 계약금: 관리자(PM 외)는 선택 연도+기간에 걸친 "모든" 프로젝트를 계약기간 월수 비례로,
+    // PM은 기존대로 전 과업 계약금 전액(기간 무관).
     const contractTaxable = new Map<string, number>();
     const contractExempt = new Map<string, number>();
-    for (const r of contractRows) {
-      const m = r.vatExempt ? contractExempt : contractTaxable;
-      m.set(r.clientId, (m.get(r.clientId) ?? 0) + (r._sum.contractAmount ?? 0));
+    if (usesProratedAttainment(ctx.role)) {
+      const projs = await tx.project.findMany({
+        where: { deletedAt: null, client: clientWhere(easywelOnly) },
+        select: { clientId: true, contractStart: true, contractEnd: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
+      });
+      for (const p of projs) {
+        const ratio = overlapRatio(year, period, p.contractStart, p.contractEnd);
+        if (ratio === 0) continue;
+        for (const t of p.tasks) {
+          const amt = (t.contractAmount ?? 0) * ratio;
+          const m = t.vatExempt ? contractExempt : contractTaxable;
+          m.set(p.clientId, (m.get(p.clientId) ?? 0) + amt);
+        }
+      }
+    } else {
+      const contractRows = await tx.task.groupBy({
+        by: ["clientId", "vatExempt"],
+        _sum: { contractAmount: true },
+      });
+      for (const r of contractRows) {
+        const m = r.vatExempt ? contractExempt : contractTaxable;
+        m.set(r.clientId, (m.get(r.clientId) ?? 0) + (r._sum.contractAmount ?? 0));
+      }
     }
     return clients.map((c) => ({
       id: c.id,
@@ -438,10 +538,30 @@ export function getClientDetail(
         { name: "asc" },
       ],
     });
-    // 면세 과업 계약금은 부가세 토글과 무관하게 원값 유지.
-    const contractTaxable = tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
-    const contractExempt = tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);
-    const contract = withVatSplit(contractTaxable, contractExempt, includeVat);
+    // 상단 KPI·Funnel용 계약금(분모). 분자(과업 실적)는 아래에서 선택 연도+기간으로 집계하므로,
+    // 관리자(PM 외)는 분모도 같은 창에 걸친 몫만큼 계약기간 월수 비례로 맞춘다.
+    // PM은 기존대로 전액(면세 과업은 부가세 토글과 무관하게 원값 유지).
+    let contract: number;
+    if (usesProratedAttainment(ctx.role)) {
+      if (projectId) {
+        const ratio = overlapRatio(year, period, project?.contractStart ?? null, project?.contractEnd ?? null);
+        const taxable = tasks.reduce((s, t) => s + (t.vatExempt ? 0 : (t.contractAmount ?? 0) * ratio), 0);
+        const exempt = tasks.reduce((s, t) => s + (t.vatExempt ? (t.contractAmount ?? 0) * ratio : 0), 0);
+        contract = withVatSplit(taxable, exempt, includeVat);
+      } else {
+        const projs = await tx.project.findMany({
+          where: { clientId: id, deletedAt: null },
+          select: { contractStart: true, contractEnd: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
+        });
+        const { taxable, exempt } = proratedContractBuckets(projs, year, period);
+        contract = withVatSplit(taxable, exempt, includeVat);
+      }
+    } else {
+      // 면세 과업 계약금은 부가세 토글과 무관하게 원값 유지.
+      const contractTaxable = tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
+      const contractExempt = tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);
+      contract = withVatSplit(contractTaxable, contractExempt, includeVat);
+    }
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange, task: taskWhere },
       select: { taskId: true, month: true, amount: true, count: true },

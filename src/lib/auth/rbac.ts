@@ -37,6 +37,14 @@ export function isTeamScoped(role: AppRole | null | undefined): boolean {
   return isTeamAdmin(role) || isPartLeader(role);
 }
 
+/**
+ * 실적 달성률 분모를 "달력연도 기간 비례"로 보는 역할(PM 외 전원: 최고관리자·정산담당자·
+ * 팀 관리자·파트장). PM은 기존 동작(계약금 전액 기준)을 유지한다.
+ */
+export function usesProratedAttainment(role: AppRole | null | undefined): boolean {
+  return !!role && role !== "PM";
+}
+
 export function canManageUsers(role: AppRole | null | undefined): boolean {
   return role === "SUPER_ADMIN";
 }

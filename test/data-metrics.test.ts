@@ -70,13 +70,12 @@ describe("metrics: period totals & contract total", () => {
   });
 
   it("contract total sums Task.contractAmount, RLS-scoped", async () => {
-    expect(await getContractTotal(ADMIN)).toBe(1300000); // 500000 + 800000
-    expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(500000); // A만
+    expect(await getContractTotal(ADMIN, 2026, "all")).toBe(1300000); // 500000 + 800000 (계약일 없음→ratio1)
+    expect(await getContractTotal({ userId: pmA, role: "PM" }, 2026, "all")).toBe(500000); // A만
   });
 
-  it("계약금은 고객사별 '가장 최근(계약 시작일) 프로젝트' 1건만 합산한다", async () => {
-    // A사에 시작일이 더 늦은 프로젝트를 추가한다. 기존 기본 프로젝트(시작일 null, 500000)는
-    // 최신이 아니므로 제외되고, 새 프로젝트(300000)만 A사 몫으로 잡혀야 한다.
+  it("관리자는 고객사의 전 프로젝트를 기간 비례로 합산하고, PM은 최근 1건 전액만 본다", async () => {
+    // A사에 시작일이 더 늦은 2026 전체 프로젝트(계약금 300000)를 추가한다.
     const proj = await createProject(ADMIN, clientA, {
       name: "2026 계약",
       contractStart: new Date("2026-01-01"),
@@ -84,9 +83,39 @@ describe("metrics: period totals & contract total", () => {
       pmIds: [pmA],
     });
     await createTask(ADMIN, { clientId: clientA, projectId: proj.id, name: "신규", unitPrice: 10000, contractCount: 30 }); // 300000
-    // A사 최신 프로젝트 300000 + B사 800000. A사 기본 프로젝트 500000은 제외.
-    expect(await getContractTotal(ADMIN)).toBe(1100000);
-    expect(await getContractTotal({ userId: pmA, role: "PM" })).toBe(300000); // A사 최신만
+    // 관리자(2026 전체): A사 기본(500000, 계약일 없음→ratio1) + 2026계약(300000, ratio1) + B사(800000).
+    expect(await getContractTotal(ADMIN, 2026, "all")).toBe(1600000);
+    // PM: 최근 프로젝트(2026계약) 1건 전액만.
+    expect(await getContractTotal({ userId: pmA, role: "PM" }, 2026, "all")).toBe(300000);
+  });
+
+  it("두 해에 걸친 계약을 달력연도/기간 비례로 분모 계산한다 (관리자)", async () => {
+    // 롯데형: 4~3월 계약 2건. 과업 계약금 1,200,000(=100,000×12)으로 월수 분배를 깔끔히.
+    const c = (await mkClient(ADMIN, { name: "크로스사" })).id;
+    const p1 = await createProject(ADMIN, c, { name: "2025~2026", contractStart: new Date("2025-04-01"), contractEnd: new Date("2026-03-31"), pmIds: [] });
+    await createTask(ADMIN, { clientId: c, projectId: p1.id, name: "운영1", unitPrice: 100000, contractCount: 12 });
+    const p2 = await createProject(ADMIN, c, { name: "2026~2027", contractStart: new Date("2026-04-01"), contractEnd: new Date("2027-03-31"), pmIds: [] });
+    await createTask(ADMIN, { clientId: c, projectId: p2.id, name: "운영2", unitPrice: 100000, contractCount: 12 });
+
+    // 2026 전체: 크로스사 = P1 3/12(1~3월)=300,000 + P2 9/12(4~12월)=900,000 = 1,200,000.
+    //   A사500000 + B사800000(계약일 없음→ratio1) + 1,200,000 = 2,500,000.
+    expect(await getContractTotal(ADMIN, 2026, "all")).toBe(2500000);
+    // 2025 전체: 크로스사 = P1 9/12(4~12월)=900,000 + P2 0(2026시작) = 900,000.
+    //   500000 + 800000 + 900,000 = 2,200,000.
+    expect(await getContractTotal(ADMIN, 2025, "all")).toBe(2200000);
+    // 2026 상반기(1~6월): 크로스사 = P1 3/12 + P2 3/12 = 600,000.
+    //   A/B 계약일 없음 → 6/12: 250,000 + 400,000. 합 = 1,250,000.
+    expect(await getContractTotal(ADMIN, 2026, "h1")).toBe(1250000);
+  });
+
+  it("PM은 비례하지 않고 최근 프로젝트 계약금 전액을 본다 (회귀)", async () => {
+    const proj = await createProject(ADMIN, clientA, { name: "2026~2027", contractStart: new Date("2026-04-01"), contractEnd: new Date("2027-03-31"), pmIds: [pmA] });
+    await createTask(ADMIN, { clientId: clientA, projectId: proj.id, name: "운영", unitPrice: 100000, contractCount: 12 }); // 1,200,000
+    // PM: 최근 프로젝트 전액 — 기간/비례 무관.
+    expect(await getContractTotal({ userId: pmA, role: "PM" }, 2026, "all")).toBe(1200000);
+    expect(await getContractTotal({ userId: pmA, role: "PM" }, 2026, "h1")).toBe(1200000);
+    // 관리자(2026 전체): A사 기본(500000) + 2026~2027(9/12=900,000) + B사(800000) = 2,200,000.
+    expect(await getContractTotal(ADMIN, 2026, "all")).toBe(2200000);
   });
 
   it("includeVat=true applies ×1.1 to 실적/청구/입금/계약금 but NOT 지출", async () => {
@@ -95,7 +124,7 @@ describe("metrics: period totals & contract total", () => {
     expect(t.billing).toBe(33000); // 30000 × 1.1
     expect(t.deposit).toBe(22000); // 20000 × 1.1
     expect(t.expense).toBe(5000); // 지출은 부가세 미포함(원장 원값) — VAT 토글 무관
-    expect(await getContractTotal(ADMIN, true)).toBe(1430000); // 1300000 × 1.1
+    expect(await getContractTotal(ADMIN, 2026, "all", true)).toBe(1430000); // 1300000 × 1.1
   });
 
   it("면세 과업은 includeVat=true여도 계약금·실적에 ×1.1을 적용하지 않는다", async () => {
@@ -104,12 +133,12 @@ describe("metrics: period totals & contract total", () => {
     await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 3, rows: [{ taskId: exempt.id, count: 1, amount: null }] });
 
     // VAT 미포함: 면세/과세 모두 원값.
-    expect(await getContractTotal(ADMIN)).toBe(1400000); // 1300000 + 100000
+    expect(await getContractTotal(ADMIN, 2026, "all")).toBe(1400000); // 1300000 + 100000
     const off = await getPeriodTotals(ADMIN, 2026, "h1");
     expect(off.performance).toBe(70000); // 60000 + 10000
 
     // VAT 포함: 과세분만 ×1.1, 면세분은 원값.
-    expect(await getContractTotal(ADMIN, true)).toBe(1530000); // 1300000×1.1 + 100000
+    expect(await getContractTotal(ADMIN, 2026, "all", true)).toBe(1530000); // 1300000×1.1 + 100000
     const on = await getPeriodTotals(ADMIN, 2026, "h1", true);
     expect(on.performance).toBe(76000); // 60000×1.1 + 10000
 
@@ -130,7 +159,7 @@ describe("metrics: period totals & contract total", () => {
     await archiveClient(ADMIN, clientB); // B사 보관
     const t = await getPeriodTotals(ADMIN, 2026, "h1");
     expect(t.performance).toBe(40000); // A사만 (B사 20000 제외)
-    expect(await getContractTotal(ADMIN)).toBe(500000); // A사 계약금만
+    expect(await getContractTotal(ADMIN, 2026, "all")).toBe(500000); // A사 계약금만
     const trend = await getMonthlyTrend(ADMIN, 2026);
     expect(trend[2]).toMatchObject({ month: 3, performance: 40000 }); // 3월도 A사만
   });
@@ -139,7 +168,7 @@ describe("metrics: period totals & contract total", () => {
     await setClientEasywel(ADMIN, clientA, true); // A사만 현대이지웰
     const t = await getPeriodTotals(ADMIN, 2026, "h1", false, true);
     expect(t.performance).toBe(40000); // A사만 (B사 20000 제외)
-    expect(await getContractTotal(ADMIN, false, true)).toBe(500000); // A사 계약금만
+    expect(await getContractTotal(ADMIN, 2026, "all", false, true)).toBe(500000); // A사 계약금만
     const trend = await getMonthlyTrend(ADMIN, 2026, false, true);
     expect(trend[2]).toMatchObject({ month: 3, performance: 40000 });
     const rows = await getClientSummaries(ADMIN, 2026, "all", false, true);
@@ -216,6 +245,18 @@ describe("metrics: client & PM summaries", () => {
     expect(c.industry).toBe("제조");
   });
 
+  it("관리자 요약은 계약금을 연도 비례로 합산하고, PM은 전액을 본다", async () => {
+    // A사에 2025~2026(4~3월) 프로젝트(1,200,000) 추가.
+    const proj = await createProject(ADMIN, clientA, { name: "2025~2026", contractStart: new Date("2025-04-01"), contractEnd: new Date("2026-03-31"), pmIds: [pmA] });
+    await createTask(ADMIN, { clientId: clientA, projectId: proj.id, name: "운영", unitPrice: 100000, contractCount: 12 });
+    // 관리자(2026 전체): A사 = 기본(500000, ratio1) + 2025~2026(3/12=300,000) = 800,000.
+    const adminRows = await getClientSummaries(ADMIN, 2026, "all");
+    expect(adminRows.find((r) => r.name === "A사")!.contract).toBe(800000);
+    // PM: 전 과업 전액 = 500000 + 1,200,000 = 1,700,000.
+    const pmRows = await getClientSummaries({ userId: pmA, role: "PM" }, 2026, "all");
+    expect(pmRows.find((r) => r.name === "A사")!.contract).toBe(1700000);
+  });
+
   it("PM summaries roll up by pmId (ADMIN)", async () => {
     const rows = await getPmSummaries(ADMIN, 2026, "all");
     const a = rows.find((r) => r.pmId === pmA)!;
@@ -270,6 +311,17 @@ describe("metrics: client detail", () => {
     expect(t.monthly.find((m) => m.month === 1)!.amount).toBe(0);
     expect(d!.monthly).toHaveLength(12);
     expect(d!.monthly[2]).toEqual({ month: 3, performance: 40000, billing: 30000, deposit: 20000, expense: 0 });
+  });
+
+  it("관리자 상세: 선택 프로젝트 계약금을 연도 비례로 분모 계산 (PM은 전액)", async () => {
+    const proj = await createProject(ADMIN, clientA, { name: "2025~2026", contractStart: new Date("2025-04-01"), contractEnd: new Date("2026-03-31"), pmIds: [pmA] });
+    await createTask(ADMIN, { clientId: clientA, projectId: proj.id, name: "운영", unitPrice: 100000, contractCount: 12 }); // 1,200,000
+    // 2026 전체: 2025~2026 계약은 1~3월 3개월만 걸침 → 1,200,000 × 3/12 = 300,000.
+    const d = await getClientDetail(ADMIN, clientA, 2026, "all", false, false, proj.id);
+    expect(d!.contract).toBe(300000);
+    // PM은 전액(1,200,000).
+    const dp = await getClientDetail({ userId: pmA, role: "PM" }, clientA, 2026, "all", false, false, proj.id);
+    expect(dp!.contract).toBe(1200000);
   });
 
   it("task monthly columns follow the selected period (h1 → months 1..6)", async () => {

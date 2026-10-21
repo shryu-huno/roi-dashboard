@@ -40,7 +40,7 @@ export default async function DashboardPage({
   // 각 조회는 독립 트랜잭션이므로 병렬 실행 가능.
   const [totals, contract, trend, breakdown, clients] = await Promise.all([
     getPeriodTotals(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
-    getContractTotal(ctx, includeVat, easywelOnly),
+    getContractTotal(ctx, year, period, includeVat, easywelOnly),
     getMonthlyTrend(ctx, year, includeVat, easywelOnly, fiscalBasis),
     getExpenseBreakdown(ctx, year, period, easywelOnly),
     getClientSummaries(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
