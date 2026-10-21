@@ -21,7 +21,7 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ year?: string; period?: string; projectId?: string }>;
+  searchParams: Promise<{ year?: string; period?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -31,18 +31,13 @@ export default async function ClientDetailPage({
   const includeVat = await getIncludeVat();
   const fiscalBasis = await getFiscalBasis();
 
-  // 프로젝트 목록을 먼저 조회해 기본 선택(최신 프로젝트)을 정한다. projectRows는 계약 시작일 최신순.
+  // 전사 대시보드처럼 프로젝트 선택 없이 연도+기간으로 고객사 전체를 집계한다.
+  // (프로젝트별 상세는 아래 "프로젝트별 요약" 표가 각 프로젝트를 나눠 보여준다.)
   const projectRows = await getClientProjectBreakdown(ctx, id, year, includeVat, fiscalBasis);
-  const selectedProjectId = projectRows.length
-    ? projectRows.some((p) => p.id === sp.projectId)
-      ? sp.projectId
-      : projectRows[0].id
-    : undefined;
-  const selectedProject = projectRows.find((p) => p.id === selectedProjectId);
-  const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis, selectedProjectId);
+  const detail = await getClientDetail(ctx, id, year, period, includeVat, fiscalBasis);
   if (!detail) notFound();
-  // 과업별 월 실적 표는 기간 필터와 무관하게 선택 프로젝트의 계약기간 전체를 전개한다.
-  const taskMatrix = await getClientTaskMatrix(ctx, id, selectedProjectId, includeVat, year);
+  // 과업별 월 실적 표는 고객사 전 과업을 선택 연도 1~12월로 전개한다.
+  const taskMatrix = await getClientTaskMatrix(ctx, id, undefined, includeVat, year);
   // 특이사항 메모(이력, 최신순). 작성·수정은 고객사 상세 설정 화면에서만, 여기선 읽기 전용.
   const memos = await listClientMemos(ctx, id);
 
@@ -56,7 +51,7 @@ export default async function ClientDetailPage({
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{detail.client.name}</h1>
         <a
-          href={`/clients/${id}/export?year=${year}&period=${period}${selectedProjectId ? `&projectId=${selectedProjectId}` : ""}`}
+          href={`/clients/${id}/export?year=${year}&period=${period}`}
           className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-primary)]"
         >
           CSV 내보내기
@@ -82,17 +77,12 @@ export default async function ClientDetailPage({
         year={year}
         period={period}
         action={`/clients/${id}`}
-        projects={projectRows.map((p) => ({ id: p.id, name: p.name }))}
-        projectId={selectedProjectId}
         options={PERIOD_OPTIONS_WITH_QUARTERS}
       />
 
       <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard title="수익률" value="준비중" />
-        <KpiCard
-          title="달성률"
-          value={selectedProject?.performanceContract ? "실적 계약" : formatPercent(attainment(perf, contract))}
-        />
+        <KpiCard title="달성률" value={formatPercent(attainment(perf, contract))} />
         <KpiCard title="청구율" value={formatPercent(billingRate(billing, perf))} />
         <KpiCard title="수금률" value={formatPercent(collectionRate(deposit, billing))} />
       </section>
