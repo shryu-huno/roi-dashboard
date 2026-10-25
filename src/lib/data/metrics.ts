@@ -748,6 +748,8 @@ export type ProjectBreakdownRow = {
   contractEnd: string | null;
   performanceContract: boolean;
   performance: number;
+  // 기간/연도 무관 과업 전체 누적 실적(전체 달성률 분자용).
+  totalPerformance: number;
   billing: number;
   deposit: number;
   expense: number;
@@ -816,6 +818,13 @@ export function getClientProjectBreakdown(
       const perfExempt = exemptIds.length
         ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: exemptIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
         : 0;
+      // 전체 달성률용: 기간 창을 두지 않고 과업 전체 누적 실적을 집계(면세/과세 분리).
+      const totalPerfTaxable = taxableIds.length
+        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: taxableIds } }, _sum: { amount: true } }))._sum.amount ?? 0
+        : 0;
+      const totalPerfExempt = exemptIds.length
+        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: exemptIds } }, _sum: { amount: true } }))._sum.amount ?? 0
+        : 0;
       // 청구/입금은 Invoice에서 기간 창(from~to, 연속 월)으로 집계: 청구=issueDate, 입금=paidDate.
       const rangeStart = new Date(Date.UTC(from.year, from.month - 1, 1));
       const rangeEndExcl = new Date(Date.UTC(to.year, to.month, 1));
@@ -840,6 +849,7 @@ export function getClientProjectBreakdown(
         contractEnd: end,
         performanceContract: p.performanceContract,
         performance: withVatSplit(perfTaxable, perfExempt, includeVat),
+        totalPerformance: withVatSplit(totalPerfTaxable, totalPerfExempt, includeVat),
         billing: fromGross(billing, includeVat),
         deposit: fromGross(deposit, includeVat),
         // 지출은 부가세 미포함(원장 원값).

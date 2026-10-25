@@ -108,8 +108,7 @@ export default async function ClientDetailPage({
                 <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
                   <th className="py-2 pr-3">프로젝트</th>
                   <th className="px-2 whitespace-nowrap">계약기간</th>
-                  <th className="px-2 text-right">수익률</th>
-                  <th className="px-2 text-right">달성률</th>
+                  <th className="px-2 text-right">전체 달성률</th>
                   <th className="px-2 text-right">실적</th>
                   <th className="px-2 text-right">청구</th>
                   <th className="px-2 text-right">입금</th>
@@ -124,9 +123,8 @@ export default async function ClientDetailPage({
                     <td className="px-2 whitespace-nowrap text-[var(--color-muted)]">
                       {p.contractStart && p.contractEnd ? `${p.contractStart} ~ ${p.contractEnd}` : "—"}
                     </td>
-                    <td className="px-2 text-right whitespace-nowrap">준비중</td>
                     <td className="px-2 text-right whitespace-nowrap">
-                      {p.performanceContract ? "실적 계약" : formatPercent(attainment(p.performance, p.contract))}
+                      {p.performanceContract ? "실적 계약" : formatPercent(attainment(p.totalPerformance, p.contract))}
                     </td>
                     <td className="px-2 text-right whitespace-nowrap">{formatWon(p.performance)}</td>
                     <td className="px-2 text-right whitespace-nowrap">{formatWon(p.billing)}</td>
