@@ -8,7 +8,7 @@ export function PeriodSpanBadge({ span }: { span: PeriodSpan | null }) {
     <span
       title={title}
       aria-label={title}
-      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] text-[10px] font-semibold leading-none text-[var(--color-muted)]"
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] text-xs font-semibold leading-none text-[var(--color-muted)]"
     >
       {span}
     </span>
