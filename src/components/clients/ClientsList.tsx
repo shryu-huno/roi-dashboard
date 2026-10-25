@@ -3,11 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { filterClients, sortClients, formatCycle, type SortMode } from "@/lib/clients/summary-view";
+import type { PeriodSpan } from "@/lib/clients/project-span";
+import { PeriodSpanBadge } from "@/components/clients/PeriodSpanBadge";
 import { formatPercent } from "@/lib/format";
 
 type ClientItem = {
   id: string;
   name: string;
+  span: PeriodSpan | null; // 최근 프로젝트 계약기간 연도 스팬 배지(m/s). 판단 불가면 null.
   status: string;
   industry: string | null;
   pmLabel: string;
@@ -85,7 +88,10 @@ export function ClientsList({ clients, showPm, isAdmin }: { clients: ClientItem[
               className="block rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm hover:border-[var(--color-primary)]"
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="text-base font-medium text-[var(--color-fg)]">{c.name}</div>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <div className="truncate text-base font-medium text-[var(--color-fg)]">{c.name}</div>
+                  <PeriodSpanBadge span={c.span} />
+                </div>
                 <div className="shrink-0 text-sm font-semibold text-[var(--color-primary)]">
                   {c.performanceContract ? "실적 계약" : formatPercent(c.progress)}
                 </div>

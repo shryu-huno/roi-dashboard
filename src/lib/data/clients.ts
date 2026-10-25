@@ -18,7 +18,8 @@ const withManagersAndProjects = {
     projects: {
       where: { deletedAt: null },
       // status·contractEnd는 고객사 상태(모든 프로젝트 만료 시 계약만료) 파생에 쓰인다.
-      select: { billingCycle: true, reportCycle: true, performanceContract: true, status: true, contractEnd: true },
+      // contractStart·createdAt은 "가장 최근 프로젝트"의 연도 스팬 배지(m/s) 파생에 쓰인다.
+      select: { billingCycle: true, reportCycle: true, performanceContract: true, status: true, contractStart: true, contractEnd: true, createdAt: true },
     },
   },
 } as const;

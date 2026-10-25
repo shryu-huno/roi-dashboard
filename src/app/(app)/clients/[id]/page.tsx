@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { parsePeriodParams, PERIOD_OPTIONS_WITH_QUARTERS } from "@/lib/period";
 import { getClientDetail, getClientProjectBreakdown, getClientTaskMatrix } from "@/lib/data/metrics";
+import { yearSpan } from "@/lib/clients/project-span";
+import { PeriodSpanBadge } from "@/components/clients/PeriodSpanBadge";
 import { listClientMemos } from "@/lib/data/clientMemos";
 import { attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
@@ -41,6 +43,9 @@ export default async function ClientDetailPage({
   // 특이사항 메모(이력, 최신순). 작성·수정은 고객사 상세 설정 화면에서만, 여기선 읽기 전용.
   const memos = await listClientMemos(ctx, id);
 
+  // 가장 최근 프로젝트(= 계약시작 최신순 정렬의 첫 행)의 계약기간 연도 스팬 배지(m/s).
+  const latestSpan = yearSpan(projectRows[0]?.contractStart ?? null, projectRows[0]?.contractEnd ?? null);
+
   const perf = detail.tasks.reduce((s, t) => s + t.total, 0);
   const contract = detail.contract;
   const billing = detail.monthly.reduce((s, m) => s + m.billing, 0);
@@ -49,7 +54,10 @@ export default async function ClientDetailPage({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{detail.client.name}</h1>
+        <h1 className="flex items-center gap-1.5 text-xl font-semibold">
+          {detail.client.name}
+          <PeriodSpanBadge span={latestSpan} />
+        </h1>
         <a
           href={`/clients/${id}/export?year=${year}&period=${period}`}
           className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-primary)]"

@@ -4,6 +4,7 @@ import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { listClients } from "@/lib/data/clients";
 import { getClientMemoSummaries } from "@/lib/data/clientMemos";
 import { effectiveClientStatus } from "@/lib/clients/status";
+import { latestProjectSpan } from "@/lib/clients/project-span";
 import { getClientLatestProjectProgress } from "@/lib/data/metrics";
 import { attainment } from "@/lib/metrics/formulas";
 import { prisma } from "@/lib/db";
@@ -34,6 +35,8 @@ export default async function ClientsPage() {
     return {
       id: c.id,
       name: c.name,
+      // 가장 최근 프로젝트 계약기간의 연도 스팬(해 넘김 m / 같은 해 s / 판단 불가 null).
+      span: latestProjectSpan(c.projects),
       // 프로젝트가 모두 만료되면 고객사도 계약만료로 표시한다.
       status: effectiveClientStatus(c.status, c.projects),
       industry: c.industry,
