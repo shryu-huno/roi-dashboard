@@ -397,6 +397,23 @@ describe("metrics: client detail", () => {
     expect(t.cells.find((c) => c.month === 3)!.amount).toBe(44000); // 40000 × 1.1
   });
 
+  it("task matrix: 다른 프로젝트라도 과업명이 같으면 한 행으로 합산한다", async () => {
+    // 기본 프로젝트의 "진단"(2026-03 40000, 계약금 500000) 외에, 다른 프로젝트에도 "진단"을 둔다.
+    const proj2 = await createProject(ADMIN, clientA, { name: "2026 추가", contractStart: new Date("2026-01-01"), contractEnd: new Date("2026-12-31"), pmIds: [pmA] });
+    const t2 = await createTask(ADMIN, { clientId: clientA, projectId: proj2.id, name: "진단", unitPrice: 10000, contractCount: 10 }); // 계약금 100000
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2026, month: 5, rows: [{ taskId: t2.id, count: 2, amount: null }] });
+
+    const m = await getClientTaskMatrix(ADMIN, clientA, undefined, false, 2026);
+    const rows = m!.tasks.filter((r) => r.name === "진단");
+    expect(rows).toHaveLength(1); // 두 프로젝트의 "진단"이 하나로 병합
+    const r = rows[0];
+    expect(r.cells.find((c) => c.month === 3)!.amount).toBe(40000); // 기본 프로젝트
+    expect(r.cells.find((c) => c.month === 5)!.amount).toBe(20000); // 추가 프로젝트
+    expect(r.total).toBe(60000);
+    expect(r.contract).toBe(600000); // 500000 + 100000
+    expect(r.contractCount).toBe(60); // 50 + 10
+  });
+
   it("task matrix: 다른 PM의 고객사는 RLS로 null", async () => {
     const m = await getClientTaskMatrix({ userId: pmB, role: "PM" }, clientA, undefined, false, 2026);
     expect(m).toBeNull();

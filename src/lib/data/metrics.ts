@@ -754,7 +754,11 @@ export function getClientTaskMatrix(
       m.set(`${r.year}-${r.month}`, { amount: r.amount, count: r.count });
       byTaskYm.set(r.taskId, m);
     }
-    const taskRows: TaskPerfRow[] = tasks.map((t) => {
+    // 서로 다른 프로젝트라도 과업명이 같으면 한 행으로 합친다(월별 금액·횟수·합계·계약금 합산).
+    // 각 과업을 자기 부가세 규칙으로 먼저 계산한 뒤 이름별로 누적한다(첫 등장 순서 유지).
+    const sumCount = (a: number | null, b: number | null) => (a == null && b == null ? null : (a ?? 0) + (b ?? 0));
+    const byName = new Map<string, TaskPerfRow>();
+    for (const t of tasks) {
       const mm = byTaskYm.get(t.id) ?? new Map<string, { amount: number; count: number | null }>();
       // 면세 과업은 실적에도 부가세를 적용하지 않는다.
       const cells = columns.map(({ year, month }) => {
@@ -765,17 +769,25 @@ export function getClientTaskMatrix(
       // 진행률 분모용 계약금. 셀 값과 동일한 부가세 규칙(면세 과업은 원값, 과세분만 토글 적용).
       const contractRaw = t.contractAmount ?? 0;
       const contract = t.vatExempt ? contractRaw : withVat(contractRaw, includeVat);
-      return {
-        id: t.id,
-        name: t.name,
-        cells,
-        total: cells.reduce((s, x) => s + x.amount, 0),
-        contract,
-        contractCount: t.contractCount ?? null,
-      };
-    });
+      const prev = byName.get(t.name);
+      if (!prev) {
+        byName.set(t.name, {
+          id: t.id,
+          name: t.name,
+          cells,
+          total: cells.reduce((s, x) => s + x.amount, 0),
+          contract,
+          contractCount: t.contractCount ?? null,
+        });
+      } else {
+        prev.cells = prev.cells.map((c, i) => ({ year: c.year, month: c.month, amount: c.amount + cells[i].amount, count: sumCount(c.count, cells[i].count) }));
+        prev.total += cells.reduce((s, x) => s + x.amount, 0);
+        prev.contract += contract;
+        prev.contractCount = sumCount(prev.contractCount, t.contractCount ?? null);
+      }
+    }
 
-    return { columns, tasks: taskRows };
+    return { columns, tasks: [...byName.values()] };
   });
 }
 
