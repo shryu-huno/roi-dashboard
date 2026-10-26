@@ -1,4 +1,4 @@
-import type { ExpenseCategory } from "@prisma/client";
+import type { ExpenseCategory, Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { resolvePeriod } from "@/lib/period";
 import { prisma } from "@/lib/db";
@@ -29,6 +29,30 @@ function proratedContractBuckets(
     }
   }
   return { taxable, exempt };
+}
+
+// 실적 계약 달성률의 분모(기준 실적): 같은 고객사의 (measureYear-1)년, 주어진 월 집합의 실적 합.
+// 면세/과세를 나눠 집계해 과세분에만 VAT 토글 적용(기존 perf 집계와 동일 규칙).
+async function performanceBaseline(
+  tx: Prisma.TransactionClient,
+  clientId: string,
+  measureYear: number,
+  months: number[],
+  includeVat: boolean,
+): Promise<number> {
+  const baseYear = measureYear - 1;
+  // 순차 await (같은 tx에서 병렬 쿼리 금지).
+  const perfTaxable =
+    (await tx.monthlyPerformance.aggregate({
+      where: { year: baseYear, month: { in: months }, task: { clientId, vatExempt: false } },
+      _sum: { amount: true },
+    }))._sum.amount ?? 0;
+  const perfExempt =
+    (await tx.monthlyPerformance.aggregate({
+      where: { year: baseYear, month: { in: months }, task: { clientId, vatExempt: true } },
+      _sum: { amount: true },
+    }))._sum.amount ?? 0;
+  return withVatSplit(perfTaxable, perfExempt, includeVat);
 }
 
 // 고객사 where 조각: 보관(소프트 삭제) 제외 + (옵션) 현대이지웰 고객사만.
@@ -153,8 +177,22 @@ export function getContractTotal(
 export function getClientLatestProjectProgress(
   ctx: RlsContext,
   year: number,
-): Promise<Map<string, { perf: number; contract: number; performanceContract: boolean }>> {
+): Promise<Map<string, { perf: number; contract: number; performanceContract: boolean; baseline: number }>> {
   return withRLS(ctx, async (tx) => {
+    // 실적 계약 분모(기준 실적): 전년도(year-1) 고객사별 실적 합(전체 월). 목록은 VAT 미포함 규칙.
+    // 순차 await (같은 tx에서 병렬 쿼리 금지). RLS로 접근 가능한 행만 조회된다.
+    const basePerfRows = await tx.monthlyPerformance.findMany({
+      where: { year: year - 1 },
+      select: { amount: true, task: { select: { clientId: true, vatExempt: true } } },
+    });
+    const baseTaxable = new Map<string, number>();
+    const baseExempt = new Map<string, number>();
+    for (const r of basePerfRows) {
+      const m = r.task.vatExempt ? baseExempt : baseTaxable;
+      m.set(r.task.clientId, (m.get(r.task.clientId) ?? 0) + r.amount);
+    }
+    const baselineOf = (cid: string) => withVatSplit(baseTaxable.get(cid) ?? 0, baseExempt.get(cid) ?? 0, false);
+
     // 관리자(PM 외): 분모를 고객사의 "모든" 프로젝트 계약금을 연도 비례로 합산한 값으로,
     // 분자(perf)도 그 고객사 전 과업의 올해 실적으로 맞춘다. 표시용 실적계약 플래그는 최근 프로젝트 기준.
     if (usesProratedAttainment(ctx.role)) {
@@ -189,9 +227,9 @@ export function getClientLatestProjectProgress(
         const cid = taskToClient.get(r.taskId)!;
         perfByClient.set(cid, (perfByClient.get(cid) ?? 0) + r.amount);
       }
-      const result = new Map<string, { perf: number; contract: number; performanceContract: boolean }>();
+      const result = new Map<string, { perf: number; contract: number; performanceContract: boolean; baseline: number }>();
       for (const [cid, flag] of latestFlag) {
-        result.set(cid, { perf: perfByClient.get(cid) ?? 0, contract: contractByClient.get(cid) ?? 0, performanceContract: flag });
+        result.set(cid, { perf: perfByClient.get(cid) ?? 0, contract: contractByClient.get(cid) ?? 0, performanceContract: flag, baseline: baselineOf(cid) });
       }
       return result;
     }
@@ -231,9 +269,9 @@ export function getClientLatestProjectProgress(
       const cid = taskToClient.get(r.taskId)!;
       perfByClient.set(cid, (perfByClient.get(cid) ?? 0) + r.amount);
     }
-    const result = new Map<string, { perf: number; contract: number; performanceContract: boolean }>();
+    const result = new Map<string, { perf: number; contract: number; performanceContract: boolean; baseline: number }>();
     for (const [cid, info] of latest) {
-      result.set(cid, { perf: perfByClient.get(cid) ?? 0, ...info });
+      result.set(cid, { perf: perfByClient.get(cid) ?? 0, ...info, baseline: baselineOf(cid) });
     }
     return result;
   });
@@ -750,6 +788,8 @@ export type ProjectBreakdownRow = {
   performance: number;
   // 기간/연도 무관 과업 전체 누적 실적(전체 달성률 분자용).
   totalPerformance: number;
+  // 실적 계약 달성률 분모: 전년도(측정연도-1) 같은 월 구간의 고객사 실적 합. 없으면 0.
+  baseline: number;
   billing: number;
   deposit: number;
   expense: number;
@@ -836,6 +876,10 @@ export function getClientProjectBreakdown(
         _sum: { amount: true },
       }))._sum.amount ?? 0;
       const corporateCard = (await tx.corporateCardExpense.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
+      // 실적 계약 달성률 분모: 전년도(측정연도-1) 같은 월 구간 고객사 실적. 측정연도는 프로젝트 계약시작 연도(없으면 선택연도).
+      const measureYear = p.contractStart?.getFullYear() ?? year;
+      const baselineMonths = [...new Set(ym.map((m) => m.month))];
+      const baseline = await performanceBaseline(tx, clientId, measureYear, baselineMonths, includeVat);
       const contractTaxable = p.tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
       const contractExempt = p.tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);
 
@@ -850,6 +894,7 @@ export function getClientProjectBreakdown(
         performanceContract: p.performanceContract,
         performance: withVatSplit(perfTaxable, perfExempt, includeVat),
         totalPerformance: withVatSplit(totalPerfTaxable, totalPerfExempt, includeVat),
+        baseline,
         billing: fromGross(billing, includeVat),
         deposit: fromGross(deposit, includeVat),
         // 지출은 부가세 미포함(원장 원값).

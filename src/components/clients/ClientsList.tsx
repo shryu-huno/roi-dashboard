@@ -14,8 +14,8 @@ type ClientItem = {
   status: string;
   industry: string | null;
   pmLabel: string;
-  performanceContract: boolean; // 실적 계약 여부(명시 지정). true면 달성률 대신 "실적 계약" 표시.
-  progress: number | null; // 올해 실적/계약. 계약 없음이면 null.
+  performanceContract: boolean; // 실적 계약 여부(명시 지정). true이고 달성률을 못 구하면(progress null) "실적 계약" 표시.
+  progress: number | null; // 달성률. 금액계약=올해 실적/계약, 실적계약=올해 실적/전년 기준실적. 구할 수 없으면 null.
   billingCycle: string[];
   reportCycle: string[];
   hyundaiEasywel: boolean;
@@ -93,7 +93,7 @@ export function ClientsList({ clients, showPm, isAdmin }: { clients: ClientItem[
                   <PeriodSpanBadge span={c.span} />
                 </div>
                 <div className="shrink-0 text-sm font-semibold text-[var(--color-primary)]">
-                  {c.performanceContract ? "실적 계약" : formatPercent(c.progress)}
+                  {c.performanceContract && c.progress === null ? "실적 계약" : formatPercent(c.progress)}
                 </div>
               </div>
               <div className="mt-1 flex items-end justify-between gap-2">

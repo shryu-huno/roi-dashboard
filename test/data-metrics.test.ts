@@ -7,7 +7,8 @@ import { createProject, updateProject } from "@/lib/data/projects";
 import { createTask } from "@/lib/data/tasks";
 import { upsertPerformanceBatch } from "@/lib/data/performance";
 import { upsertExpense } from "@/lib/data/expenses";
-import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries, getClientDetail, getClientTaskMatrix } from "@/lib/data/metrics";
+import { getPeriodTotals, getContractTotal, getMonthlyTrend, getExpenseBreakdown, getClientSummaries, getPmSummaries, getClientDetail, getClientTaskMatrix, getClientProjectBreakdown, getClientLatestProjectProgress } from "@/lib/data/metrics";
+import { attainment } from "@/lib/metrics/formulas";
 
 const ADMIN = { userId: "seed-admin", role: "SUPER_ADMIN" as const };
 
@@ -445,5 +446,83 @@ describe("metrics: 상담비 집계 기준 (프로젝트=실시일시 / 회계�
     const fisc = await getMonthlyTrend(ADMIN, 2026, false, false, true);
     expect(fisc.find((t) => t.month === 7)!.expense).toBe(100000); // 지급 7월
     expect(fisc.find((t) => t.month === 1)!.expense).toBe(50000); // 지급 1월
+  });
+});
+
+describe("metrics: 실적 계약 달성률(전년도 기준 실적)", () => {
+  // 공통 픽스처: 2025 프로젝트(전년 실적) + 2026 실적계약 프로젝트를 가진 고객사.
+  // 2025 실적: 3월 30000 + 8월 20000 = 50000(상반기 30000). 2026 실적: 3월 60000 + 8월 10000 = 70000.
+  async function seedPerfContractClient(name: string) {
+    const clientId = (await mkClient(ADMIN, { name })).id;
+    const p25 = await createProject(ADMIN, clientId, { name: "2025", contractStart: new Date("2025-01-01"), contractEnd: new Date("2025-12-31"), pmIds: [] });
+    const t25 = await createTask(ADMIN, { clientId, projectId: p25.id, name: "2025과업", unitPrice: 10000, contractCount: 20 });
+    await upsertPerformanceBatch(ADMIN, { clientId, year: 2025, month: 3, rows: [{ taskId: t25.id, count: 3, amount: null }] });
+    await upsertPerformanceBatch(ADMIN, { clientId, year: 2025, month: 8, rows: [{ taskId: t25.id, count: 2, amount: null }] });
+    const p26 = await createProject(ADMIN, clientId, { name: "2026", contractStart: new Date("2026-01-01"), contractEnd: new Date("2026-12-31"), pmIds: [], performanceContract: true });
+    const t26 = await createTask(ADMIN, { clientId, projectId: p26.id, name: "2026과업", unitPrice: 10000 }); // 실적계약: 계약금 없음
+    await upsertPerformanceBatch(ADMIN, { clientId, year: 2026, month: 3, rows: [{ taskId: t26.id, count: 6, amount: null }] });
+    await upsertPerformanceBatch(ADMIN, { clientId, year: 2026, month: 8, rows: [{ taskId: t26.id, count: 1, amount: null }] });
+    return clientId;
+  }
+
+  beforeEach(reset);
+
+  it("프로젝트별 요약: 실적계약 프로젝트의 baseline은 전년(2025) 같은 월 구간 합, 달성률=실적/baseline", async () => {
+    const clientId = await seedPerfContractClient("실적사");
+    const rows = await getClientProjectBreakdown(ADMIN, clientId, 2026);
+    const r = rows.find((x) => x.performanceContract)!;
+    expect(r.baseline).toBe(50000); // 2025 전체(1~12월) = 30000 + 20000
+    expect(r.performance).toBe(70000); // 2026 프로젝트 창(1~12월) = 60000 + 10000
+    expect(attainment(r.performance, r.baseline)).toBeCloseTo(1.4); // 70000 / 50000
+  });
+
+  it("전년 실적이 없으면 baseline=0 → 달성률 산출 불가(UI는 '실적 계약' 유지)", async () => {
+    const clientId = (await mkClient(ADMIN, { name: "첫해사" })).id;
+    const p26 = await createProject(ADMIN, clientId, { name: "2026", contractStart: new Date("2026-01-01"), contractEnd: new Date("2026-12-31"), pmIds: [], performanceContract: true });
+    const t26 = await createTask(ADMIN, { clientId, projectId: p26.id, name: "과업", unitPrice: 10000 });
+    await upsertPerformanceBatch(ADMIN, { clientId, year: 2026, month: 3, rows: [{ taskId: t26.id, count: 5, amount: null }] });
+    const rows = await getClientProjectBreakdown(ADMIN, clientId, 2026);
+    const r = rows.find((x) => x.performanceContract)!;
+    expect(r.baseline).toBe(0);
+    expect(attainment(r.performance, r.baseline)).toBeNull();
+  });
+
+  it("baseline도 면세/과세 분리 — includeVat는 과세분에만 ×1.1", async () => {
+    const clientId = (await mkClient(ADMIN, { name: "VAT사" })).id;
+    // 2025: 과세 10000 + 면세 10000.
+    const p25 = await createProject(ADMIN, clientId, { name: "2025", contractStart: new Date("2025-01-01"), contractEnd: new Date("2025-12-31"), pmIds: [] });
+    const tTax = await createTask(ADMIN, { clientId, projectId: p25.id, name: "과세", unitPrice: 10000, vatExempt: false });
+    const tEx = await createTask(ADMIN, { clientId, projectId: p25.id, name: "면세", unitPrice: 10000, vatExempt: true });
+    await upsertPerformanceBatch(ADMIN, { clientId, year: 2025, month: 3, rows: [{ taskId: tTax.id, count: 1, amount: null }, { taskId: tEx.id, count: 1, amount: null }] });
+    // 2026 실적계약 프로젝트(baseline을 읽기 위한 행).
+    const p26 = await createProject(ADMIN, clientId, { name: "2026", contractStart: new Date("2026-01-01"), contractEnd: new Date("2026-12-31"), pmIds: [], performanceContract: true });
+    await createTask(ADMIN, { clientId, projectId: p26.id, name: "과업", unitPrice: 10000 });
+
+    const off = (await getClientProjectBreakdown(ADMIN, clientId, 2026, false)).find((x) => x.performanceContract)!;
+    expect(off.baseline).toBe(20000); // 10000 + 10000
+    const on = (await getClientProjectBreakdown(ADMIN, clientId, 2026, true)).find((x) => x.performanceContract)!;
+    expect(on.baseline).toBe(21000); // 과세 10000×1.1 + 면세 10000
+  });
+
+  it("고객사 목록 진행률: 최근 프로젝트가 실적계약이면 baseline=전년 전체 실적", async () => {
+    const clientId = await seedPerfContractClient("실적사2");
+    const map = await getClientLatestProjectProgress(ADMIN, 2026);
+    const e = map.get(clientId)!;
+    expect(e.performanceContract).toBe(true);
+    expect(e.baseline).toBe(50000); // 2025 전체
+    expect(e.perf).toBe(70000); // 최근(2026) 프로젝트 올해 실적
+    expect(attainment(e.perf, e.baseline)).toBeCloseTo(1.4);
+  });
+
+  it("회귀: 금액계약 프로젝트는 기존대로 계약금 분모(달성률=totalPerformance/contract)", async () => {
+    const clientId = (await mkClient(ADMIN, { name: "금액사" })).id;
+    const p = await createProject(ADMIN, clientId, { name: "2026", contractStart: new Date("2026-01-01"), contractEnd: new Date("2026-12-31"), pmIds: [] });
+    const t = await createTask(ADMIN, { clientId, projectId: p.id, name: "과업", unitPrice: 10000, contractCount: 10 }); // 계약금 100000
+    await upsertPerformanceBatch(ADMIN, { clientId, year: 2026, month: 3, rows: [{ taskId: t.id, count: 5, amount: null }] }); // 50000
+    const r = (await getClientProjectBreakdown(ADMIN, clientId, 2026)).find((x) => x.id === p.id)!;
+    expect(r.performanceContract).toBe(false);
+    expect(r.contract).toBe(100000);
+    expect(r.totalPerformance).toBe(50000);
+    expect(attainment(r.totalPerformance, r.contract)).toBeCloseTo(0.5);
   });
 });

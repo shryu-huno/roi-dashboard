@@ -46,7 +46,10 @@ export default async function ClientsPage() {
       performanceContract: latest.get(c.id)?.performanceContract ?? false,
       progress: (() => {
         const lp = latest.get(c.id);
-        return lp ? attainment(lp.perf, lp.contract) : null;
+        if (!lp) return null;
+        // 실적 계약은 분모를 계약금 대신 전년도 기준 실적(baseline)으로. baseline 0이면 attainment가 null.
+        const denom = lp.performanceContract ? lp.baseline : lp.contract;
+        return attainment(lp.perf, denom);
       })(),
       billingCycle: [...new Set(c.projects.flatMap((p) => p.billingCycle))],
       reportCycle: [...new Set(c.projects.flatMap((p) => p.reportCycle))],

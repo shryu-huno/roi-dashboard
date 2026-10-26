@@ -124,7 +124,11 @@ export default async function ClientDetailPage({
                       {p.contractStart && p.contractEnd ? `${p.contractStart} ~ ${p.contractEnd}` : "—"}
                     </td>
                     <td className="px-2 text-right whitespace-nowrap">
-                      {p.performanceContract ? "실적 계약" : formatPercent(attainment(p.totalPerformance, p.contract))}
+                      {p.performanceContract
+                        ? p.baseline > 0
+                          ? formatPercent(attainment(p.performance, p.baseline))
+                          : "실적 계약"
+                        : formatPercent(attainment(p.totalPerformance, p.contract))}
                     </td>
                     <td className="px-2 text-right whitespace-nowrap">{formatWon(p.performance)}</td>
                     <td className="px-2 text-right whitespace-nowrap">{formatWon(p.billing)}</td>
