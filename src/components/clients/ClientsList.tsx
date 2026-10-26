@@ -92,7 +92,7 @@ export function ClientsList({ clients, showPm, isAdmin }: { clients: ClientItem[
                   <div className="truncate text-base font-medium text-[var(--color-fg)]">{c.name}</div>
                   <PeriodSpanBadge span={c.span} />
                 </div>
-                <div className="shrink-0 text-sm font-semibold text-[var(--color-primary)]">
+                <div className={`shrink-0 text-sm font-semibold ${c.performanceContract ? "text-[var(--color-success)]" : "text-[var(--color-primary)]"}`}>
                   {c.performanceContract && c.progress === null ? "실적 계약" : formatPercent(c.progress)}
                 </div>
               </div>

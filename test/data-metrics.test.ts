@@ -314,6 +314,16 @@ describe("metrics: client detail", () => {
     expect(d!.monthly[2]).toEqual({ month: 3, performance: 40000, billing: 30000, deposit: 20000, expense: 0 });
   });
 
+  it("client detail: baseline은 전년도 같은 기간 고객사 실적 합(전년 대비 분모)", async () => {
+    await upsertPerformanceBatch(ADMIN, { clientId: clientA, year: 2025, month: 2, rows: [{ taskId: taskA, count: 2, amount: null }] }); // 2025-02 = 20000
+    const all = await getClientDetail(ADMIN, clientA, 2026, "all");
+    expect(all!.baseline).toBe(20000); // 2025 전체
+    const feb = await getClientDetail(ADMIN, clientA, 2026, "2");
+    expect(feb!.baseline).toBe(20000); // 2025-02만
+    const jul = await getClientDetail(ADMIN, clientA, 2026, "7");
+    expect(jul!.baseline).toBe(0); // 2025-07 실적 없음
+  });
+
   it("관리자 상세: 선택 프로젝트 계약금을 연도 비례로 분모 계산 (PM은 전액)", async () => {
     const proj = await createProject(ADMIN, clientA, { name: "2025~2026", contractStart: new Date("2025-04-01"), contractEnd: new Date("2026-03-31"), pmIds: [pmA] });
     await createTask(ADMIN, { clientId: clientA, projectId: proj.id, name: "운영", unitPrice: 100000, contractCount: 12 }); // 1,200,000

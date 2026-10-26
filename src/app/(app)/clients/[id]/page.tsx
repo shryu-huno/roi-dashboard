@@ -50,6 +50,8 @@ export default async function ClientDetailPage({
   const contract = detail.contract;
   const billing = detail.monthly.reduce((s, m) => s + m.billing, 0);
   const deposit = detail.monthly.reduce((s, m) => s + m.deposit, 0);
+  // 모든 프로젝트가 실적 계약이면 "실적 계약 고객사"로 보고, 달성률 대신 "전년 대비"(실적/전년도 실적)로 표기한다.
+  const isPerfClient = projectRows.length > 0 && projectRows.every((p) => p.performanceContract);
 
   return (
     <div>
@@ -90,7 +92,7 @@ export default async function ClientDetailPage({
 
       <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard title="수익률" value="준비중" />
-        <KpiCard title="달성률" value={formatPercent(attainment(perf, contract))} />
+        <KpiCard title={isPerfClient ? "전년 대비" : "달성률"} value={formatPercent(attainment(perf, isPerfClient ? detail.baseline : contract))} />
         <KpiCard title="청구율" value={formatPercent(billingRate(billing, perf))} />
         <KpiCard title="수금률" value={formatPercent(collectionRate(deposit, billing))} />
       </section>
@@ -108,7 +110,7 @@ export default async function ClientDetailPage({
                 <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
                   <th className="py-2 pr-3">프로젝트</th>
                   <th className="px-2 whitespace-nowrap">계약기간</th>
-                  <th className="px-2 text-right">전체 달성률</th>
+                  <th className="px-2 text-right">{isPerfClient ? "전년 대비" : "전체 달성률"}</th>
                   <th className="px-2 text-right">실적</th>
                   <th className="px-2 text-right">청구</th>
                   <th className="px-2 text-right">입금</th>

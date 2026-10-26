@@ -537,6 +537,8 @@ export type MonthlyRow = {
 export type ClientDetail = {
   client: { id: string; name: string; status: string };
   contract: number;
+  // 실적 계약 고객사의 "전년 대비" 분모: 전년도(year-1) 선택 기간 월구간의 고객사 실적 합. 없으면 0.
+  baseline: number;
   tasks: TaskPerf[];
   monthly: MonthlyRow[];
   expenses: ExpenseSlice[];
@@ -700,7 +702,10 @@ export function getClientDetail(
       };
     });
 
-    return { client: { id: client.id, name: client.name, status: client.status }, contract, tasks: taskRows, monthly, expenses };
+    // 실적 계약 고객사 "전년 대비" 분모: 전년도 선택 기간 같은 월구간의 고객사 실적.
+    const baseline = await performanceBaseline(tx, id, year, months, includeVat);
+
+    return { client: { id: client.id, name: client.name, status: client.status }, contract, baseline, tasks: taskRows, monthly, expenses };
   });
 }
 
