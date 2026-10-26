@@ -785,10 +785,9 @@ export type ProjectBreakdownRow = {
   contractStart: string | null; // "yyyy-mm-dd" | null
   contractEnd: string | null;
   performanceContract: boolean;
-  performance: number;
-  // 기간/연도 무관 과업 전체 누적 실적(전체 달성률 분자용).
+  // 프로젝트 과업 전체 누적 실적(연도 토글과 무관). 실적 열·전체 달성률 분자 공용.
   totalPerformance: number;
-  // 실적 계약 달성률 분모: 전년도(측정연도-1) 같은 월 구간의 고객사 실적 합. 없으면 0.
+  // 실적 계약 달성률 분모: 전년도(계약시작연도-1) 같은 월 구간의 고객사 실적 합. 없으면 0.
   baseline: number;
   billing: number;
   deposit: number;
@@ -852,13 +851,7 @@ export function getClientProjectBreakdown(
       const exemptIds = p.tasks.filter((t) => t.vatExempt).map((t) => t.id);
 
       // 순차 await (같은 tx에서 병렬 쿼리 금지).
-      const perfTaxable = taxableIds.length
-        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: taxableIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
-        : 0;
-      const perfExempt = exemptIds.length
-        ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: exemptIds }, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0
-        : 0;
-      // 전체 달성률용: 기간 창을 두지 않고 과업 전체 누적 실적을 집계(면세/과세 분리).
+      // 실적 열·전체 달성률은 연도 토글과 무관하게 과업 전체 누적 실적을 쓴다(면세/과세 분리).
       const totalPerfTaxable = taxableIds.length
         ? (await tx.monthlyPerformance.aggregate({ where: { taskId: { in: taxableIds } }, _sum: { amount: true } }))._sum.amount ?? 0
         : 0;
@@ -876,10 +869,12 @@ export function getClientProjectBreakdown(
         _sum: { amount: true },
       }))._sum.amount ?? 0;
       const corporateCard = (await tx.corporateCardExpense.aggregate({ where: { clientId, OR: ym }, _sum: { amount: true } }))._sum.amount ?? 0;
-      // 실적 계약 달성률 분모: 전년도(측정연도-1) 같은 월 구간 고객사 실적. 측정연도는 프로젝트 계약시작 연도(없으면 선택연도).
-      const measureYear = p.contractStart?.getFullYear() ?? year;
-      const baselineMonths = [...new Set(ym.map((m) => m.month))];
-      const baseline = await performanceBaseline(tx, clientId, measureYear, baselineMonths, includeVat);
+      // 실적 계약 달성률 분모: 전년도 같은 월 구간 고객사 실적. 연도 토글과 무관하게 프로젝트 계약기간 기준으로 산출.
+      const [projFrom, projTo] = p.contractStart && p.contractEnd
+        ? orderRange(toYm(p.contractStart), toYm(p.contractEnd))
+        : [{ year, month: 1 }, { year, month: 12 }];
+      const baselineMonths = [...new Set(eachMonth(projFrom, projTo).map((m) => m.month))];
+      const baseline = await performanceBaseline(tx, clientId, projFrom.year, baselineMonths, includeVat);
       const contractTaxable = p.tasks.reduce((s, t) => s + (t.vatExempt ? 0 : t.contractAmount ?? 0), 0);
       const contractExempt = p.tasks.reduce((s, t) => s + (t.vatExempt ? t.contractAmount ?? 0 : 0), 0);
 
@@ -892,7 +887,6 @@ export function getClientProjectBreakdown(
         contractStart: start,
         contractEnd: end,
         performanceContract: p.performanceContract,
-        performance: withVatSplit(perfTaxable, perfExempt, includeVat),
         totalPerformance: withVatSplit(totalPerfTaxable, totalPerfExempt, includeVat),
         baseline,
         billing: fromGross(billing, includeVat),

@@ -472,8 +472,8 @@ describe("metrics: 실적 계약 달성률(전년도 기준 실적)", () => {
     const rows = await getClientProjectBreakdown(ADMIN, clientId, 2026);
     const r = rows.find((x) => x.performanceContract)!;
     expect(r.baseline).toBe(50000); // 2025 전체(1~12월) = 30000 + 20000
-    expect(r.performance).toBe(70000); // 2026 프로젝트 창(1~12월) = 60000 + 10000
-    expect(attainment(r.performance, r.baseline)).toBeCloseTo(1.4); // 70000 / 50000
+    expect(r.totalPerformance).toBe(70000); // 2026 프로젝트 전체 누적 = 60000 + 10000
+    expect(attainment(r.totalPerformance, r.baseline)).toBeCloseTo(1.4); // 70000 / 50000
   });
 
   it("전년 실적이 없으면 baseline=0 → 달성률 산출 불가(UI는 '실적 계약' 유지)", async () => {
@@ -484,7 +484,7 @@ describe("metrics: 실적 계약 달성률(전년도 기준 실적)", () => {
     const rows = await getClientProjectBreakdown(ADMIN, clientId, 2026);
     const r = rows.find((x) => x.performanceContract)!;
     expect(r.baseline).toBe(0);
-    expect(attainment(r.performance, r.baseline)).toBeNull();
+    expect(attainment(r.totalPerformance, r.baseline)).toBeNull();
   });
 
   it("baseline도 면세/과세 분리 — includeVat는 과세분에만 ×1.1", async () => {
@@ -512,6 +512,19 @@ describe("metrics: 실적 계약 달성률(전년도 기준 실적)", () => {
     expect(e.baseline).toBe(50000); // 2025 전체
     expect(e.perf).toBe(70000); // 최근(2026) 프로젝트 올해 실적
     expect(attainment(e.perf, e.baseline)).toBeCloseTo(1.4);
+  });
+
+  it("실적 열(totalPerformance)은 연도/기준 토글과 무관하게 각 프로젝트의 전체 실적을 보여준다", async () => {
+    const clientId = await seedPerfContractClient("토글무관사");
+    // 회계연도 기준(true)/프로젝트 기준(false) × 2025/2026 네 조합 모두 동일해야 한다.
+    const combos = [[2026, true], [2025, true], [2026, false], [2025, false]] as const;
+    for (const [y, fiscal] of combos) {
+      const rows = await getClientProjectBreakdown(ADMIN, clientId, y, false, fiscal);
+      const r2026 = rows.find((r) => r.contractStart?.startsWith("2026"))!;
+      const r2025 = rows.find((r) => r.contractStart?.startsWith("2025"))!;
+      expect(r2026.totalPerformance).toBe(70000); // 2026 프로젝트
+      expect(r2025.totalPerformance).toBe(50000); // 2025 프로젝트 — 다른 연도를 봐도 0이 아님
+    }
   });
 
   it("회귀: 금액계약 프로젝트는 기존대로 계약금 분모(달성률=totalPerformance/contract)", async () => {
