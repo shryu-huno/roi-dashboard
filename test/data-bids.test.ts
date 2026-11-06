@@ -44,16 +44,26 @@ describe("입찰 등록·수정·조회", () => {
   });
 });
 
-describe("권한(RLS): 최고관리자·팀 관리자만", () => {
+describe("권한(RLS): 읽기는 최고관리자·팀 관리자·파트장, 쓰기는 최고관리자·팀 관리자만", () => {
   it("팀 관리자도 등록·수정·조회할 수 있다", async () => {
     expect((await createBid(ctx("ADMIN"), input())).ok).toBe(true);
     const [b] = await listBids(ctx("ADMIN"));
     expect((await updateBid(ctx("ADMIN"), b.id, input({ status: "REVIEWING" }))).ok).toBe(true);
   });
 
-  it("PM·파트장·정산담당은 조회 결과가 비고, 등록은 DB가 막는다", async () => {
+  it("파트장은 입찰을 볼 수 있지만 등록·수정은 DB가 막는다(읽기 전용)", async () => {
     await createBid(ctx("SUPER_ADMIN"), input());
-    for (const role of ["PM", "PART_LEADER", "SETTLEMENT"] as const) {
+    const seen = await listBids(ctx("PART_LEADER"));
+    expect(seen).toHaveLength(1);
+    expect(seen[0].orgName).toBe("세움도시공사");
+    await expect(createBid(ctx("PART_LEADER"), input({ orgName: "몰래 등록" }))).rejects.toThrow();
+    expect((await updateBid(ctx("PART_LEADER"), seen[0].id, input({ status: "LOST" }))).ok).toBe(false);
+    expect((await listBids(ctx("SUPER_ADMIN")))[0].status).toBe("PREPARING");
+  });
+
+  it("PM·정산담당은 조회 결과가 비고, 등록은 DB가 막는다", async () => {
+    await createBid(ctx("SUPER_ADMIN"), input());
+    for (const role of ["PM", "SETTLEMENT"] as const) {
       expect(await listBids(ctx(role))).toEqual([]);
       await expect(createBid(ctx(role), input({ orgName: "몰래 등록" }))).rejects.toThrow();
     }

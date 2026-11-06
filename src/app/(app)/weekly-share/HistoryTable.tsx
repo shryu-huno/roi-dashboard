@@ -41,11 +41,11 @@ function sectionsOf(rows: HistoryRow[], single: string | null): { title: string;
 }
 
 export function HistoryTable({
-  rows, editableKeys, writer, grouped, single, section, scope, rangeLabel, counts,
+  rows, editableKeys, writableClientIds, grouped, single, section, scope, rangeLabel, counts,
 }: {
   rows: HistoryRow[];
   editableKeys: string[];
-  writer: boolean;
+  writableClientIds: string[]; // 보는 사람이 일지를 쓸 수 있는(담당) 고객사. 미작성 행의 "작성하기"는 이 고객사에만 보인다
   grouped: boolean; // 관리자 보기: 파트·PM 구분
   single: boolean; // 고객사 하나만 보기
   section: string | null; // 월별 조회면 그 달 제목 한 구역, 아니면 null(주의 소속 월별 구역)
@@ -63,6 +63,7 @@ export function HistoryTable({
   const [toast, setToast] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const editable = new Set(editableKeys);
+  const writable = new Set(writableClientIds);
 
   const view: HistoryRow[] = rows.map((r) => {
     const o = overrides[r.key];
@@ -278,7 +279,7 @@ export function HistoryTable({
                               {missing ? (
                                 <>
                                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">미작성</span>
-                                  {writer && (
+                                  {r.kind === "client" && writable.has(r.clientId) && (
                                     <div className="mt-1">
                                       <Link
                                         href={`/weekly-share?tab=batch&ym=${ymValue(weekMonth(r.weekStart))}&week=${r.weekStart}`}

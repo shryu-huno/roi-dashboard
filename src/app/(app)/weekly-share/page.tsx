@@ -4,7 +4,7 @@ import { getRlsContext } from "@/lib/context";
 import { canWriteWeeklyShare } from "@/lib/auth/rbac";
 import { prevWeek, weekLabel, weekRange, weeksOverlappingMonth } from "@/lib/week";
 import { loadWeeklyBatch } from "@/lib/data/weekly-share";
-import { canSeeAdminTabs, visibleTabs } from "./tabs";
+import { canEditBids, canSeeBidsTab, canSeeStatusTab, visibleTabs } from "./tabs";
 import { WeeklyTabs } from "./WeeklyTabs";
 import { WeeklyFilter, type AdminPick, type WeekChip } from "./WeeklyFilter";
 import { WeeklyBatch } from "./WeeklyBatch";
@@ -22,12 +22,21 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
   if (!user.role || user.role === "SETTLEMENT") redirect("/");
   const ctx = getRlsContext(user);
   const writer = canWriteWeeklyShare(user.role);
-  // 파트 현황·입찰·수주는 관리자(최고관리자·팀 관리자)만. 그 외 역할이 주소로 들어오면 주간 공유 탭으로 돌려보낸다.
-  const canAdminTabs = canSeeAdminTabs(user.role);
-  const tab = sp.tab === "history" ? "history" : sp.tab === "status" && canAdminTabs ? "status" : sp.tab === "bids" && canAdminTabs ? "bids" : "batch";
+  // 파트 현황·입찰·수주는 최고관리자·팀 관리자·파트장만(파트장은 파트 현황에서 본인 파트만, 입찰은 보기만).
+  // 그 외 역할이 주소로 들어오면 일지작성 탭으로 돌려보낸다.
+  const tab =
+    sp.tab === "history"
+      ? "history"
+      : sp.tab === "status" && canSeeStatusTab(user.role)
+        ? "status"
+        : sp.tab === "bids" && canSeeBidsTab(user.role)
+          ? "bids"
+          : "batch";
+  const isLeader = user.role === "PART_LEADER";
 
   const range = await weeklyRange(ctx, sp.ym);
-  const adminLists = writer ? null : await loadAdminLists(user);
+  // 관리자(조회 전용)와 파트장은 고를 수 있는 파트·PM 목록이 필요하다. 파트장은 본인 파트 범위로 좁혀져 나온다.
+  const adminLists = writer && !isLeader ? null : await loadAdminLists(user);
 
   const header = (
     <>
@@ -45,7 +54,7 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
     return (
       <div>
         {header}
-        <BidsView ctx={ctx} sp={sp} />
+        <BidsView ctx={ctx} sp={sp} canEdit={canEditBids(user.role)} />
       </div>
     );
   }
@@ -54,7 +63,7 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
     return (
       <div>
         {header}
-        <PartStatusView ctx={ctx} range={range} sp={sp} adminLists={adminLists} />
+        <PartStatusView ctx={ctx} range={range} sp={sp} adminLists={adminLists} partFixed={isLeader} />
       </div>
     );
   }
@@ -63,7 +72,7 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
     return (
       <div>
         {header}
-        <HistoryView ctx={ctx} user={user} writer={writer} range={range} sp={sp} adminLists={adminLists} />
+        <HistoryView ctx={ctx} user={user} writer={writer} isLeader={isLeader} range={range} sp={sp} adminLists={adminLists} />
       </div>
     );
   }

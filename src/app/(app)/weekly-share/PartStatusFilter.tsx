@@ -18,10 +18,11 @@ const quarterOf = (month: number) => Math.floor((month - 1) / 3) + 1;
 // 파트 현황 필터: [파트] · [기간: 월별/분기별/전체] · 월별=연도+월, 분기별=연도+분기, 전체=연도(그 해 1~12월).
 // 세 가지 모두 한 해 안의 조회다. 바꾸면 [조회] 없이 바로 이동하고, 모든 조건은 URL에 담긴다.
 export function PartStatusFilter({
-  groups, partId, mode, year, month, quarter, minYm, maxYm, tv,
+  groups, partId, partFixed, mode, year, month, quarter, minYm, maxYm, tv,
 }: {
   groups: { id: string; name: string }[];
   partId: string; // "" = 전체
+  partFixed?: boolean; // 파트장: 본인 파트 하나뿐이라 파트 선택을 숨긴다
   mode: StatusMode;
   year: number;
   month: number | null;
@@ -50,15 +51,17 @@ export function PartStatusFilter({
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <div className="flex flex-wrap items-end gap-4">
-        <label className={FIELD}>
-          파트
-          <select className={`mt-1.5 w-36 ${selectCls}`} value={partId} onChange={(e) => go({ part: e.target.value })}>
-            <option value="">전체</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-        </label>
+        {!partFixed && (
+          <label className={FIELD}>
+            파트
+            <select className={`mt-1.5 w-36 ${selectCls}`} value={partId} onChange={(e) => go({ part: e.target.value })}>
+              <option value="">전체</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className={FIELD}>
           기간

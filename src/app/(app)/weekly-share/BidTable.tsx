@@ -15,7 +15,9 @@ const thCls = "px-3 py-3 text-center text-sm font-bold text-[var(--color-muted)]
 const tdCls = "px-3 py-3 text-center align-middle break-words";
 const inputCls =
   "h-[38px] w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-[var(--color-primary)]";
-const WIDTHS = [9, 25, 7, 13, 13, 13, 14, 6]; // 상태 · 발주처·사업명 · 구분 · 입찰 금액 · 제출 마감 · 결과 발표 · 비고 · (수정)
+// 상태 · 발주처·사업명 · 구분 · 입찰 금액 · 제출 마감 · 결과 발표 · 비고 · (수정 — 수정 권한이 있을 때만)
+const WIDTHS = [9, 25, 7, 13, 13, 13, 14, 6];
+const WIDTHS_READONLY = [9, 28, 8, 14, 14, 14, 13];
 
 // 상태 배지: 색만으로 구분하지 않도록 글자(상태 이름)가 함께 들어 있다.
 const CHIP: Record<BidStatus, string> = {
@@ -33,10 +35,11 @@ const toDraft = (b: BidView): Draft => ({
 });
 
 export function BidTable({
-  bids, today, summary,
+  bids, today, summary, canEdit,
 }: {
   bids: BidView[]; // 정렬된 목록
   today: string;
+  canEdit: boolean; // 등록·수정 가능 여부(파트장은 보기만)
   summary: { count: number; amount: number };
 }) {
   const router = useRouter();
@@ -76,15 +79,17 @@ export function BidTable({
         <span>
           <b className="text-[var(--color-fg)]">{summary.count}</b>건 · 입찰 금액 합계 <b className="text-[var(--color-fg)]">{summary.amount.toLocaleString("ko-KR")}</b>원
         </span>
-        <button type="button" onClick={() => open(null)} className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white">
-          + 입찰 등록
-        </button>
+        {canEdit && (
+          <button type="button" onClick={() => open(null)} className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white">
+            + 입찰 등록
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
         <table className="w-full min-w-[980px] table-fixed text-sm">
           <colgroup>
-            {WIDTHS.map((w, i) => (
+            {(canEdit ? WIDTHS : WIDTHS_READONLY).map((w, i) => (
               <col key={i} style={{ width: `${w}%` }} />
             ))}
           </colgroup>
@@ -97,13 +102,13 @@ export function BidTable({
               <th className={thCls}>제출 마감</th>
               <th className={thCls}>결과 발표</th>
               <th className={thCls}>비고</th>
-              <th className={thCls}></th>
+              {canEdit && <th className={thCls}></th>}
             </tr>
           </thead>
           <tbody>
             {bids.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-[var(--color-muted)]">조건에 맞는 입찰이 없어요.</td>
+                <td colSpan={canEdit ? 8 : 7} className="px-3 py-10 text-center text-[var(--color-muted)]">조건에 맞는 입찰이 없어요.</td>
               </tr>
             ) : (
               bids.map((b) => {
@@ -130,9 +135,11 @@ export function BidTable({
                       {b.status === "REVIEWING" && dday && <DayBadge {...dday} />}
                     </td>
                     <td className={`${tdCls} text-xs text-[var(--color-muted)]`}>{b.note || "—"}</td>
-                    <td className={tdCls}>
-                      <button type="button" onClick={() => open(b)} className="text-sm font-medium text-[var(--color-primary)]">수정</button>
-                    </td>
+                    {canEdit && (
+                      <td className={tdCls}>
+                        <button type="button" onClick={() => open(b)} className="text-sm font-medium text-[var(--color-primary)]">수정</button>
+                      </td>
+                    )}
                   </tr>
                 );
               })

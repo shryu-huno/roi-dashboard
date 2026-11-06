@@ -40,8 +40,29 @@ export type AdminLists = {
   pms: { id: string; name: string; partId: string | null }[]; // 이름순
 };
 
-/** 관리자가 고를 수 있는 파트·PM 목록. 팀 관리자는 자기 팀 범위, 최고관리자는 전체. */
+/**
+ * 고를 수 있는 파트·PM 목록. 최고관리자는 전체, 팀 관리자는 자기 팀 범위.
+ * 파트장은 본인 파트 하나와 그 파트의 PM + 본인(구성원)만 — 파트원의 기록을 보고 파트 현황에서 본인 파트를 보기 위한 범위다
+ * (실제 데이터 범위는 DB가 파트장 기준으로 따로 제한한다). 소속 파트가 없으면 파트는 비고 본인만 남는다.
+ */
 export async function loadAdminLists(user: SessionUser): Promise<AdminLists> {
+  if (user.role === "PART_LEADER") {
+    const me = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, name: true, email: true, partId: true, part: { select: { id: true, name: true } } },
+    });
+    if (!me) return { parts: [], pms: [] };
+    const members = me.partId
+      ? await prisma.user.findMany({
+          where: { role: "PM", status: "ACTIVE", partId: me.partId },
+          select: { id: true, name: true, email: true, partId: true },
+        })
+      : [];
+    const pms = [me, ...members]
+      .map((u) => ({ id: u.id, name: u.name ?? u.email, partId: u.partId }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    return { parts: me.part ? [{ id: me.part.id, name: me.part.name }] : [], pms };
+  }
   const teamScope = user.role === "ADMIN" ? { teamId: user.teamId ?? "__none__" } : {};
   const [parts, pms] = await Promise.all([
     prisma.part.findMany({ where: teamScope, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true } }),

@@ -40,12 +40,13 @@ function RateBar({ rate }: { rate: number | null }) {
 }
 
 export async function PartStatusView({
-  ctx, range, sp, adminLists,
+  ctx, range, sp, adminLists, partFixed,
 }: {
   ctx: RlsContext;
   range: WeeklyRange;
   sp: StatusParams;
   adminLists: AdminLists;
+  partFixed: boolean; // 파트장: 본인 파트 하나로 고정(파트 선택·전체 카드 없음)
 }) {
   const includeVat = await getIncludeVat();
   const { maxYm } = range;
@@ -61,20 +62,24 @@ export async function PartStatusView({
     ...adminLists.parts.map((p) => ({ id: p.id, name: p.name })),
     ...(pms.some((p) => p.groupId === "none") ? [{ id: "none", name: "파트 미지정" }] : []),
   ];
-  const partId = groups.some((g) => g.id === sp.part) ? (sp.part as string) : "";
+  const partId = partFixed ? groups[0]?.id ?? "" : groups.some((g) => g.id === sp.part) ? (sp.part as string) : "";
   const groupId = partId || "all";
 
   if (groups.length === 0 || pms.length === 0) {
     return (
       <p className={`${card} border-dashed p-8 text-center text-[var(--color-muted)]`}>
-        {groups.length === 0 ? "파트가 아직 없습니다. 팀 관리에서 파트를 만들어 주세요." : "조회할 수 있는 PM이 없습니다."}
+        {groups.length === 0
+          ? partFixed
+            ? "소속 파트가 없습니다. 관리자에게 파트 배정을 요청해 주세요."
+            : "파트가 아직 없습니다. 팀 관리에서 파트를 만들어 주세요."
+          : "조회할 수 있는 PM이 없습니다."}
       </p>
     );
   }
 
   const filter = (
     <PartStatusFilter
-      groups={groups} partId={partId} mode={mode} year={year} month={month} quarter={quarter}
+      groups={groups} partId={partId} partFixed={partFixed} mode={mode} year={year} month={month} quarter={quarter}
       minYm={minYm} maxYm={maxYm} tv={tv}
     />
   );
@@ -134,8 +139,9 @@ export async function PartStatusView({
         <span className="ml-auto text-xs">부가세 {includeVat ? "포함" : "미포함"} 기준 · 전체 현황과 같은 계산식</span>
       </div>
       {/* 파트별 요약 카드: 누르면 그 파트로 차트·표가 바뀌고, 다시 누르면 전체로 돌아온다 */}
-      <section aria-label="파트별 요약" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {cards.map((c) => {
+      <section aria-label="파트별 요약" className={`grid gap-3 ${partFixed ? "grid-cols-1 sm:max-w-sm" : "grid-cols-2 lg:grid-cols-4"}`}>
+        {/* 파트장은 본인 파트 카드 하나만(전체 카드는 같은 숫자라 생략) */}
+        {(partFixed ? cards.filter((c) => c.id !== "all") : cards).map((c) => {
           const active = c.id === groupId;
           const pct = c.rate === null ? 0 : Math.min(100, Math.round(c.rate * 100));
           return (

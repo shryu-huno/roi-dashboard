@@ -23,11 +23,12 @@ export type HistoryParams = {
 const dateOnly = (s?: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s ?? "") ? (s as string) : "");
 
 export async function HistoryView({
-  ctx, user, writer, range, sp, adminLists,
+  ctx, user, writer, isLeader, range, sp, adminLists,
 }: {
   ctx: RlsContext;
   user: SessionUser;
   writer: boolean;
+  isLeader: boolean; // 파트장: 본인 고객사(수정 가능) + 같은 파트 PM의 기록(읽기 전용)을 본다
   range: WeeklyRange;
   sp: HistoryParams;
   adminLists: AdminLists | null;
@@ -39,11 +40,14 @@ export async function HistoryView({
   const to = dateOnly(sp.to);
   const weeks = historyWeeks({ mode, ym, earliestWeek, from, to, curWeek });
 
-  // ---- 누구의 기록을 보는가: 작성 역할은 본인(담당 고객사), 관리자는 파트·PM을 골라 본다 ----
+  // ---- 누구의 기록을 보는가: PM은 본인(담당 고객사), 관리자는 파트·PM을 골라 본다.
+  // 파트장은 본인 파트(하나)의 구성원(본인 + 파트원)을 PM 선택으로 고른다 — 수정은 본인 고객사만 가능하다. ----
+  const showMembers = !writer || isLeader; // PM 단위로 묶어 보여 주는 보기
   let pmIds: string[] = [user.id];
   let admin: { parts: AdminLists["parts"]; pms: AdminLists["pms"]; partId: string; pmId: string } | null = null;
-  if (!writer && adminLists) {
-    const partId = adminLists.parts.some((p) => p.id === sp.part) ? (sp.part as string) : "";
+  if (showMembers && adminLists) {
+    // 파트장의 목록은 이미 본인 파트로 좁혀져 있으므로 파트 선택은 쓰지 않는다.
+    const partId = !isLeader && adminLists.parts.some((p) => p.id === sp.part) ? (sp.part as string) : "";
     const inPart = adminLists.pms.filter((p) => !partId || p.partId === partId);
     const pmId = inPart.some((p) => p.id === sp.pm) ? (sp.pm as string) : "";
     pmIds = pmId ? [pmId] : inPart.map((p) => p.id);
@@ -64,7 +68,7 @@ export async function HistoryView({
     }
   }
   const clientOptions = [...byClient.entries()]
-    .map(([id, v]) => ({ id, label: writer ? v.name : `${v.name} · ${v.pms.sort().join(", ")}` }))
+    .map(([id, v]) => ({ id, label: !showMembers ? v.name : `${v.name} · ${v.pms.sort().join(", ")}` }))
     .sort((a, b) => a.label.localeCompare(b.label, "ko"));
   const clientFilter = sp.client === "other" ? "other" : byClient.has(sp.client ?? "") ? (sp.client as string) : "";
   const single = !!clientFilter && clientFilter !== "other";
@@ -99,7 +103,7 @@ export async function HistoryView({
     ? clientOptions.find((c) => c.id === clientFilter)?.label.split(" · ")[0] ?? ""
     : clientFilter === "other"
       ? `기타 업무 · PM ${data.pms.length}명`
-      : writer
+      : !showMembers
         ? `내 고객사 ${byClient.size}곳`
         : `PM ${data.pms.length}명 · 고객사 ${byClient.size}곳`;
 
@@ -118,6 +122,7 @@ export async function HistoryView({
         clientFilter={clientFilter}
         clientOptions={clientOptions}
         admin={admin}
+        partFixed={isLeader}
       />
       {pmIds.length === 0 ? (
         <p className="rounded-[14px] border border-dashed border-[var(--color-border)] p-8 text-center text-[var(--color-muted)]">
@@ -132,8 +137,8 @@ export async function HistoryView({
           key={`${mode}|${ym.year}-${ym.month}|${from}|${to}|${clientFilter}|${sp.q ?? ""}|${sp.miss ?? ""}|${admin?.partId ?? ""}|${admin?.pmId ?? ""}`}
           rows={rows}
           editableKeys={editableKeys}
-          writer={writer}
-          grouped={!writer && !single}
+          writableClientIds={writer ? [...mine] : []}
+          grouped={showMembers && !single}
           single={single}
           section={mode === "month" ? rangeLabel : null}
           scope={scope}

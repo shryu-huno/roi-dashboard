@@ -9,10 +9,10 @@ import { mkClient, mkTask } from "./factories";
 const ROOT: RlsContext = { userId: "seed-admin", role: "SUPER_ADMIN" };
 const YEAR = 2026;
 
-let pmA: string, pmB: string, pmC: string, adminT1: string;
+let pmA: string, pmB: string, pmC: string, adminT1: string, leaderL: string;
 let teamT1: string, teamT2: string;
 let cX: string, cY: string, cZ: string;
-let ctxSuper: RlsContext, ctxAdminT1: RlsContext, ctxPmA: RlsContext;
+let ctxSuper: RlsContext, ctxAdminT1: RlsContext, ctxPmA: RlsContext, ctxLeader: RlsContext;
 
 const perf = (taskId: string, year: number, month: number, amount: number) =>
   withRLS(ROOT, (tx) => tx.monthlyPerformance.create({ data: { taskId, year, month, amount, count: null } }));
@@ -28,15 +28,18 @@ beforeEach(async () => {
   await prisma.user.deleteMany();
   teamT1 = (await withRLS(ROOT, (tx) => tx.team.create({ data: { name: "T1" } }))).id;
   teamT2 = (await withRLS(ROOT, (tx) => tx.team.create({ data: { name: "T2" } }))).id;
-  const mk = (email: string, role: "PM" | "ADMIN", teamId: string) =>
+  const mk = (email: string, role: "PM" | "ADMIN" | "PART_LEADER", teamId: string) =>
     prisma.user.create({ data: { email, name: email.split("@")[0], role, status: "ACTIVE", teamId } }).then((u) => u.id);
+  leaderL = await mk("leader@huno.kr", "PART_LEADER", teamT1);
   pmA = await mk("pma@huno.kr", "PM", teamT1);
+  await prisma.user.update({ where: { id: pmA }, data: { partLeaderId: leaderL } }); // 파트장 L의 파트원은 PM A
   pmB = await mk("pmb@huno.kr", "PM", teamT1);
   pmC = await mk("pmc@huno.kr", "PM", teamT2);
   adminT1 = await mk("admt1@huno.kr", "ADMIN", teamT1);
   ctxSuper = { userId: "seed-admin", role: "SUPER_ADMIN" };
   ctxAdminT1 = { userId: adminT1, role: "ADMIN", teamId: teamT1 };
   ctxPmA = { userId: pmA, role: "PM", teamId: teamT1 };
+  ctxLeader = { userId: leaderL, role: "PART_LEADER", teamId: teamT1 };
 
   // X: 올해 전체 계약(1~12월), A·B 공동 담당 / Y: 7월~내년 6월 계약(올해 6/12 귀속), C 담당 / Z: 보관(삭제)된 고객사
   cX = (await mkClient(ROOT, { name: "X사", pmIds: [pmA, pmB], contractStart: new Date(2026, 0, 1), contractEnd: new Date(2026, 11, 31) })).id;
@@ -87,6 +90,10 @@ describe("loadPartStatusFacts — 파트 현황 원자료", () => {
     const team = await loadPartStatusFacts(ctxAdminT1, { pmIds: [pmA, pmB, pmC], year: YEAR });
     expect(Object.keys(team.clients)).toEqual([cX]);
     expect(team.clientsByPm[pmC] ?? []).toEqual([]);
+    // 파트장: 자기 파트원(PM A)이 담당하는 고객사만. 다른 파트 PM(C)의 고객사와 실적은 DB가 숨긴다.
+    const leader = await loadPartStatusFacts(ctxLeader, { pmIds: [pmA, pmB, pmC], year: YEAR });
+    expect(Object.keys(leader.clients)).toEqual([cX]);
+    expect(leader.clientsByPm[pmC] ?? []).toEqual([]);
     const own = await loadPartStatusFacts(ctxPmA, { pmIds: [pmA, pmC], year: YEAR });
     expect(Object.keys(own.clients)).toEqual([cX]);
   });

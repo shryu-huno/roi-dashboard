@@ -18,7 +18,7 @@ export type BidParams = {
 
 const STATUS_VALUES: BidStatusFilter[] = ["all", "live", "won", "closed"];
 
-export async function BidsView({ ctx, sp }: { ctx: RlsContext; sp: BidParams }) {
+export async function BidsView({ ctx, sp, canEdit }: { ctx: RlsContext; sp: BidParams; canEdit: boolean }) {
   const today = kstToday();
   const thisYear = Number(today.slice(0, 4));
   // 제출 마감은 앞으로 올 날짜라 연도 이동은 내후년까지 연다.
@@ -71,6 +71,7 @@ export async function BidsView({ ctx, sp }: { ctx: RlsContext; sp: BidParams }) 
         key={`${status}|${due}|${ym.year}-${ym.month}|${q}|${all.length}`}
         bids={list}
         today={today}
+        canEdit={canEdit}
         summary={{ count: list.length, amount: list.reduce((s, b) => s + b.amount, 0) }}
       />
     </div>

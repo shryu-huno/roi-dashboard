@@ -25,7 +25,7 @@ const MODES: { value: HistoryMode; label: string }[] = [
 // 히스토리 필터: [파트][PM](관리자) · [고객사] · [기간: 월별/전체/기간 설정] · [검색] · 미작성 주차 보기.
 // 바꾸면 [조회] 없이 바로 이동하고, 모든 조건은 URL에 담긴다.
 export function HistoryFilter({
-  mode, ym, minYm, maxYm, from, to, today, q, miss, clientFilter, clientOptions, admin,
+  mode, ym, minYm, maxYm, from, to, today, q, miss, clientFilter, clientOptions, admin, partFixed,
 }: {
   mode: HistoryMode;
   ym: Ym;
@@ -39,6 +39,7 @@ export function HistoryFilter({
   clientFilter: string;
   clientOptions: { id: string; label: string }[];
   admin: Admin | null;
+  partFixed?: boolean; // 파트장: 본인 파트 하나뿐이라 파트 선택을 숨긴다
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(q);
@@ -72,15 +73,17 @@ export function HistoryFilter({
       <div className="flex flex-wrap items-end gap-4">
         {admin && (
           <>
-            <label className={FIELD}>
-              파트
-              <select className={`mt-1.5 w-32 ${selectCls}`} value={admin.partId} onChange={(e) => go({ part: e.target.value, pm: "", client: "" })}>
-                <option value="">전체</option>
-                {admin.parts.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </label>
+            {!partFixed && (
+              <label className={FIELD}>
+                파트
+                <select className={`mt-1.5 w-32 ${selectCls}`} value={admin.partId} onChange={(e) => go({ part: e.target.value, pm: "", client: "" })}>
+                  <option value="">전체</option>
+                  {admin.parts.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className={FIELD}>
               PM
               <select className={`mt-1.5 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pm: e.target.value, client: "" })}>
