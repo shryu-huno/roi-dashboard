@@ -1,0 +1,78 @@
+# 주간 공유 Implementation Plan (단계 개요 — 상세 Step은 남은 질문 확정 후 작성)
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 팀 아래 파트 체계를 만들고, 실적 입력 필터를 정리하고, 신규 메뉴 "주간 공유"(주간 공유 / 히스토리 / 파트 현황 / 입찰·수주)를 기존 구조(Next.js Server Actions, Prisma+RLS, zod, Vitest)에 맞춰 추가한다.
+
+**Spec:** `docs/superpowers/specs/2026-11-06-weekly-share-design.md`
+**Mockup:** `docs/mockups/weekly-share-mockup-v2.html` (참고용, 코드 이식 금지)
+
+## Global Constraints
+
+- 마이그레이션은 SQL을 손으로 작성해 `prisma/migrations/<timestamp>_<name>/migration.sql`에 두고 `npx prisma migrate deploy`로 적용. `npx prisma migrate dev` 금지.
+- 모든 신규 테이블은 `ENABLE` + `FORCE ROW LEVEL SECURITY`. GRANT는 `supabase-roi-app-role.sql` 기본 권한이 자동 부여(ClientMemo 마이그레이션 참고).
+- 기존 파트장 권한(`partLeaderId` 기반 RLS)은 수정하지 않는다. 앱이 `partId`에서 `partLeaderId`를 동기화한다.
+- 주 키 = 일요일 날짜(`@db.Date`), Asia/Seoul 기준.
+- 관리자(최고관리자·팀 관리자)는 주간 공유를 수정할 수 없다 — UI·RLS·서버 액션 모두에서 막는다.
+- 임시저장 없음, 제출 마감 없음. 제출 버튼 하나.
+- 운영 DB 데이터 변경 스크립트는 사용자 확인 후에만 실행한다(먼저 변경 대상 목록을 보여 줌).
+- 각 단계 끝: `npm test`, `npm run lint`, `npx tsc --noEmit` 통과 후 "바뀐 것 + 화면에서 확인하는 방법" 보고. 단계 단위 커밋.
+- 기존 코드는 최소 수정(주변 리팩터링 금지).
+
+## 단계
+
+### 1단계. 팀·파트 체계 (팀 관리 + 사용자 관리)
+- [ ] `schema.prisma`: `Part` 모델, `User.partId`, 마이그레이션 SQL, `Part` RLS(읽기 승인 사용자, 쓰기 최고관리자)
+- [ ] 코어 로직(테스트 대상): 파트 생성/이름변경/삭제, 사용자 파트 배정, **파트당 파트장 1명 검증**, PM `partLeaderId` 동기화(파트장 지정/해제·PM 파트 변경 시)
+- [ ] `admin/teams`: 팀 아래 파트 목록·추가·이름변경·삭제, 파트별 인원수·파트장 표시
+- [ ] `admin/users`: "소속 파트장" 드롭다운 → "파트" 드롭다운(선택한 팀의 파트만), 목록 열 `파트`로 교체. `applyApproval`에 `partId` 반영
+- [ ] 테스트: 동기화, 파트장 중복 차단, 파트 삭제 시 인원 해제, 기존 `test/rls.test.ts` 통과
+- [ ] 데이터 세팅 스크립트(멱등): 사업운영팀 1·2·3파트 생성, 박영걸/문지혜/이지연 파트장 지정, 기존 소속 PM을 파트장의 파트로 이동 — **드라이런 목록을 사용자에게 보여 주고 승인 후 실행**
+- **확인 방법:** 팀 관리에서 사업운영팀 아래 1·2·3파트와 인원수·파트장 확인 → 사용자 관리에서 PM의 파트를 바꿔 저장 → 파트장 계정으로 로그인하면 자기 파트 PM의 고객사만 보이는지(기존과 동일) 확인.
+
+### 2단계. 실적 입력 필터 정리 (DB 변경 없음)
+- [ ] 월 스테퍼용 연·월 이동 헬퍼(`src/lib/month-range.ts` 재사용 우선)
+- [ ] `performance/page.tsx`: 연도·월 숫자 입력 + [조회] → `[고객사][월 ‹ ›]`(변경 즉시 조회). 월 실적 표·프로젝트 누적은 그대로
+- [ ] 테스트: 월 이동(연 경계)
+- **확인 방법:** 실적 입력 → 고객사 선택, ‹ › 로 월을 넘기면 표·누적이 바뀐다. 기존 입력·저장은 그대로 동작.
+
+### 3단계. 주 계산 유틸 + 주간 공유 테이블 + 권한(RLS)
+- [ ] `src/lib/week.ts` + `test/week.test.ts`: 일요일 키, 월과 겹치는 주 목록, 주 라벨/범위, 이전 주
+- [ ] `WeeklyShare`(`createdById/updatedById/version/editedAt`), `WeeklyOtherWork` 모델 + 마이그레이션 + RLS(스펙 5.3)
+- [ ] `src/lib/data/weekly-share.ts`: 조회, (주, 고객사)·(주, PM) upsert, 내용 동일 시 `editedAt/version` 불변, **version 충돌 감지(카드 단위)**
+- [ ] `schemas.ts`: 제출 스키마(카드 배열 + 기타 업무, "없음" 처리, 빈 카드 제외, 기존 기록 전부 비움 거부)
+- [ ] `test/data-weekly-share.test.ts`: 담당 PM 전원 쓰기 / 비담당 PM·관리자 거부 / 범위별 조회 / 지원 줄 가시성 / 유니크 / 충돌
+- **확인 방법:** 화면 변화 없음. `npm test` 결과 보고.
+
+### 4단계. "주간 공유" 메뉴 + 탭 껍데기 + 주간 공유 탭
+- [ ] `nav.ts`에 `/weekly-share` 추가, `nav.test.ts` 갱신
+- [ ] 페이지 + 탭 컴포넌트(`expenses/tabs.ts` 패턴): 관리자 전용 탭 숨김 + 서버 거부
+- [ ] 월 스테퍼, 주차 칩, 고객사 카드, 기타 업무 카드, 하단 [제출], "지난주 계획 가져오기", "특이사항 없음", 작성자·수정자·수정됨 표시, 충돌 안내
+- [ ] "N월 실적 횟수 수정": 실적 입력과 같은 과업 목록·모드 재사용. 제출 시 주간 텍스트와 실적을 한 트랜잭션으로 저장(`upsertPerformanceBatch`가 외부 `tx`를 받도록 최소 수정) — 중첩 form 금지
+- [ ] 관리자 조회 화면(읽기 전용 배너, 입력 비활성)
+- **확인 방법:** PM 계정으로 작성→제출→새로고침 유지, 수정 시 "수정됨", 공동 담당 PM 계정에서도 같은 카드가 보이고 수정 가능, 실적 횟수를 바꾸면 실적 입력 화면 숫자도 같이 바뀜, 관리자는 보기만.
+
+### 5단계. 히스토리 탭
+- [ ] 파트 > PM > 고객사 > 주차 그룹, 월별/전체/기간, 검색, 걸친 주 처리, "지원" 줄, 공동 담당 표시(각 PM 아래 모두 표시, 건수·실적 합계는 고객사 기준 중복 제거), 미작성 주차 보기
+- [ ] 작성자·수정자 이름 표시, 텍스트 복사(작성자 포함), 담당 PM 인라인 수정(관리자는 수정 버튼 없음)
+- **확인 방법:** 월별/전체/기간 조회, 검색, 공동 담당 고객사가 PM 각자 아래에 보이고 합계가 두 번 세어지지 않는지, [텍스트로 복사] 결과 확인.
+
+### 6단계. 파트 현황 탭 (최고관리자·팀 관리자, 파트장은 이번 범위 제외)
+- [ ] 파트 카드(누적 실적·달성률 — 전체 현황 계산식 재사용), 12개월 추이 차트(`components/charts` 재사용 가능 여부 확인), 분기별/최근 3개월 표, 파트별 PM 담당 고객사 수·계약 금액 (입찰 표시 없음)
+- [ ] 고객사의 파트 = 담당 PM의 파트(서로 다른 파트가 섞인 경우 특별 처리 없음, "전체"는 고객사 기준 중복 제거)
+- **확인 방법:** 카드·차트·표 숫자를 전체 현황/실적 입력의 같은 달 숫자와 대조.
+
+### 7단계. 입찰·수주 탭 (최고관리자·팀 관리자)
+- [ ] `Bid` 모델(담당 PM 없음) + 마이그레이션 + RLS(관리자만)
+- [ ] 등록/수정 모달, 상태 5종, 일정 D-day, 수주율(수주÷(수주+실주)), 필터(상태·마감 월·검색) — 파트·PM 필터 없음
+- [ ] 데이터 계층/권한 테스트
+- **확인 방법:** 입찰 등록·수정·상태 변경, 수주율 변화, PM·파트장 계정에서는 탭이 안 보임.
+
+### 8단계. 마무리
+- [ ] `verification-before-completion`: `npm test`, `npm run lint`, `npm run build`
+- [ ] `requesting-code-review` → `/cso`(RLS 우회, 권한 상승, 텍스트 입력 XSS)
+- [ ] PR 방식 결정(`finishing-a-development-branch`)
+
+## 작업 순서 근거
+
+파트 체계(1단계)가 히스토리 정렬·파트 현황의 전제라 가장 먼저. 2단계는 DB 변경이 없는 독립 작업. 3→4→5가 PM이 쓰는 핵심 경로. 6·7은 관리자 전용이라 마지막.
