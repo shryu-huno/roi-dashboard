@@ -39,8 +39,8 @@ export default async function AdminUsersPage() {
         </span>
       </div>
       <div className="overflow-x-auto rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
-        {/* w-full이면 남는 폭이 모든 열에 나뉘어 열 사이가 벌어진다. 내용 폭으로 두고 카드 가운데에 맞춘다. */}
-        <table className="mx-auto text-sm">
+        {/* 표는 카드 폭을 채우되, 작업 열(w-[1%])은 내용 폭만 쓰게 해서 남는 폭이 앞쪽 열들에 고르게 나뉘도록 한다. */}
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)]">
               <th className={thCls}>이메일</th>
@@ -49,7 +49,7 @@ export default async function AdminUsersPage() {
               <th className={thCls}>팀</th>
               <th className={thCls}>파트</th>
               <th className={thCls}>상태</th>
-              <th className={thCls}>작업</th>
+              <th className={`${thCls} w-[1%]`}>작업</th>
             </tr>
           </thead>
           <tbody>
@@ -73,7 +73,7 @@ export default async function AdminUsersPage() {
                     {statusLabel(u.status)}
                   </span>
                 </td>
-                <td className={tdCls}>
+                <td className={`${tdCls} w-[1%]`}>
                   <div className="flex items-center justify-center gap-3">
                     {/* key: 저장 후 React 19가 폼을 초기화하면 select가 "저장 전 값"으로 돌아가므로, 저장된 값이
                         바뀌면 폼을 새로 그려 항상 저장된 값이 보이게 한다. */}
