@@ -66,7 +66,7 @@ export function WeeklyFilter({
 
   return (
     <div className="mb-4 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-nowrap items-end gap-4 overflow-x-auto pb-1">
         {admin && (
           <>
             <label className={FIELD}>
@@ -100,31 +100,28 @@ export function WeeklyFilter({
 
         <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} onChange={(target) => go({ ym: target, week: "" })} />
 
-        <div className={`${FIELD} min-w-0`}>
-          주차
-          <div className="mt-1.5 flex flex-wrap justify-center gap-1.5" role="group" aria-label="주차">
-            {weeks.map((w) => {
-              const active = w.key === selectedWeek;
-              return (
-                <button
-                  key={w.key}
-                  type="button"
-                  disabled={w.future}
-                  aria-pressed={active}
-                  onClick={() => go({ week: w.key })}
-                  className={`flex h-[38px] items-center gap-2 rounded-[10px] border px-3 text-sm disabled:cursor-default disabled:opacity-40 ${
-                    active
-                      ? "border-[var(--color-primary)] bg-[var(--color-hover)] font-semibold text-[var(--color-primary)]"
-                      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg)]"
-                  }`}
-                >
-                  <span className={`inline-block h-2 w-2 rounded-full ${w.future ? "bg-slate-200" : dot[w.status]}`} />
-                  {chipLabel(w.label, ym.month)}
-                  <small className="text-xs font-normal text-[var(--color-muted)]">{w.range}</small>
-                </button>
-              );
-            })}
-          </div>
+        <div className="flex shrink-0 flex-nowrap items-center gap-1.5" role="group" aria-label="주차">
+          {weeks.map((w) => {
+            const active = w.key === selectedWeek;
+            return (
+              <button
+                key={w.key}
+                type="button"
+                disabled={w.future}
+                aria-pressed={active}
+                onClick={() => go({ week: w.key })}
+                className={`flex h-[38px] shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border px-3 text-sm disabled:cursor-default disabled:opacity-40 ${
+                  active
+                    ? "border-[var(--color-primary)] bg-[var(--color-hover)] font-semibold text-[var(--color-primary)]"
+                    : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg)]"
+                }`}
+              >
+                <span className={`inline-block h-2 w-2 rounded-full ${w.future ? "bg-slate-200" : dot[w.status]}`} />
+                {chipLabel(w.label, ym.month)}
+                <small className="text-xs font-normal text-[var(--color-muted)]">{w.range}</small>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

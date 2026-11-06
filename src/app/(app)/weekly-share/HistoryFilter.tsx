@@ -138,10 +138,10 @@ export function HistoryFilter({
           </div>
         )}
 
-        <label className={`${FIELD} min-w-[10rem] flex-1`}>
-          검색
+        <label className="min-w-[10rem] flex-1">
           <input
             type="search"
+            aria-label="검색"
             value={query}
             placeholder="내용·고객사 검색"
             onChange={(e) => {
@@ -150,7 +150,7 @@ export function HistoryFilter({
               clearTimeout(timer.current);
               timer.current = setTimeout(() => go({ q: v }), 350);
             }}
-            className={`mt-1.5 w-full ${selectCls}`}
+            className={`w-full ${selectCls}`}
           />
         </label>
 
