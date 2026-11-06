@@ -44,3 +44,13 @@ export function formatDateTime(d: Date): string {
     timeZone: "Asia/Seoul",
   }).format(d);
 }
+
+/**
+ * 금액 줄임 표기(차트 축·막대 위 값용). 1억 이상은 "1.5억"(소수 1자리, .0 생략), 그 미만은 "1,235만"(반올림). 0은 "0".
+ * 정확한 금액은 툴팁·표에서 formatWon으로 보여 준다.
+ */
+export function formatWonCompact(v: number): string {
+  if (v === 0) return "0";
+  if (Math.abs(v) >= 100_000_000) return `${(v / 100_000_000).toFixed(1).replace(/\.0$/, "")}억`;
+  return `${Math.round(v / 10_000).toLocaleString("ko-KR")}만`;
+}

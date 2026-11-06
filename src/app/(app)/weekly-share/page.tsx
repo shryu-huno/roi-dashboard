@@ -4,14 +4,15 @@ import { getRlsContext } from "@/lib/context";
 import { canWriteWeeklyShare } from "@/lib/auth/rbac";
 import { prevWeek, weekLabel, weekRange, weeksOverlappingMonth } from "@/lib/week";
 import { loadWeeklyBatch } from "@/lib/data/weekly-share";
-import { WEEKLY_TABS } from "./tabs";
+import { canSeeAdminTabs, visibleTabs } from "./tabs";
 import { WeeklyTabs } from "./WeeklyTabs";
 import { WeeklyFilter, type AdminPick, type WeekChip } from "./WeeklyFilter";
 import { WeeklyBatch } from "./WeeklyBatch";
 import { HistoryView, type HistoryParams } from "./HistoryView";
+import { PartStatusView, type StatusParams } from "./PartStatusView";
 import { loadAdminLists, weeklyRange } from "./range";
 
-type SearchParams = HistoryParams & { tab?: string; week?: string };
+type SearchParams = HistoryParams & StatusParams & { tab?: string; week?: string };
 
 export default async function WeeklySharePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
@@ -20,7 +21,8 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
   if (!user.role || user.role === "SETTLEMENT") redirect("/");
   const ctx = getRlsContext(user);
   const writer = canWriteWeeklyShare(user.role);
-  const tab = sp.tab === "history" ? "history" : "batch";
+  // 파트 현황은 관리자(최고관리자·팀 관리자)만. 그 외 역할이 주소로 들어오면 주간 공유 탭으로 돌려보낸다.
+  const tab = sp.tab === "history" ? "history" : sp.tab === "status" && canSeeAdminTabs(user.role) ? "status" : "batch";
 
   const range = await weeklyRange(ctx, sp.ym);
   const adminLists = writer ? null : await loadAdminLists(user);
@@ -33,9 +35,18 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
           <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">관리자 · 조회 전용</span>
         )}
       </div>
-      <WeeklyTabs tabs={WEEKLY_TABS} current={tab} />
+      <WeeklyTabs tabs={visibleTabs(user.role)} current={tab} />
     </>
   );
+
+  if (tab === "status" && adminLists) {
+    return (
+      <div>
+        {header}
+        <PartStatusView ctx={ctx} range={range} sp={sp} adminLists={adminLists} />
+      </div>
+    );
+  }
 
   if (tab === "history") {
     return (
