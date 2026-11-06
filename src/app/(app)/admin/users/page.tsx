@@ -26,24 +26,24 @@ export default async function AdminUsersPage() {
       <h1 className="mb-4 text-xl font-semibold">사용자·권한 관리</h1>
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
-            <th className="py-2">이메일</th>
-            <th>이름</th>
-            <th>역할</th>
-            <th>팀</th>
-            <th>파트</th>
-            <th>상태</th>
-            <th>작업</th>
+          <tr className="border-b border-[var(--color-border)] text-center text-[var(--color-muted)]">
+            <th className="px-3 py-2">이메일</th>
+            <th className="px-3">이름</th>
+            <th className="px-3">역할</th>
+            <th className="px-3">팀</th>
+            <th className="px-3">파트</th>
+            <th className="px-3">상태</th>
+            <th className="px-3">작업</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
-            <tr key={u.id} className="border-b border-[var(--color-border)]">
-              <td className="py-2">{u.email}</td>
-              <td>{u.name ?? "-"}</td>
-              <td>{roleLabel(u.role)}</td>
-              <td>{u.teamId ? teamName.get(u.teamId) ?? "(삭제된 팀)" : "-"}</td>
-              <td>
+            <tr key={u.id} className="border-b border-[var(--color-border)] text-center">
+              <td className="px-3 py-2">{u.email}</td>
+              <td className="px-3">{u.name ?? "-"}</td>
+              <td className="px-3">{roleLabel(u.role)}</td>
+              <td className="px-3">{u.teamId ? teamName.get(u.teamId) ?? "(삭제된 팀)" : "-"}</td>
+              <td className="px-3">
                 {u.partId ? (
                   <>
                     {/* 파트 열에는 파트장 이름만 보인다. 파트장이 없으면 파트 이름으로 대신한다. */}
@@ -51,11 +51,14 @@ export default async function AdminUsersPage() {
                   </>
                 ) : "-"}
               </td>
-              <td>{statusLabel(u.status)}</td>
-              <td className="flex gap-2 py-2">
-                <form action={approveUser} className="flex gap-1">
+              <td className="px-3">{statusLabel(u.status)}</td>
+              <td className="px-3 py-2">
+               <div className="flex items-center justify-center gap-3">
+                {/* key: 저장 후 React 19가 폼을 초기화하면 select가 "저장 전 값"으로 돌아가므로, 저장된 값이
+                    바뀌면 폼을 새로 그려 항상 저장된 값이 보이게 한다. */}
+                <form key={`${u.role}:${u.teamId}:${u.partId}`} action={approveUser} className="flex gap-2">
                   <input type="hidden" name="userId" value={u.id} />
-                  <select name="role" defaultValue={u.role ?? "PM"} className="border border-[var(--color-border)] rounded px-1">
+                  <select name="role" defaultValue={u.role ?? "PM"} className="border border-[var(--color-border)] rounded px-2 py-1">
                     <option value="SUPER_ADMIN">최고관리자</option>
                     <option value="ADMIN">팀 관리자</option>
                     <option value="PART_LEADER">파트장</option>
@@ -84,6 +87,7 @@ export default async function AdminUsersPage() {
                 {u.status === "INACTIVE" && (
                   <DeleteUserButton id={u.id} email={u.email} />
                 )}
+               </div>
               </td>
             </tr>
           ))}

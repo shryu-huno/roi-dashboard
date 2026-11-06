@@ -19,7 +19,7 @@ export function TeamPartFields({
 }) {
   const [teamId, setTeamId] = useState(defaultTeamId);
   const teamParts = parts.filter((p) => p.teamId === teamId);
-  const selectClass = "border border-[var(--color-border)] rounded px-1";
+  const selectClass = "border border-[var(--color-border)] rounded px-2 py-1";
 
   return (
     <>
