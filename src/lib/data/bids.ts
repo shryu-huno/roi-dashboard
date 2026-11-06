@@ -20,7 +20,7 @@ const data = (i: BidInput) => ({
   orgName: i.orgName,
   title: i.title,
   kind: i.kind,
-  amount: i.amount,
+  amount: BigInt(i.amount), // DB는 64비트 정수. 입력은 schemas에서 안전한 정수 범위로 제한된다
   dueDate: toDate(i.dueDate),
   announceDate: toDate(i.announceDate),
   status: i.status,
@@ -36,7 +36,7 @@ export function listBids(ctx: RlsContext): Promise<BidView[]> {
       orgName: r.orgName,
       title: r.title,
       kind: r.kind,
-      amount: r.amount,
+      amount: Number(r.amount), // 화면·집계는 숫자로 다룬다(안전한 정수 범위 안)
       dueDate: ymdOf(r.dueDate),
       announceDate: ymdOf(r.announceDate),
       status: r.status,

@@ -529,11 +529,12 @@ describe("bidSchema", () => {
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.amount).toBe(186_000_000);
   });
-  it("입찰 금액은 DB 정수 범위(21억 4748만원대)를 넘으면 안내 문구와 함께 거부한다", () => {
-    expect(bidSchema.safeParse({ ...ok, amount: "2,147,483,647" }).success).toBe(true);
-    const r = bidSchema.safeParse({ ...ok, amount: "2,147,483,648" });
-    expect(r.success).toBe(false);
-    if (!r.success) expect(r.error.issues[0].path).toEqual(["amount"]);
+  it("입찰 금액은 21억원을 넘어도 받고, 자바스크립트가 정확히 다루는 범위를 넘으면 거부한다", () => {
+    const big = bidSchema.safeParse({ ...ok, amount: "5,000,000,000" });
+    expect(big.success && big.data.amount).toBe(5_000_000_000);
+    const huge = bidSchema.safeParse({ ...ok, amount: "9007199254740992" });
+    expect(huge.success).toBe(false);
+    if (!huge.success) expect(huge.error.issues[0].path).toEqual(["amount"]);
   });
   it("발주처·사업명은 필수(공백만이면 거부)이고 앞뒤 공백은 지운다", () => {
     expect(bidSchema.safeParse({ ...ok, orgName: "   " }).success).toBe(false);

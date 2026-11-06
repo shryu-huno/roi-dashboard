@@ -28,6 +28,13 @@ describe("입찰 등록·수정·조회", () => {
     });
   });
 
+  it("21억원을 넘는 금액도 저장하고 숫자로 돌려준다", async () => {
+    expect((await createBid(ctx("SUPER_ADMIN"), input({ amount: 5_000_000_000 }))).ok).toBe(true);
+    const list = await listBids(ctx("SUPER_ADMIN"));
+    expect(list[0].amount).toBe(5_000_000_000);
+    expect(typeof list[0].amount).toBe("number");
+  });
+
   it("수정하면 같은 건이 바뀐다(새 건이 생기지 않는다)", async () => {
     await createBid(ctx("SUPER_ADMIN"), input());
     const [b] = await listBids(ctx("SUPER_ADMIN"));

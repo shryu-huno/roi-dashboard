@@ -525,7 +525,7 @@ model Bid {
   orgName      String
   title        String
   kind         BidKind   @default(NEW)
-  amount       Int
+  amount       BigInt
   dueDate      DateTime  @db.Date
   announceDate DateTime  @db.Date
   status       BidStatus @default(PREPARING)
