@@ -87,3 +87,11 @@ export function kstToday(now: Date = new Date()): string {
 export function currentWeek(now: Date = new Date()): WeekKey {
   return weekStartOf(kstToday(now));
 }
+
+/** "11/3(화) 10:34" — 한국 시간 기준 작성·수정 시각 표기(서버·브라우저 어디서 만들어도 같은 문자열). */
+export function formatKstDateTime(d: Date | string): string {
+  const t = typeof d === "string" ? new Date(d) : d;
+  const k = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${k.getUTCMonth() + 1}/${k.getUTCDate()}(${"일월화수목금토"[k.getUTCDay()]}) ${p(k.getUTCHours())}:${p(k.getUTCMinutes())}`;
+}

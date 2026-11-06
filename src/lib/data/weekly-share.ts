@@ -1,5 +1,8 @@
+import type { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { canWriteWeeklyShare } from "@/lib/auth/rbac";
+import { upsertPerformanceInTx, type PerformanceBatchInput } from "@/lib/data/performance";
+import { periodProjectFilter, TASK_ORDER_BY } from "@/lib/data/tasks";
 
 // ---- 입력/결과 타입 ---------------------------------------------------------------
 
@@ -25,6 +28,33 @@ export type WeeklySubmitInput = {
   weekStart: string; // 그 주 일요일 "YYYY-MM-DD"
   entries: WeeklyEntryInput[];
   other: OtherWorkInput | null; // null = 이번 제출에서 기타 업무를 다루지 않음
+  // "실적 횟수 수정"으로 고친 월별 실적. 텍스트와 같은 트랜잭션에서 저장하고, 하나라도 실패하면 전부 롤백한다.
+  performance?: PerformanceBatchInput[];
+};
+
+// 화면에 보여 주는 저장 상태(날짜는 ISO 문자열 — 화면에서 formatKstDateTime으로 표기).
+export type WeeklyShareView = {
+  version: number;
+  thisWeek: string;
+  nextWeek: string;
+  note: string;
+  noSpecial: boolean;
+  createdByName: string | null; // 최초 제출자
+  updatedByName: string | null; // 마지막 저장자
+  createdAt: string;
+  updatedAt: string;
+  editedAt: string | null; // 최초 제출 후 내용이 바뀐 저장이 있을 때만(= "수정됨")
+};
+
+export type OtherWorkView = {
+  tags: string[];
+  thisWeek: string;
+  nextWeek: string;
+  note: string;
+  supportClientId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  editedAt: string | null;
 };
 
 export type WeeklyConflict = {
@@ -41,11 +71,48 @@ export type WeeklySubmitResult = {
   conflicts: WeeklyConflict[]; // 그 사이 다른 PM이 저장해 저장하지 않은 카드
   rejected: { clientId: string; reason: "NOT_ASSIGNED" | "EMPTY_EXISTING" }[];
   other: "none" | "saved" | "unchanged" | "skipped" | "rejected";
+  // 제출 후 각 카드의 최신 저장 상태(충돌한 카드는 다른 PM이 저장한 내용). 화면이 새로고침 없이 상태를 맞추는 데 쓴다.
+  current: Record<string, WeeklyShareView | null>;
+  otherCurrent: OtherWorkView | null;
 };
 
 // ---- 내부 유틸 --------------------------------------------------------------------
 
 const toDate = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`);
+const ymdOf = (d: Date) => d.toISOString().slice(0, 10);
+
+const nameSelect = { select: { name: true, email: true } } as const;
+type ShareRow = Prisma.WeeklyShareGetPayload<{ include: { createdBy: typeof nameSelect; updatedBy: typeof nameSelect } }>;
+const shareInclude = { createdBy: nameSelect, updatedBy: nameSelect } as const;
+const displayName = (u: { name: string | null; email: string } | null) => (u ? u.name ?? u.email : null);
+
+function toShareView(r: ShareRow): WeeklyShareView {
+  return {
+    version: r.version,
+    thisWeek: r.thisWeek,
+    nextWeek: r.nextWeek,
+    note: r.note,
+    noSpecial: r.noSpecial,
+    createdByName: displayName(r.createdBy),
+    updatedByName: displayName(r.updatedBy),
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    editedAt: r.editedAt ? r.editedAt.toISOString() : null,
+  };
+}
+
+function toOtherView(r: Prisma.WeeklyOtherWorkGetPayload<object>): OtherWorkView {
+  return {
+    tags: r.tags,
+    thisWeek: r.thisWeek,
+    nextWeek: r.nextWeek,
+    note: r.note,
+    supportClientId: r.supportClientId,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    editedAt: r.editedAt ? r.editedAt.toISOString() : null,
+  };
+}
 
 // 앞뒤 공백은 지우고 줄바꿈은 유지한다. "특이사항 없음"이면 내용을 모두 비운다.
 function normalizeEntry(e: WeeklyEntryInput) {
@@ -80,8 +147,15 @@ export function submitWeekly(ctx: RlsContext, input: WeeklySubmitInput): Promise
     const weekStart = toDate(input.weekStart);
     const result: WeeklySubmitResult = {
       ok: true, saved: [], unchanged: [], skipped: [], conflicts: [], rejected: [], other: "none",
+      current: {}, otherCurrent: null,
     };
     const writer = canWriteWeeklyShare(ctx.role);
+
+    // 실적 횟수 수정은 텍스트와 한 트랜잭션: 어느 쪽이든 실패하면 전부 롤백된다(잘못된 과업이면 오류를 던짐).
+    if (input.performance?.length) {
+      if (!writer) throw new Error("FORBIDDEN_PERFORMANCE_WRITE");
+      for (const p of input.performance) await upsertPerformanceInTx(tx, p);
+    }
 
     const assigned = new Set(
       writer && input.entries.length
@@ -153,6 +227,24 @@ export function submitWeekly(ctx: RlsContext, input: WeeklySubmitInput): Promise
 
     if (input.other) result.other = await saveOtherWork(tx, ctx, weekStart, input.other, writer);
 
+    // 최신 상태 반환: 담당 카드는 저장 후 현재 값(충돌 카드는 다른 PM이 저장한 값), 기타 업무는 내 기록.
+    const assignedIds = input.entries.map((e) => e.clientId).filter((id) => assigned.has(id));
+    if (assignedIds.length) {
+      const rows = await tx.weeklyShare.findMany({
+        where: { weekStart, clientId: { in: assignedIds } },
+        include: shareInclude,
+      });
+      const byClient = new Map(rows.map((r) => [r.clientId, r]));
+      for (const id of assignedIds) {
+        const row = byClient.get(id);
+        result.current[id] = row ? toShareView(row) : null;
+      }
+    }
+    if (input.other && writer) {
+      const mine = await tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: ctx.userId } } });
+      result.otherCurrent = mine ? toOtherView(mine) : null;
+    }
+
     result.ok = result.conflicts.length === 0 && result.rejected.length === 0 && result.other !== "rejected";
     return result;
   });
@@ -190,4 +282,117 @@ async function saveOtherWork(
   if (same) return "unchanged";
   await tx.weeklyOtherWork.update({ where: { id: existing.id }, data: { ...next, editedAt: new Date() } });
   return "saved";
+}
+
+// ---- 주간 공유 화면용 조회 ---------------------------------------------------------------------
+
+export type WeeklyBatchTask = { id: string; name: string; unitPrice: number; count: number | null; amount: number | null };
+
+export type WeeklyBatchClient = {
+  id: string;
+  name: string;
+  share: WeeklyShareView | null; // 이번 주 기록(없으면 미작성)
+  prevNextWeek: string; // 지난주 기록의 "다음주" 내용 — "지난주 계획 가져오기"용
+  monthAmount: number; // 선택한 달 실적 합계(실적 입력의 월 실적 합계와 같은 기준)
+  tasks: WeeklyBatchTask[]; // 선택한 달에 계약기간이 걸친 프로젝트의 과업 + 그 달 저장값
+};
+
+export type WeeklyBatchData = {
+  clients: WeeklyBatchClient[];
+  other: OtherWorkView | null;
+  weekStatus: Record<string, number>; // 주(일요일) → 기록이 있는 고객사 수(주차 칩의 진행 점)
+};
+
+/**
+ * 한 PM의 담당 고객사 전체와 그 주의 기록·실적을 한 번에 읽는다. 조회 범위는 RLS가 정한다
+ * (PM은 본인 담당만, 관리자는 자기 범위 안에서 다른 PM의 것을 읽기 전용으로 본다).
+ */
+export function loadWeeklyBatch(
+  ctx: RlsContext,
+  p: { pmId: string; weekStart: string; prevWeekStart: string; year: number; month: number; weeks: string[] },
+): Promise<WeeklyBatchData> {
+  return withRLS(ctx, async (tx) => {
+    const assignments = await tx.clientManager.findMany({
+      where: { userId: p.pmId, client: { deletedAt: null } },
+      select: { client: { select: { id: true, name: true } } },
+    });
+    const clients = assignments.map((a) => a.client).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    const ids = clients.map((c) => c.id);
+    const weekStart = toDate(p.weekStart);
+    const prevWeekStart = toDate(p.prevWeekStart);
+
+    const [shares, tasks, grouped, other] = await Promise.all([
+      tx.weeklyShare.findMany({
+        where: { clientId: { in: ids }, weekStart: { in: [weekStart, prevWeekStart] } },
+        include: shareInclude,
+      }),
+      tx.task.findMany({
+        where: { clientId: { in: ids }, ...periodProjectFilter({ year: p.year, month: p.month }) },
+        orderBy: TASK_ORDER_BY,
+        select: { id: true, name: true, unitPrice: true, clientId: true },
+      }),
+      tx.weeklyShare.groupBy({
+        by: ["weekStart"],
+        where: { clientId: { in: ids }, weekStart: { in: p.weeks.map(toDate) } },
+        _count: { _all: true },
+      }),
+      tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: p.pmId } } }),
+    ]);
+    const perf = await tx.monthlyPerformance.findMany({
+      where: { taskId: { in: tasks.map((t) => t.id) }, year: p.year, month: p.month },
+    });
+    const perfByTask = new Map(perf.map((r) => [r.taskId, r]));
+
+    return {
+      clients: clients.map((c) => {
+        const mine = shares.filter((r) => r.clientId === c.id);
+        const cur = mine.find((r) => ymdOf(r.weekStart) === p.weekStart);
+        const prev = mine.find((r) => ymdOf(r.weekStart) === p.prevWeekStart);
+        const cTasks: WeeklyBatchTask[] = tasks
+          .filter((t) => t.clientId === c.id)
+          .map((t) => {
+            const r = perfByTask.get(t.id);
+            return { id: t.id, name: t.name, unitPrice: t.unitPrice, count: r?.count ?? null, amount: r ? r.amount : null };
+          });
+        return {
+          id: c.id,
+          name: c.name,
+          share: cur ? toShareView(cur) : null,
+          prevNextWeek: prev?.nextWeek ?? "",
+          monthAmount: cTasks.reduce((sum, t) => sum + (t.amount ?? 0), 0),
+          tasks: cTasks,
+        };
+      }),
+      other: other ? toOtherView(other) : null,
+      weekStatus: Object.fromEntries(grouped.map((g) => [ymdOf(g.weekStart), g._count._all])),
+    };
+  });
+}
+
+/** 가장 이른 주간 공유 주(일요일). 월 선택 범위의 아래쪽 한계를 정하는 데 쓴다. 기록이 없으면 null. */
+export function earliestWeekStart(ctx: RlsContext): Promise<string | null> {
+  return withRLS(ctx, async (tx) => {
+    const [a, b] = await Promise.all([
+      tx.weeklyShare.aggregate({ _min: { weekStart: true } }),
+      tx.weeklyOtherWork.aggregate({ _min: { weekStart: true } }),
+    ]);
+    const dates = [a._min.weekStart, b._min.weekStart].filter((d): d is Date => !!d).map(ymdOf).sort();
+    return dates[0] ?? null;
+  });
+}
+
+/**
+ * 기타 업무의 "지원 나간 고객사" 선택 목록(id·이름만). PM은 RLS상 다른 PM의 고객사를 읽을 수 없어,
+ * 이 함수가 트랜잭션 안에서만 조회 허용 플래그(app.lookup)를 켠다(마이그레이션 client_support_lookup 정책).
+ * 작성 역할(PM·파트장)은 본인 담당 고객사를 제외하고, 관리자는 이름 표시용으로 전체를 받는다. 보관된 고객사는 제외.
+ */
+export function listSupportClientOptions(ctx: RlsContext): Promise<{ id: string; name: string }[]> {
+  return withRLS(ctx, async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.lookup', 'support-clients', true)`;
+    const rows = await tx.client.findMany({
+      where: canWriteWeeklyShare(ctx.role) ? { managers: { none: { userId: ctx.userId } } } : {},
+      select: { id: true, name: true },
+    });
+    return rows.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  });
 }

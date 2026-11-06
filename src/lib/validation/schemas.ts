@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CYCLE_VALUES } from "@/lib/clients/summary-view";
 import { PAYMENT_REQUEST_ENTITY_LABELS, TAX_TYPE_LABELS } from "@/lib/labels";
 import { isWeekStart } from "@/lib/week";
+import { WEEKLY_TAGS } from "@/lib/weekly-share-view";
 
 export const EXPENSE_CATEGORIES = [
   "CORPORATE_CARD", "PERSONAL_CARD", "LABOR_COUNSELOR", "LABOR_INSTRUCTOR",
@@ -280,9 +281,6 @@ export const paymentRequestNoticeSchema = z.object({
   content: z.string().trim(),
 });
 
-// 주간 공유 기타 업무의 구분 칩.
-export const WEEKLY_TAGS = ["TF", "타 고객사 지원", "내부 업무", "교육·행사", "기타"] as const;
-
 // 주간 공유 제출(고객사 카드들 + 기타 업무) 한 번. 임시저장 없음. 내용 길이 제한은 두지 않는다(memo류 관례).
 // weekStart는 그 주 일요일이어야 하고, 고객사 카드는 중복될 수 없다. version은 불러온 시점의 기록 버전
 // (기록이 없었으면 null)이며 동시 수정 감지에 쓴다.
@@ -312,4 +310,6 @@ export const weeklySubmitSchema = z.object({
       supportClientId: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.string().min(1).nullable()),
     })
     .nullable(),
+  // "실적 횟수 수정"으로 고친 월별 실적(실적 입력과 같은 검증: 과업별 횟수 또는 금액 중 하나만).
+  performance: z.array(performanceBatchSchema).optional(),
 });

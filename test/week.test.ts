@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   weekStartOf, addWeeks, prevWeek, weekEnd, isWeekStart,
-  weeksOverlappingMonth, weekMonth, weekLabel, weekRange, kstToday, currentWeek,
+  weeksOverlappingMonth, weekMonth, weekLabel, weekRange, kstToday, currentWeek, formatKstDateTime,
 } from "@/lib/week";
 
 describe("weekStartOf — 주는 일요일 시작, 키는 그 주 일요일", () => {
@@ -101,5 +101,17 @@ describe("kstToday / currentWeek — 한국 시간 기준", () => {
   it("한국 기준 일요일 새벽이면 새 주로 넘어간다", () => {
     // 2026-11-07 16:00 UTC = 2026-11-08 01:00 KST(일)
     expect(currentWeek(new Date("2026-11-07T16:00:00Z"))).toBe("2026-11-08");
+  });
+});
+
+describe("formatKstDateTime — 한국 시간 표기", () => {
+  it("UTC 시각을 한국 시간 '월/일(요일) HH:MM'으로 표기한다", () => {
+    expect(formatKstDateTime(new Date("2026-11-03T01:34:00Z"))).toBe("11/3(화) 10:34");
+  });
+  it("UTC로는 전날이어도 한국 날짜·요일을 쓴다", () => {
+    expect(formatKstDateTime(new Date("2026-11-06T20:05:00Z"))).toBe("11/7(토) 05:05");
+  });
+  it("ISO 문자열도 받는다", () => {
+    expect(formatKstDateTime("2026-11-01T15:00:00.000Z")).toBe("11/2(월) 00:00");
   });
 });

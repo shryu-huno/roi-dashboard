@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS, type RlsContext } from "@/lib/rls";
-import { submitWeekly, type WeeklyEntryInput } from "@/lib/data/weekly-share";
-import { mkClient } from "./factories";
+import { submitWeekly, loadWeeklyBatch, listSupportClientOptions, type WeeklyEntryInput } from "@/lib/data/weekly-share";
+import { mkClient, mkTask } from "./factories";
 
 const ROOT: RlsContext = { userId: "seed-admin", role: "SUPER_ADMIN" };
 const WEEK = "2026-11-01"; // 일요일
@@ -290,5 +290,123 @@ describe("submitWeekly — 기타 업무", () => {
     it("다른 팀 관리자는 지원 대상 고객사를 볼 수 있는 경우에만 그 기록을 본다", async () => {
       expect(await authors(ctxAdminT2)).toEqual([pmA]); // T2의 PM C 담당 고객사 C2를 지원한 기록
     });
+  });
+});
+
+describe("submitWeekly — 실적 횟수 동시 저장과 최신 상태 반환", () => {
+  it("실적 횟수를 함께 제출하면 같은 월별 실적(MonthlyPerformance)에 저장된다", async () => {
+    const t = await mkTask(ROOT, { clientId: c1, name: "심리진단", unitPrice: 1000 });
+    const res = await submitWeekly(ctxA, {
+      weekStart: WEEK, entries: [entry(c1)], other: null,
+      performance: [{ clientId: c1, year: 2026, month: 11, rows: [{ taskId: t.id, count: 3, amount: null }] }],
+    });
+    expect(res.saved).toEqual([c1]);
+    const perf = await withRLS(ROOT, (tx) => tx.monthlyPerformance.findMany({ where: { taskId: t.id } }));
+    expect(perf).toHaveLength(1);
+    expect(perf[0]).toMatchObject({ year: 2026, month: 11, count: 3, amount: 3000 });
+  });
+
+  it("실적 저장이 실패하면(다른 고객사 과업) 주간 공유 텍스트도 함께 저장되지 않는다", async () => {
+    const foreign = await mkTask(ROOT, { clientId: c2, name: "타사 과업", unitPrice: 500 });
+    await expect(
+      submitWeekly(ctxA, {
+        weekStart: WEEK, entries: [entry(c1)], other: null,
+        performance: [{ clientId: c1, year: 2026, month: 11, rows: [{ taskId: foreign.id, count: 1, amount: null }] }],
+      }),
+    ).rejects.toThrow();
+    expect(await rowOf(c1)).toBeNull();
+  });
+
+  it("저장한 카드의 최신 상태(version·작성자·수정자)를 돌려준다", async () => {
+    const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null });
+    expect(res.current[c1]).toMatchObject({
+      version: 1, thisWeek: "이번주 내용", noSpecial: false, createdByName: "pma", updatedByName: "pma", editedAt: null,
+    });
+    const res2 = await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B가 고침", version: 1 })], other: null });
+    expect(res2.current[c1]).toMatchObject({ version: 2, createdByName: "pma", updatedByName: "pmb" });
+    expect(res2.current[c1]!.editedAt).not.toBeNull();
+  });
+
+  it("충돌한 카드는 다른 PM이 저장한 최신 내용을 돌려준다(내 입력은 저장하지 않음)", async () => {
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null });
+    await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B가 고침", version: 1 })], other: null });
+    const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "A의 낡은 입력", version: 1 })], other: null });
+    expect(res.conflicts).toHaveLength(1);
+    expect(res.current[c1]).toMatchObject({ version: 2, thisWeek: "B가 고침", updatedByName: "pmb" });
+  });
+});
+
+describe("loadWeeklyBatch — 주간 공유 화면용 조회", () => {
+  const params = (pmId: string, over = {}) => ({
+    pmId, weekStart: WEEK, prevWeekStart: "2026-10-25", year: 2026, month: 11, weeks: [WEEK, "2026-10-25"], ...over,
+  });
+
+  it("담당 고객사를 이름순으로, 이번 주 기록과 지난주 '다음주' 내용·월 실적과 함께 돌려준다", async () => {
+    const t = await mkTask(ROOT, { clientId: c1, name: "심리진단", unitPrice: 1000 });
+    await submitWeekly(ctxA, { weekStart: "2026-10-25", entries: [entry(c1, { thisWeek: "지난주 한 일", nextWeek: "이번주 하기로 한 일" })], other: null });
+    await submitWeekly(ctxA, {
+      weekStart: WEEK, entries: [entry(c1)], other: null,
+      performance: [{ clientId: c1, year: 2026, month: 11, rows: [{ taskId: t.id, count: 2, amount: null }] }],
+    });
+    const data = await loadWeeklyBatch(ctxA, params(pmA));
+    expect(data.clients.map((c) => c.name)).toEqual(["C1", "C3"]);
+    const c = data.clients[0];
+    expect(c.share).toMatchObject({ thisWeek: "이번주 내용", version: 1, createdByName: "pma" });
+    expect(c.prevNextWeek).toBe("이번주 하기로 한 일");
+    expect(c.monthAmount).toBe(2000);
+    expect(c.tasks).toEqual([{ id: t.id, name: "심리진단", unitPrice: 1000, count: 2, amount: 2000 }]);
+    expect(data.clients[1].share).toBeNull();
+    expect(data.clients[1].prevNextWeek).toBe("");
+  });
+
+  it("주차별로 작성된 고객사 수를 센다(주차 칩의 진행 점)", async () => {
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1), entry(c3)], other: null });
+    await submitWeekly(ctxA, { weekStart: "2026-10-25", entries: [entry(c1)], other: null });
+    const data = await loadWeeklyBatch(ctxA, params(pmA));
+    expect(data.weekStatus).toEqual({ [WEEK]: 2, "2026-10-25": 1 });
+  });
+
+  it("기타 업무를 함께 돌려준다", async () => {
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [], other: { tags: ["TF"], thisWeek: "TF 회의", nextWeek: "", note: "", supportClientId: c2 } });
+    const data = await loadWeeklyBatch(ctxA, params(pmA));
+    expect(data.other).toMatchObject({ tags: ["TF"], thisWeek: "TF 회의", supportClientId: c2 });
+  });
+
+  it("관리자는 다른 PM의 고객사를 그대로 조회한다(읽기)", async () => {
+    await submitWeekly(ctxC, { weekStart: WEEK, entries: [entry(c2)], other: null });
+    const data = await loadWeeklyBatch(ctxSuper, params(pmC));
+    expect(data.clients.map((c) => c.name)).toEqual(["C2"]);
+    expect(data.clients[0].share?.thisWeek).toBe("이번주 내용");
+  });
+
+  it("볼 권한이 없는 PM의 고객사는 돌려주지 않는다(RLS)", async () => {
+    const data = await loadWeeklyBatch(ctxA, params(pmC));
+    expect(data.clients).toEqual([]);
+  });
+
+  it("보관(삭제)된 고객사는 제외한다", async () => {
+    await withRLS(ROOT, (tx) => tx.client.update({ where: { id: c3 }, data: { deletedAt: new Date() } }));
+    const data = await loadWeeklyBatch(ctxA, params(pmA));
+    expect(data.clients.map((c) => c.name)).toEqual(["C1"]);
+  });
+});
+
+describe("listSupportClientOptions — 지원 나간 고객사 선택 목록", () => {
+  it("PM은 자기 담당이 아닌 활성 고객사의 이름만 받는다", async () => {
+    const opts = await listSupportClientOptions(ctxA);
+    expect(opts.map((o) => o.name)).toEqual(["C2"]);
+    expect(Object.keys(opts[0]).sort()).toEqual(["id", "name"]);
+  });
+  it("보관된 고객사는 제외한다", async () => {
+    await withRLS(ROOT, (tx) => tx.client.update({ where: { id: c2 }, data: { deletedAt: new Date() } }));
+    expect(await listSupportClientOptions(ctxA)).toEqual([]);
+  });
+  it("관리자는 이름 표시용으로 전체 고객사를 받는다", async () => {
+    expect((await listSupportClientOptions(ctxSuper)).map((o) => o.name)).toEqual(["C1", "C2", "C3"]);
+  });
+  it("조회 허용 범위를 일반 조회로는 넓히지 않는다(PM의 고객사 조회는 여전히 담당 고객사만)", async () => {
+    await listSupportClientOptions(ctxA);
+    const rows = await withRLS(ctxA, (tx) => tx.client.findMany({ select: { name: true } }));
+    expect(rows.map((r) => r.name).sort()).toEqual(["C1", "C3"]);
   });
 });
