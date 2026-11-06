@@ -14,6 +14,11 @@ describe("resolveStatusPeriod — 파트 현황의 조회 기간 해석(월별 /
     expect(resolveStatusPeriod({ mode: "month", year: "2025", month: "12" }, ctx).month).toBe(12); // 지난해는 그대로
   });
 
+  it("연도가 빈 값이면 없는 것으로 보고 올해로 한다(0년으로 읽지 않는다)", () => {
+    expect(resolveStatusPeriod({ mode: "month", year: "", month: "3" }, ctx)).toEqual({ mode: "month", year: 2026, month: 3, quarter: null });
+    expect(resolveStatusPeriod({ year: "  " }, ctx).year).toBe(2026);
+  });
+
   it("월별에서 월이 없거나 잘못되면 올해는 이번 달, 지난해는 12월", () => {
     expect(resolveStatusPeriod({ mode: "month", year: "2026" }, ctx).month).toBe(11);
     expect(resolveStatusPeriod({ mode: "month", year: "2026", month: "abc" }, ctx).month).toBe(11);

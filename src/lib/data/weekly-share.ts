@@ -255,12 +255,16 @@ async function saveOtherWork(
     note: raw.note.trim(),
   };
   const hasContent = !!(next.tags.length || next.thisWeek || next.nextWeek || next.note);
-  const existing = await tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: ctx.userId } } });
+  let existing = await tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: ctx.userId } } });
 
   if (!existing) {
     if (!hasContent) return "skipped";
-    await tx.weeklyOtherWork.create({ data: { weekStart, authorId: ctx.userId, ...next } });
-    return "saved";
+    // 같은 PM이 동시에 두 번 제출하면(더블클릭·두 탭) 유니크 충돌이 나서 함께 낸 카드 저장까지 취소되므로,
+    // 충돌은 건너뛰고(skipDuplicates) 먼저 들어간 기록을 기준으로 아래 갱신 흐름을 이어 간다.
+    const { count } = await tx.weeklyOtherWork.createMany({ data: [{ weekStart, authorId: ctx.userId, ...next }], skipDuplicates: true });
+    if (count === 1) return "saved";
+    existing = await tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: ctx.userId } } });
+    if (!existing) return "rejected";
   }
   if (!hasContent) return "rejected";
   const same =

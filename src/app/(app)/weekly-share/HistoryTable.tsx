@@ -56,6 +56,13 @@ export function HistoryTable({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [overrides, setOverrides] = useState<Record<string, WeeklyShareView | OtherWorkView>>({});
+  // 저장 직후에는 서버 새로고침이 오기 전까지 방금 저장한 내용을 보여 주되, 새 서버 데이터가 오면 버린다
+  // (남겨 두면 공동 담당 PM이 그 사이 고친 내용을 가리고, 다음 저장이 낡은 version으로 충돌한다).
+  const [seenRows, setSeenRows] = useState(rows);
+  if (rows !== seenRows) {
+    setSeenRows(rows);
+    setOverrides({});
+  }
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ thisWeek: "", nextWeek: "", note: "", noSpecial: false });
   const [msg, setMsg] = useState<string | null>(null);

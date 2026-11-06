@@ -1,6 +1,6 @@
 // 파트 현황의 조회 기간(월별 / 분기별 / 전체) 해석. 화면과 조회가 같은 규칙을 쓰도록 순수 함수로 둔다.
 // 세 가지 모두 "한 해 안"의 조회라서 집계와 계약금 계산은 전체 현황과 같은 연도 기준 그대로다.
-import { YEAR_MIN, type Ym } from "@/lib/month-range";
+import { YEAR_MIN, intParam, type Ym } from "@/lib/month-range";
 
 export type StatusMode = "month" | "quarter" | "all";
 
@@ -25,8 +25,8 @@ const quarterOf = (month: number) => Math.floor((month - 1) / 3) + 1;
 export function resolveStatusPeriod(sp: StatusPeriodInput, ctx: { maxYm: Ym }): StatusPeriod {
   const mode: StatusMode = sp.mode === "month" || sp.mode === "quarter" ? sp.mode : "all";
   const { maxYm } = ctx;
-  const askedYear = Number(sp.year);
-  const year = Number.isInteger(askedYear) ? Math.min(Math.max(askedYear, YEAR_MIN), maxYm.year) : maxYm.year;
+  const askedYear = intParam(sp.year);
+  const year = askedYear !== null ? Math.min(Math.max(askedYear, YEAR_MIN), maxYm.year) : maxYm.year;
   const current = year === maxYm.year;
 
   if (mode === "month") {

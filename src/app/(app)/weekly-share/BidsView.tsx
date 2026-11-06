@@ -1,5 +1,5 @@
 import type { RlsContext } from "@/lib/rls";
-import { clampYm, YEAR_MIN, type Ym } from "@/lib/month-range";
+import { clampYm, intParam, YEAR_MIN, type Ym } from "@/lib/month-range";
 import { kstToday } from "@/lib/week";
 import { formatWonCompact } from "@/lib/format";
 import { listBids } from "@/lib/data/bids";
@@ -26,12 +26,12 @@ export async function BidsView({ ctx, sp, canEdit }: { ctx: RlsContext; sp: BidP
   const maxYm: Ym = { year: thisYear + 2, month: 12 };
   const status: BidStatusFilter = STATUS_VALUES.includes(sp.status as BidStatusFilter) ? (sp.status as BidStatusFilter) : "all";
   const due = sp.due === "month" ? "month" : "all";
-  const askedYear = Number(sp.year);
-  const askedMonth = Number(sp.month);
+  const askedYear = intParam(sp.year);
+  const askedMonth = intParam(sp.month);
   const ym = clampYm(
     {
-      year: Number.isInteger(askedYear) ? askedYear : thisYear,
-      month: Number.isInteger(askedMonth) && askedMonth >= 1 && askedMonth <= 12 ? askedMonth : Number(today.slice(5, 7)),
+      year: askedYear ?? thisYear,
+      month: askedMonth !== null && askedMonth >= 1 && askedMonth <= 12 ? askedMonth : Number(today.slice(5, 7)),
     },
     minYm,
     maxYm,

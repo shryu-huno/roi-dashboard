@@ -55,7 +55,11 @@ export function historyWeeks(o: {
     end = curWeek;
   } else {
     if (o.from && o.to && o.from > o.to) return [];
-    start = o.from ? weekStartOf(o.from) : o.earliestWeek ?? curWeek;
+    // 시작일이 터무니없이 옛날이어도 주 수가 폭주하지 않게, 가장 이른 기록 주(없으면 2000년)보다 앞으로는 가지 않는다.
+    const floor = o.earliestWeek ?? WEEK_FLOOR;
+    // (0100-01-01 같은 값은 weekStartOf가 자릿수가 다른 문자열을 만들어 비교가 틀어지므로 원래 날짜 문자열로 먼저 거른다)
+    const fromWeek = o.from ? (o.from < WEEK_FLOOR ? floor : weekStartOf(o.from)) : null;
+    start = fromWeek ? (fromWeek < floor ? floor : fromWeek) : o.earliestWeek ?? curWeek;
     const toWeek = o.to ? weekStartOf(o.to) : curWeek;
     end = toWeek < curWeek ? toWeek : curWeek;
   }
@@ -68,6 +72,9 @@ export function historyWeeks(o: {
 
 type PmInfo = { id: string; name: string; partName: string | null };
 type ClientInfo = { id: string; name: string };
+
+// 주 목록의 하한(2000-01-02는 일요일). month-range의 YEAR_MIN(2000)과 같은 해.
+const WEEK_FLOOR: WeekKey = "2000-01-02";
 
 const lc = (s: string) => s.toLowerCase();
 

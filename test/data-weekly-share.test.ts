@@ -248,6 +248,14 @@ describe("submitWeekly — 기타 업무", () => {
     expect(await withRLS(ROOT, (tx) => tx.weeklyOtherWork.count())).toBe(1);
   });
 
+  it("같은 PM이 동시에 두 번 제출해도 오류 없이 1건만 남고 함께 낸 고객사 카드도 저장된다", async () => {
+    const send = () => submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c3)], other: other() });
+    const [r1, r2] = await Promise.all([send(), send()]);
+    expect([r1.other, r2.other].sort()).not.toContain("rejected");
+    expect(await withRLS(ROOT, (tx) => tx.weeklyOtherWork.count())).toBe(1);
+    expect((await rowOf(c3))?.thisWeek).toBe("이번주 내용");
+  });
+
   it("비어 있으면 저장하지 않고, 이미 있는 것을 비우려 하면 막는다", async () => {
     const empty = other({ tags: [], thisWeek: "" });
     expect((await submitWeekly(ctxA, { weekStart: WEEK, entries: [], other: empty })).other).toBe("skipped");

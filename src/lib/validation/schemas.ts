@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CYCLE_VALUES } from "@/lib/clients/summary-view";
 import { PAYMENT_REQUEST_ENTITY_LABELS, TAX_TYPE_LABELS } from "@/lib/labels";
-import { isWeekStart } from "@/lib/week";
+import { currentWeek, isWeekStart } from "@/lib/week";
 import { WEEKLY_TAGS } from "@/lib/weekly-share-view";
 import { BID_KINDS, BID_STATUSES, isValidYmd } from "@/lib/bids";
 
@@ -286,7 +286,10 @@ export const paymentRequestNoticeSchema = z.object({
 // weekStart는 그 주 일요일이어야 하고, 고객사 카드는 중복될 수 없다. version은 불러온 시점의 기록 버전
 // (기록이 없었으면 null)이며 동시 수정 감지에 쓴다.
 export const weeklySubmitSchema = z.object({
-  weekStart: z.string().refine(isWeekStart, "주 키는 일요일 날짜여야 합니다."),
+  weekStart: z
+    .string()
+    .refine(isWeekStart, "주 키는 일요일 날짜여야 합니다.")
+    .refine((w) => w <= currentWeek(), "아직 오지 않은 주는 저장할 수 없습니다."),
   entries: z
     .array(
       z.object({
@@ -313,6 +316,7 @@ export const weeklySubmitSchema = z.object({
 
 // 입찰 등록·수정. 발주처·사업명·입찰 금액(1원 이상)·제출 마감일은 필수.
 // 결과 발표일이 비어 있으면 제출 마감일과 같게 두고, 마감일보다 빠를 수는 없다.
+const INT32_MAX = 2_147_483_647; // Bid.amount 컬럼(INTEGER)의 한계
 const bidDate = z.string().trim().refine(isValidYmd, "날짜(YYYY-MM-DD)가 올바르지 않습니다.");
 export const bidSchema = z
   .object({
@@ -324,7 +328,7 @@ export const bidSchema = z
         const s = stripCommas(v);
         return typeof s === "string" && s.trim() === "" ? NaN : s;
       },
-      z.coerce.number().int().min(1, "입찰 금액을 입력하세요."),
+      z.coerce.number().int().min(1, "입찰 금액을 입력하세요.").max(INT32_MAX, "입찰 금액이 너무 큽니다(최대 2,147,483,647원)."),
     ),
     dueDate: bidDate,
     announceDate: z.string().trim().refine((v) => v === "" || isValidYmd(v), "날짜(YYYY-MM-DD)가 올바르지 않습니다."),

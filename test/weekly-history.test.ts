@@ -30,6 +30,13 @@ describe("historyWeeks — 조회 기간에 해당하는 주(오래된 순, 이�
     ]);
     expect(historyWeeks({ mode: "range", from: "2026-10-20", to: "2026-10-14", curWeek: CUR })).toEqual([]);
   });
+  it("기간 설정의 시작일이 터무니없이 옛날이어도 주 수가 제한된다(가장 이른 기록 주 / 2000년 이후)", () => {
+    const withEarliest = historyWeeks({ mode: "range", from: "0100-01-01", to: "", earliestWeek: "2026-10-18", curWeek: CUR });
+    expect(withEarliest).toEqual(["2026-10-18", "2026-10-25", "2026-11-01"]);
+    const noRecords = historyWeeks({ mode: "range", from: "0100-01-01", to: "", curWeek: CUR });
+    expect(noRecords[0]).toBe("2000-01-02");
+    expect(noRecords.length).toBeLessThan(2000);
+  });
   it("기간 설정에서 한쪽이 비어 있으면 그쪽은 제한하지 않는다(이번 주까지)", () => {
     expect(historyWeeks({ mode: "range", from: "2026-10-20", to: "", curWeek: CUR })).toEqual([
       "2026-10-18", "2026-10-25", "2026-11-01",

@@ -11,6 +11,13 @@ export function parseYm(v: string | undefined): Ym | null {
   return { year, month };
 }
 
+// 주소의 정수 값(연도·월 등). 비어 있거나 숫자가 아니면 null — Number("")이 0이 되는 함정을 피한다.
+export function intParam(v: string | undefined): number | null {
+  if (v === undefined || v.trim() === "") return null;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : null;
+}
+
 // Ym → "YYYY-MM" (input[type=month] value / 쿼리 파라미터용).
 export function ymValue(ym: Ym): string {
   return `${ym.year}-${String(ym.month).padStart(2, "0")}`;
