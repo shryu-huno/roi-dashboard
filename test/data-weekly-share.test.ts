@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS, type RlsContext } from "@/lib/rls";
-import { submitWeekly, loadWeeklyBatch, listSupportClientOptions, type WeeklyEntryInput } from "@/lib/data/weekly-share";
+import { submitWeekly, loadWeeklyBatch, type WeeklyEntryInput } from "@/lib/data/weekly-share";
 import { mkClient, mkTask } from "./factories";
 
 const ROOT: RlsContext = { userId: "seed-admin", role: "SUPER_ADMIN" };
@@ -222,7 +222,7 @@ describe("주간 공유 열람 범위(RLS)", () => {
 });
 
 describe("submitWeekly — 기타 업무", () => {
-  const other = (over = {}) => ({ tags: ["TF"], thisWeek: "TF 회의", nextWeek: "", note: "", supportClientId: null as string | null, ...over });
+  const other = (over = {}) => ({ tags: ["TF"], thisWeek: "TF 회의", nextWeek: "", note: "", ...over });
   const otherRow = (authorId: string, weekStart = WEEK) =>
     withRLS(ROOT, (tx) => tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart: new Date(weekStart), authorId } } }));
 
@@ -267,28 +267,25 @@ describe("submitWeekly — 기타 업무", () => {
     expect(count).toBe(0);
   });
 
-  describe("열람 범위와 지원 줄", () => {
+  describe("열람 범위", () => {
     beforeEach(async () => {
-      // A: 고객사 C2(=PM C 담당)를 지원한 기록 / A: 같은 주의 다른 PM B는 지원 없이 TF 기록
-      await submitWeekly(ctxA, { weekStart: WEEK, entries: [], other: other({ tags: ["타 고객사 지원"], supportClientId: c2 }) });
+      await submitWeekly(ctxA, { weekStart: WEEK, entries: [], other: other({ tags: ["타 고객사 지원"] }) });
       await submitWeekly(ctxB, { weekStart: WEEK, entries: [], other: other() });
     });
     const authors = (ctx: RlsContext) =>
       withRLS(ctx, (tx) => tx.weeklyOtherWork.findMany({ select: { authorId: true } })).then((r) => r.map((x) => x.authorId).sort());
 
-    it("지원 대상 고객사를 볼 수 있는 PM은 그 지원 기록을 본다(다른 기록은 못 본다)", async () => {
-      expect(await authors(ctxC)).toEqual([pmA]);
-    });
-    it("지원과 무관한 PM은 남의 기타 업무를 못 본다(자기 것만)", async () => {
+    it("PM은 남의 기타 업무를 못 본다(자기 것만)", async () => {
       expect(await authors(ctxB)).toEqual([pmB]);
+      expect(await authors(ctxC)).toEqual([]);
     });
     it("최고관리자는 전체, 팀 관리자는 자기 팀 PM, 파트장은 자기 소속 PM의 기록을 본다", async () => {
       expect(await authors(ctxSuper)).toEqual([pmA, pmB].sort());
       expect(await authors(ctxAdminT1)).toEqual([pmA, pmB].sort());
       expect(await authors(ctxLeader)).toEqual([pmA]);
     });
-    it("다른 팀 관리자는 지원 대상 고객사를 볼 수 있는 경우에만 그 기록을 본다", async () => {
-      expect(await authors(ctxAdminT2)).toEqual([pmA]); // T2의 PM C 담당 고객사 C2를 지원한 기록
+    it("다른 팀 관리자는 이 팀 PM의 기타 업무를 못 본다", async () => {
+      expect(await authors(ctxAdminT2)).toEqual([]);
     });
   });
 });
@@ -367,9 +364,9 @@ describe("loadWeeklyBatch — 주간 공유 화면용 조회", () => {
   });
 
   it("기타 업무를 함께 돌려준다", async () => {
-    await submitWeekly(ctxA, { weekStart: WEEK, entries: [], other: { tags: ["TF"], thisWeek: "TF 회의", nextWeek: "", note: "", supportClientId: c2 } });
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [], other: { tags: ["TF"], thisWeek: "TF 회의", nextWeek: "", note: "" } });
     const data = await loadWeeklyBatch(ctxA, params(pmA));
-    expect(data.other).toMatchObject({ tags: ["TF"], thisWeek: "TF 회의", supportClientId: c2 });
+    expect(data.other).toMatchObject({ tags: ["TF"], thisWeek: "TF 회의" });
   });
 
   it("관리자는 다른 PM의 고객사를 그대로 조회한다(읽기)", async () => {
@@ -388,25 +385,5 @@ describe("loadWeeklyBatch — 주간 공유 화면용 조회", () => {
     await withRLS(ROOT, (tx) => tx.client.update({ where: { id: c3 }, data: { deletedAt: new Date() } }));
     const data = await loadWeeklyBatch(ctxA, params(pmA));
     expect(data.clients.map((c) => c.name)).toEqual(["C1"]);
-  });
-});
-
-describe("listSupportClientOptions — 지원 나간 고객사 선택 목록", () => {
-  it("PM은 자기 담당이 아닌 활성 고객사의 이름만 받는다", async () => {
-    const opts = await listSupportClientOptions(ctxA);
-    expect(opts.map((o) => o.name)).toEqual(["C2"]);
-    expect(Object.keys(opts[0]).sort()).toEqual(["id", "name"]);
-  });
-  it("보관된 고객사는 제외한다", async () => {
-    await withRLS(ROOT, (tx) => tx.client.update({ where: { id: c2 }, data: { deletedAt: new Date() } }));
-    expect(await listSupportClientOptions(ctxA)).toEqual([]);
-  });
-  it("관리자는 이름 표시용으로 전체 고객사를 받는다", async () => {
-    expect((await listSupportClientOptions(ctxSuper)).map((o) => o.name)).toEqual(["C1", "C2", "C3"]);
-  });
-  it("조회 허용 범위를 일반 조회로는 넓히지 않는다(PM의 고객사 조회는 여전히 담당 고객사만)", async () => {
-    await listSupportClientOptions(ctxA);
-    const rows = await withRLS(ctxA, (tx) => tx.client.findMany({ select: { name: true } }));
-    expect(rows.map((r) => r.name).sort()).toEqual(["C1", "C3"]);
   });
 });

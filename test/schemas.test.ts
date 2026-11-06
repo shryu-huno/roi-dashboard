@@ -504,17 +504,10 @@ describe("weeklySubmitSchema", () => {
   });
 
   it("기타 업무: 정해진 구분만 허용하고 중복은 거부한다", () => {
-    const other = { tags: ["TF", "내부 업무"], thisWeek: "회의", nextWeek: "", note: "", supportClientId: null };
+    const other = { tags: ["TF", "내부 업무"], thisWeek: "회의", nextWeek: "", note: "" };
     expect(weeklySubmitSchema.safeParse({ ...base, other }).success).toBe(true);
     expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["없는구분"] } }).success).toBe(false);
     expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["TF", "TF"] } }).success).toBe(false);
-  });
-
-  it("기타 업무의 지원 고객사 빈 값은 null로 본다", () => {
-    const other = { tags: [], thisWeek: "", nextWeek: "", note: "", supportClientId: "" };
-    const r = weeklySubmitSchema.safeParse({ ...base, other });
-    expect(r.success).toBe(true);
-    if (r.success) expect(r.data.other?.supportClientId).toBeNull();
   });
 
   it("실적 횟수 수정 값(performance)을 함께 받는다 — 과업별 횟수 또는 금액 중 하나만", () => {

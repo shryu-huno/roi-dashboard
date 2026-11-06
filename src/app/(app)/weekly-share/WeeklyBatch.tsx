@@ -19,7 +19,7 @@ type Card = {
   perf: PerfDraft;
   perfOpen: boolean;
 };
-type OtherDraft = { tags: string[]; thisWeek: string; nextWeek: string; note: string; supportClientId: string };
+type OtherDraft = { tags: string[]; thisWeek: string; nextWeek: string; note: string };
 type Banner = { kind: "ok" | "warn" | "error"; text: string };
 
 const fromView = (v: WeeklyShareView): Draft => ({ thisWeek: v.thisWeek, nextWeek: v.nextWeek, note: v.note, noSpecial: v.noSpecial });
@@ -45,7 +45,7 @@ function initCard(c: WeeklyBatchClient): Card {
 }
 
 function initOther(o: OtherWorkView | null): OtherDraft {
-  return { tags: o?.tags ?? [], thisWeek: o?.thisWeek ?? "", nextWeek: o?.nextWeek ?? "", note: o?.note ?? "", supportClientId: o?.supportClientId ?? "" };
+  return { tags: o?.tags ?? [], thisWeek: o?.thisWeek ?? "", nextWeek: o?.nextWeek ?? "", note: o?.note ?? "" };
 }
 
 // 과업 한 줄의 유효 금액: 금액 직접입력이면 그 값, 아니면 단가×횟수(반올림).
@@ -66,7 +66,7 @@ const inputCls =
 const ghostBtn = "rounded px-2 py-1 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-hover)] disabled:opacity-50";
 
 export function WeeklyBatch({
-  weekStart, year, month, readOnly, ownerName, clients, other, supportOptions,
+  weekStart, year, month, readOnly, ownerName, clients, other,
 }: {
   weekStart: string;
   year: number;
@@ -75,7 +75,6 @@ export function WeeklyBatch({
   ownerName: string;
   clients: WeeklyBatchClient[];
   other: OtherWorkView | null;
-  supportOptions: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -192,8 +191,7 @@ export function WeeklyBatch({
   }
 
   const written = clients.filter((c) => hasContent(cards[c.id].draft)).length;
-  const otherHasText = !!(otherDraft.thisWeek.trim() || otherDraft.nextWeek.trim() || otherDraft.note.trim() || otherDraft.tags.length || otherDraft.supportClientId);
-  const supportName = (id: string) => supportOptions.find((o) => o.id === id)?.name ?? "(알 수 없음)";
+  const otherHasText = !!(otherDraft.thisWeek.trim() || otherDraft.nextWeek.trim() || otherDraft.note.trim() || otherDraft.tags.length);
 
   return (
     <div className="flex flex-col gap-4 pb-24">
@@ -475,31 +473,6 @@ export function WeeklyBatch({
               </label>
             ))}
           </div>
-          <label className="flex max-w-md flex-col gap-1 text-sm font-semibold">
-            <span>
-              지원 나간 고객사 (선택) <span className="font-normal text-[var(--color-muted)]">· 고르면 그 고객사 히스토리에도 남아요</span>
-            </span>
-            <select
-              value={otherDraft.supportClientId}
-              disabled={readOnly}
-              onChange={(e) =>
-                setOtherDraft((d) => ({
-                  ...d,
-                  supportClientId: e.target.value,
-                  tags: e.target.value && !d.tags.includes("타 고객사 지원") ? [...d.tags, "타 고객사 지원"] : d.tags,
-                }))
-              }
-              className={`${inputCls} font-normal`}
-            >
-              <option value="">선택 안 함</option>
-              {otherDraft.supportClientId && !supportOptions.some((o) => o.id === otherDraft.supportClientId) && (
-                <option value={otherDraft.supportClientId}>{supportName(otherDraft.supportClientId)}</option>
-              )}
-              {supportOptions.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
-          </label>
           {otherMessage && <p className="text-sm text-[var(--color-danger)]">{otherMessage}</p>}
         </div>
       </section>

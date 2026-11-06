@@ -67,7 +67,7 @@ PM이 담당 고객사별로 이번주/다음주/비고를 주 단위로 공유�
 - 두 달에 걸친 주는 월별 조회에서 두 달 모두 보이되 데이터는 1건. 전체·기간 조회에서는 한 번만.
 - **한 고객사의 담당 PM 전원이 그 고객사의 주간 공유를 수정할 수 있고, 모든 담당 PM의 화면과 히스토리에 보인다.**
 - 관리자(최고관리자·팀 관리자)는 조회만, 수정 불가. 파트 현황·입찰·수주는 관리자만 보임.
-- 기타 업무에서 "지원 나간 고객사"를 고르면 그 고객사 히스토리에 "지원" 줄로 표시.
+- (제외) 기타 업무의 "지원 나간 고객사" 선택과 고객사 히스토리의 "지원" 줄은 만들지 않는다(2026-11-06 결정). "타 고객사 지원"은 구분 칩으로만 남는다.
 - 임시저장 없음, 버튼은 [제출] 하나. 내용이 바뀐 저장이면 "수정됨"과 시각 표시. 마감 없음(과거 주도 작성·수정 가능).
 - 이미 제출한 카드를 전부 비운 채 제출하면 막고 안내(기록은 삭제하지 않음).
 
@@ -95,7 +95,7 @@ PM이 담당 고객사별로 이번주/다음주/비고를 주 단위로 공유�
 | 모델 | 필드 | 제약 |
 |---|---|---|
 | `WeeklyShare` | `id`, `weekStart @db.Date`, `clientId`→Client(Cascade), `thisWeek`, `nextWeek`, `note`, `noSpecial Boolean`, `createdById?`→User(SetNull), `updatedById?`→User(SetNull), `createdAt`, `updatedAt`, `editedAt?`, `version Int` | `@@unique([weekStart, clientId])`, index `clientId`, `weekStart` |
-| `WeeklyOtherWork` | `id`, `weekStart @db.Date`, `authorId`→User(SetNull), `tags String[]`, `thisWeek`, `nextWeek`, `note`, `supportClientId?`→Client(SetNull), `createdAt`, `updatedAt`, `editedAt?` | `@@unique([weekStart, authorId])`, index `supportClientId` |
+| `WeeklyOtherWork` | `id`, `weekStart @db.Date`, `authorId`→User(SetNull), `tags String[]`, `thisWeek`, `nextWeek`, `note`, `createdAt`, `updatedAt`, `editedAt?` | `@@unique([weekStart, authorId])` |
 | `Bid` | `id`, `orgName`, `title`, `kind`(신규/갱신), `amount Int`, `dueDate @db.Date`, `announceDate @db.Date`, `status`(준비중/심사중/수주/실주/유찰), `note`, `createdAt`, `updatedAt` — **담당 PM 필드 없음(확인 대기, Q-A)** | index `status`, `dueDate` |
 
 - `createdById`: 최초 제출자, `updatedById`: 마지막 저장자(여러 PM이 같은 건을 고치므로 필요). `editedAt`: 최초 제출 때 null, 내용이 실제로 바뀐 저장에서만 갱신. 내용이 같으면 시각·수정자·`version`을 건드리지 않는다.
@@ -106,7 +106,7 @@ PM이 담당 고객사별로 이번주/다음주/비고를 주 단위로 공유�
 
 - `WeeklyShare` SELECT: `app_can_see_client(clientId)` → 담당 PM·소속 파트장·팀 관리자·최고관리자가 기존 범위대로 열람.
 - `WeeklyShare` INSERT/UPDATE: **그 고객사의 `ClientManager`로 배정된 사용자만**. 최고관리자·팀 관리자는 쓰기 정책에서 제외 → DB 수준에서 "관리자 수정 불가" 보장. 파트장은 자기가 고객사 담당으로 배정돼 있을 때만 쓸 수 있음(제 판단). DELETE 정책 없음.
-- `WeeklyOtherWork` SELECT: 본인 것, 관리자 범위, 또는 `supportClientId` 고객사를 볼 수 있는 사람(지원 줄). 쓰기: 본인만.
+- `WeeklyOtherWork` SELECT: 본인 것, 관리자 범위(최고관리자 전체/팀 관리자 팀원/파트장 소속 PM). 쓰기: 본인만.
 - `Bid`: 읽기·쓰기 모두 최고관리자·팀 관리자만.
 - 서버 액션에서 `requireRole`로 이중 방어.
 
@@ -145,7 +145,7 @@ PM이 여럿이면 한 건을 여럿이 고치므로 "누가 썼나"와 "서로 
 | Q7 | 달성률은 전체 현황 화면 계산식과 동일 |
 | Q8 | **입찰 담당 PM 제외**(해석은 Q-A에서 확인) |
 | Q9 | 실적 입력은 제한 없이 월 이동, 주간 공유·히스토리는 "데이터가 있는 달 ~ 이번 달" |
-| Q10 | "지원" 줄은 시안대로 |
+| Q10 | ~~"지원" 줄은 시안대로~~ → **지원 나간 고객사 선택 기능 자체를 제외** |
 
 ## 8. 추가 결정 (확정)
 
@@ -164,7 +164,7 @@ PM이 여럿이면 한 건을 여럿이 고치므로 "누가 썼나"와 "서로 
 ## 9. 테스트 방침
 
 - 순수 함수(`src/lib/week.ts`)와 월 이동 헬퍼는 단위 테스트.
-- 데이터·RLS는 기존 방식대로 실제 DB(`.env.test`)로 검증: 담당 PM 전원 쓰기 / 비담당 PM·관리자 쓰기 거부 / 범위별 조회 / 지원 줄 가시성 / 유니크 upsert / 같은 내용 재제출 시 `editedAt`·`version` 불변 / 동시 수정 충돌.
+- 데이터·RLS는 기존 방식대로 실제 DB(`.env.test`)로 검증: 담당 PM 전원 쓰기 / 비담당 PM·관리자 쓰기 거부 / 범위별 조회 / 유니크 upsert / 같은 내용 재제출 시 `editedAt`·`version` 불변 / 동시 수정 충돌.
 - 파트 체계: 파트장 지정 시 PM `partLeaderId` 동기화, 파트당 파트장 1명, 파트 삭제 시 인원 해제, 기존 파트장 RLS 회귀(`test/rls.test.ts` 유지·통과).
 - 실적 횟수 수정이 `MonthlyPerformance` 같은 행을 갱신하는지 회귀 테스트.
 - `nav.test.ts`, `tabs.test.ts` 갱신.

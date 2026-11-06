@@ -21,7 +21,6 @@ export type OtherWorkInput = {
   thisWeek: string;
   nextWeek: string;
   note: string;
-  supportClientId: string | null;
 };
 
 export type WeeklySubmitInput = {
@@ -51,7 +50,6 @@ export type OtherWorkView = {
   thisWeek: string;
   nextWeek: string;
   note: string;
-  supportClientId: string | null;
   createdAt: string;
   updatedAt: string;
   editedAt: string | null;
@@ -107,7 +105,6 @@ function toOtherView(r: Prisma.WeeklyOtherWorkGetPayload<object>): OtherWorkView
     thisWeek: r.thisWeek,
     nextWeek: r.nextWeek,
     note: r.note,
-    supportClientId: r.supportClientId,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     editedAt: r.editedAt ? r.editedAt.toISOString() : null,
@@ -265,9 +262,8 @@ async function saveOtherWork(
     thisWeek: raw.thisWeek.trim(),
     nextWeek: raw.nextWeek.trim(),
     note: raw.note.trim(),
-    supportClientId: raw.supportClientId,
   };
-  const hasContent = !!(next.tags.length || next.thisWeek || next.nextWeek || next.note || next.supportClientId);
+  const hasContent = !!(next.tags.length || next.thisWeek || next.nextWeek || next.note);
   const existing = await tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: ctx.userId } } });
 
   if (!existing) {
@@ -278,7 +274,7 @@ async function saveOtherWork(
   if (!hasContent) return "rejected";
   const same =
     existing.thisWeek === next.thisWeek && existing.nextWeek === next.nextWeek && existing.note === next.note &&
-    existing.supportClientId === next.supportClientId && existing.tags.join("\u0000") === next.tags.join("\u0000");
+    existing.tags.join("\u0000") === next.tags.join("\u0000");
   if (same) return "unchanged";
   await tx.weeklyOtherWork.update({ where: { id: existing.id }, data: { ...next, editedAt: new Date() } });
   return "saved";
@@ -378,21 +374,5 @@ export function earliestWeekStart(ctx: RlsContext): Promise<string | null> {
     ]);
     const dates = [a._min.weekStart, b._min.weekStart].filter((d): d is Date => !!d).map(ymdOf).sort();
     return dates[0] ?? null;
-  });
-}
-
-/**
- * 기타 업무의 "지원 나간 고객사" 선택 목록(id·이름만). PM은 RLS상 다른 PM의 고객사를 읽을 수 없어,
- * 이 함수가 트랜잭션 안에서만 조회 허용 플래그(app.lookup)를 켠다(마이그레이션 client_support_lookup 정책).
- * 작성 역할(PM·파트장)은 본인 담당 고객사를 제외하고, 관리자는 이름 표시용으로 전체를 받는다. 보관된 고객사는 제외.
- */
-export function listSupportClientOptions(ctx: RlsContext): Promise<{ id: string; name: string }[]> {
-  return withRLS(ctx, async (tx) => {
-    await tx.$executeRaw`SELECT set_config('app.lookup', 'support-clients', true)`;
-    const rows = await tx.client.findMany({
-      where: canWriteWeeklyShare(ctx.role) ? { managers: { none: { userId: ctx.userId } } } : {},
-      select: { id: true, name: true },
-    });
-    return rows.sort((a, b) => a.name.localeCompare(b.name, "ko"));
   });
 }

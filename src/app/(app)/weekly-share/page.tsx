@@ -7,7 +7,7 @@ import { addMonths, parseYm, type Ym } from "@/lib/month-range";
 import {
   currentWeek, kstToday, prevWeek, weekLabel, weekMonth, weekRange, weeksOverlappingMonth,
 } from "@/lib/week";
-import { earliestWeekStart, listSupportClientOptions, loadWeeklyBatch } from "@/lib/data/weekly-share";
+import { earliestWeekStart, loadWeeklyBatch } from "@/lib/data/weekly-share";
 import { WEEKLY_TABS } from "./tabs";
 import { WeeklyTabs } from "./WeeklyTabs";
 import { WeeklyFilter, type AdminPick, type WeekChip } from "./WeeklyFilter";
@@ -80,12 +80,9 @@ export default async function WeeklySharePage({
     };
   }
 
-  const [data, supportOptions] = await Promise.all([
-    pmId
-      ? loadWeeklyBatch(ctx, { pmId, weekStart: week, prevWeekStart: prevWeek(week), year: ym.year, month: ym.month, weeks: weekKeys })
-      : Promise.resolve({ clients: [], other: null, weekStatus: {} as Record<string, number> }),
-    listSupportClientOptions(ctx),
-  ]);
+  const data = pmId
+    ? await loadWeeklyBatch(ctx, { pmId, weekStart: week, prevWeekStart: prevWeek(week), year: ym.year, month: ym.month, weeks: weekKeys })
+    : { clients: [], other: null, weekStatus: {} as Record<string, number> };
 
   const total = data.clients.length;
   const chips: WeekChip[] = weekKeys.map((key) => {
@@ -119,7 +116,6 @@ export default async function WeeklySharePage({
           ownerName={ownerName}
           clients={data.clients}
           other={data.other}
-          supportOptions={supportOptions}
         />
       ) : (
         <p className="rounded-[14px] border border-dashed border-[var(--color-border)] p-8 text-center text-[var(--color-muted)]">

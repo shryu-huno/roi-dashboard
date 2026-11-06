@@ -306,8 +306,6 @@ export const weeklySubmitSchema = z.object({
       thisWeek: z.string(),
       nextWeek: z.string(),
       note: z.string(),
-      // 빈 문자열(선택 안 함)은 null.
-      supportClientId: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.string().min(1).nullable()),
     })
     .nullable(),
   // "실적 횟수 수정"으로 고친 월별 실적(실적 입력과 같은 검증: 과업별 횟수 또는 금액 중 하나만).

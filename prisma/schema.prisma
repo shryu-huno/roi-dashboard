@@ -166,7 +166,6 @@ model Client {
   paymentRequests PaymentRequest[]
   memos        ClientMemo[]
   weeklyShares WeeklyShare[]
-  weeklySupportRecords WeeklyOtherWork[] @relation("WeeklySupportClient")
 }
 
 // 고객사 특이사항 메모(이력). 담당 PM·관리자가 고객사별로 자유 텍스트 메모를 여러 건 남긴다
@@ -487,8 +486,7 @@ model WeeklyShare {
   @@index([weekStart])
 }
 
-// 기타 업무(TF·타 고객사 지원·내부 업무 등): PM별 주 1건. supportClientId를 고르면 그 고객사 히스토리에
-// "지원" 줄로 보인다(RLS: 지원 대상 고객사를 볼 수 있는 사람은 이 기록을 읽을 수 있다).
+// 기타 업무(TF·타 고객사 지원·내부 업무 등): PM별 주 1건. 열람은 본인과 관리자 범위(RLS).
 model WeeklyOtherWork {
   id              String    @id @default(cuid())
   weekStart       DateTime  @db.Date
@@ -498,14 +496,11 @@ model WeeklyOtherWork {
   thisWeek        String    @default("")
   nextWeek        String    @default("")
   note            String    @default("")
-  supportClientId String?
-  supportClient   Client?   @relation("WeeklySupportClient", fields: [supportClientId], references: [id], onDelete: SetNull)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   editedAt        DateTime?
 
   @@unique([weekStart, authorId])
-  @@index([supportClientId])
   @@index([weekStart])
 }
 
