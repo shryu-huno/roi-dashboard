@@ -11,8 +11,8 @@ const BID_EDIT_ROLES = ["SUPER_ADMIN", "ADMIN"] as const;
 export const WEEKLY_TABS: readonly WeeklyTab[] = [
   { key: "batch", label: "일지작성" },
   { key: "history", label: "히스토리" },
-  { key: "status", label: "파트 현황", roles: VIEW_ROLES },
-  { key: "bids", label: "입찰·수주", roles: VIEW_ROLES },
+  { key: "status", label: "파트현황", roles: VIEW_ROLES },
+  { key: "bids", label: "입찰현황", roles: VIEW_ROLES },
 ];
 
 const has = (roles: readonly string[], role: string | null | undefined) => !!role && roles.includes(role);
