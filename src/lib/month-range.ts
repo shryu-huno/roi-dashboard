@@ -36,3 +36,9 @@ export function eachMonth(from: Ym, to: Ym): Ym[] {
   }
   return out;
 }
+
+// ym에서 delta개월 이동한 달(연 경계를 넘나든다). 월 스테퍼의 ‹ › 와 월 선택 목록이 쓴다.
+export function addMonths(ym: Ym, delta: number): Ym {
+  const v = ym.year * 12 + (ym.month - 1) + delta;
+  return { year: Math.floor(v / 12), month: (v % 12) + 1 };
+}

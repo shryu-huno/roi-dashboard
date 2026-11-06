@@ -11,10 +11,13 @@ export function ClientCombobox({
   clients,
   defaultClientId,
   className = "w-56",
+  onSelect,
 }: {
   clients: Client[];
   defaultClientId?: string;
   className?: string;
+  // 목록에서 고객사를 고른 즉시 호출(폼 제출 없이 바로 이동하는 화면용). 입력만 바꾸는 동안에는 호출하지 않는다.
+  onSelect?: (clientId: string) => void;
 }) {
   const selected = clients.find((c) => c.id === defaultClientId);
   const [clientId, setClientId] = useState(selected?.id ?? "");
@@ -58,6 +61,7 @@ export function ClientCombobox({
     setClientId(c.id);
     setQuery(c.name);
     setOpen(false);
+    onSelect?.(c.id);
   }
 
   return (
