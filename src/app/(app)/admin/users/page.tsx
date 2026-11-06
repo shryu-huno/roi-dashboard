@@ -22,8 +22,8 @@ export default async function AdminUsersPage() {
   );
 
   const pendingCount = users.filter((u) => u.status === "PENDING").length;
-  const thCls = "px-3 py-4 text-center text-sm font-bold text-[var(--color-muted)] whitespace-nowrap";
-  const tdCls = "px-3 py-3 text-center align-middle whitespace-nowrap";
+  const thCls = "px-4 py-4 text-center text-sm font-bold text-[var(--color-muted)] whitespace-nowrap";
+  const tdCls = "px-4 py-3 text-center align-middle whitespace-nowrap";
   const statusStyle: Record<string, string> = {
     ACTIVE: "bg-emerald-50 text-emerald-700",
     PENDING: "bg-amber-50 text-amber-700",
@@ -39,7 +39,8 @@ export default async function AdminUsersPage() {
         </span>
       </div>
       <div className="overflow-x-auto rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
-        <table className="w-full text-sm">
+        {/* w-full이면 남는 폭이 모든 열에 나뉘어 열 사이가 벌어진다. 내용 폭으로 두고 카드 가운데에 맞춘다. */}
+        <table className="mx-auto text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)]">
               <th className={thCls}>이메일</th>
