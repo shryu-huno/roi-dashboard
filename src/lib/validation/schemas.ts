@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CYCLE_VALUES } from "@/lib/clients/summary-view";
 import { PAYMENT_REQUEST_ENTITY_LABELS, TAX_TYPE_LABELS } from "@/lib/labels";
+import { isWeekStart } from "@/lib/week";
 
 export const EXPENSE_CATEGORIES = [
   "CORPORATE_CARD", "PERSONAL_CARD", "LABOR_COUNSELOR", "LABOR_INSTRUCTOR",
@@ -277,4 +278,38 @@ export const paymentRequestBulkUpdateSchema = z.object({
 // 지급요청 공지 배너 — 항상 최대 1개, trim 후 빈 문자열이면 공지 없음 상태로 저장된다.
 export const paymentRequestNoticeSchema = z.object({
   content: z.string().trim(),
+});
+
+// 주간 공유 기타 업무의 구분 칩.
+export const WEEKLY_TAGS = ["TF", "타 고객사 지원", "내부 업무", "교육·행사", "기타"] as const;
+
+// 주간 공유 제출(고객사 카드들 + 기타 업무) 한 번. 임시저장 없음. 내용 길이 제한은 두지 않는다(memo류 관례).
+// weekStart는 그 주 일요일이어야 하고, 고객사 카드는 중복될 수 없다. version은 불러온 시점의 기록 버전
+// (기록이 없었으면 null)이며 동시 수정 감지에 쓴다.
+export const weeklySubmitSchema = z.object({
+  weekStart: z.string().refine(isWeekStart, "주 키는 일요일 날짜여야 합니다."),
+  entries: z
+    .array(
+      z.object({
+        clientId: z.string().min(1),
+        thisWeek: z.string(),
+        nextWeek: z.string(),
+        note: z.string(),
+        noSpecial: z.boolean(),
+        version: z.number().int().min(1).nullable(),
+      }),
+    )
+    .refine((a) => new Set(a.map((e) => e.clientId)).size === a.length, "같은 고객사가 중복되었습니다."),
+  other: z
+    .object({
+      tags: z
+        .array(z.enum(WEEKLY_TAGS))
+        .refine((a) => new Set(a).size === a.length, "업무 구분이 중복되었습니다."),
+      thisWeek: z.string(),
+      nextWeek: z.string(),
+      note: z.string(),
+      // 빈 문자열(선택 안 함)은 null.
+      supportClientId: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.string().min(1).nullable()),
+    })
+    .nullable(),
 });

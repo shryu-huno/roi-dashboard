@@ -38,12 +38,13 @@
 - **확인 방법:** 실적 입력 → 고객사 선택, ‹ › 로 월을 넘기면 표·누적이 바뀐다. 기존 입력·저장은 그대로 동작.
 
 ### 3단계. 주 계산 유틸 + 주간 공유 테이블 + 권한(RLS)
-- [ ] `src/lib/week.ts` + `test/week.test.ts`: 일요일 키, 월과 겹치는 주 목록, 주 라벨/범위, 이전 주
-- [ ] `WeeklyShare`(`createdById/updatedById/version/editedAt`), `WeeklyOtherWork` 모델 + 마이그레이션 + RLS(스펙 5.3)
-- [ ] `src/lib/data/weekly-share.ts`: 조회, (주, 고객사)·(주, PM) upsert, 내용 동일 시 `editedAt/version` 불변, **version 충돌 감지(카드 단위)**
-- [ ] `schemas.ts`: 제출 스키마(카드 배열 + 기타 업무, "없음" 처리, 빈 카드 제외, 기존 기록 전부 비움 거부)
-- [ ] `test/data-weekly-share.test.ts`: 담당 PM 전원 쓰기 / 비담당 PM·관리자 거부 / 범위별 조회 / 지원 줄 가시성 / 유니크 / 충돌
+- [x] `src/lib/week.ts` + `test/week.test.ts`: 일요일 키, 월과 겹치는 주 목록, 주 라벨/범위, 이전 주
+- [x] `WeeklyShare`(`createdById/updatedById/version/editedAt`), `WeeklyOtherWork` 모델 + 마이그레이션 + RLS(스펙 5.3)
+- [x] `src/lib/data/weekly-share.ts`: 조회, (주, 고객사)·(주, PM) upsert, 내용 동일 시 `editedAt/version` 불변, **version 충돌 감지(카드 단위)**
+- [x] `schemas.ts`: 제출 스키마(카드 배열 + 기타 업무, "없음" 처리, 빈 카드 제외, 기존 기록 전부 비움 거부)
+- [x] `test/data-weekly-share.test.ts`: 담당 PM 전원 쓰기 / 비담당 PM·관리자 거부 / 범위별 조회 / 지원 줄 가시성 / 유니크 / 충돌
 - **확인 방법:** 화면 변화 없음. `npm test` 결과 보고.
+- **구현 메모:** 주간 공유 테이블은 DELETE 정책이 없다(삭제 불가). 테스트 초기화만 `TRUNCATE`를 쓴다. `submitWeekly`는 이후 4단계에서 실적 횟수 저장을 같은 트랜잭션에 얹을 수 있게 단일 `withRLS` 안에서 동작한다.
 
 ### 4단계. "주간 공유" 메뉴 + 탭 껍데기 + 주간 공유 탭
 - [ ] `nav.ts`에 `/weekly-share` 추가, `nav.test.ts` 갱신
@@ -52,6 +53,7 @@
 - [ ] "N월 실적 횟수 수정": 실적 입력과 같은 과업 목록·모드 재사용. 제출 시 주간 텍스트와 실적을 한 트랜잭션으로 저장(`upsertPerformanceBatch`가 외부 `tx`를 받도록 최소 수정) — 중첩 form 금지
 - [ ] 관리자 조회 화면(읽기 전용 배너, 입력 비활성)
 - **확인 방법:** PM 계정으로 작성→제출→새로고침 유지, 수정 시 "수정됨", 공동 담당 PM 계정에서도 같은 카드가 보이고 수정 가능, 실적 횟수를 바꾸면 실적 입력 화면 숫자도 같이 바뀜, 관리자는 보기만.
+- [ ] **지원 고객사 선택 목록:** PM은 RLS상 다른 PM의 고객사를 읽을 수 없어 "지원 나간 고객사" 목록(전체 고객사 이름)을 일반 조회로 만들 수 없다. 이름·id만 돌려주는 `SECURITY DEFINER` 함수(또는 동등한 방법)를 마이그레이션으로 추가한다(보관된 고객사 제외, 본인 담당 고객사 제외 옵션).
 
 ### 5단계. 히스토리 탭
 - [ ] 파트 > PM > 고객사 > 주차 그룹, 월별/전체/기간, 검색, 걸친 주 처리, "지원" 줄, 공동 담당 표시(각 PM 아래 모두 표시, 건수·실적 합계는 고객사 기준 중복 제거), 미작성 주차 보기

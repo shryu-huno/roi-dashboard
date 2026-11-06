@@ -15,6 +15,7 @@ import {
   paymentRequestUpdatePmSchema,
   paymentRequestBulkUpdateSchema,
   paymentRequestNoticeSchema,
+  weeklySubmitSchema,
 } from "@/lib/validation/schemas";
 
 describe("performanceBatchSchema", () => {
@@ -470,5 +471,49 @@ describe("paymentRequestNoticeSchema", () => {
     const r = paymentRequestNoticeSchema.safeParse({ content: "   " });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.content).toBe("");
+  });
+});
+
+describe("weeklySubmitSchema", () => {
+  const base = {
+    weekStart: "2026-11-01",
+    entries: [{ clientId: "c1", thisWeek: "이번주", nextWeek: "다음주", note: "", noSpecial: false, version: null }],
+    other: null,
+  };
+
+  it("정상 입력은 통과한다(기록이 없던 카드는 version null)", () => {
+    expect(weeklySubmitSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("기존 기록이 있던 카드는 version(1 이상 정수)을 받는다", () => {
+    const ok = { ...base, entries: [{ ...base.entries[0], version: 3 }] };
+    expect(weeklySubmitSchema.safeParse(ok).success).toBe(true);
+    const bad = { ...base, entries: [{ ...base.entries[0], version: 0 }] };
+    expect(weeklySubmitSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("주 키는 실제 존재하는 일요일 날짜여야 한다", () => {
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: "2026-11-02" }).success).toBe(false); // 월요일
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: "2026-02-30" }).success).toBe(false);
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: "" }).success).toBe(false);
+  });
+
+  it("같은 고객사 카드가 두 번 들어오면 거부한다", () => {
+    const dup = { ...base, entries: [base.entries[0], { ...base.entries[0], thisWeek: "또" }] };
+    expect(weeklySubmitSchema.safeParse(dup).success).toBe(false);
+  });
+
+  it("기타 업무: 정해진 구분만 허용하고 중복은 거부한다", () => {
+    const other = { tags: ["TF", "내부 업무"], thisWeek: "회의", nextWeek: "", note: "", supportClientId: null };
+    expect(weeklySubmitSchema.safeParse({ ...base, other }).success).toBe(true);
+    expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["없는구분"] } }).success).toBe(false);
+    expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["TF", "TF"] } }).success).toBe(false);
+  });
+
+  it("기타 업무의 지원 고객사 빈 값은 null로 본다", () => {
+    const other = { tags: [], thisWeek: "", nextWeek: "", note: "", supportClientId: "" };
+    const r = weeklySubmitSchema.safeParse({ ...base, other });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.other?.supportClientId).toBeNull();
   });
 });
