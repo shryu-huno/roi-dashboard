@@ -90,7 +90,6 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
 
   // ---- 누구의 주간 공유를 보는가: 작성 역할은 본인, 관리자는 PM을 골라 읽기 전용으로 본다 ----
   let pmId: string | null = null;
-  let ownerName = user.name ?? user.email ?? "";
   let admin: AdminPick | null = null;
   if (writer) {
     pmId = user.id;
@@ -100,7 +99,6 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
     const inPart = pms.filter((p) => !partId || p.partId === partId);
     const picked = inPart.find((p) => p.id === sp.pm) ?? inPart[0] ?? null;
     pmId = picked?.id ?? null;
-    ownerName = picked?.name ?? "";
     admin = { parts, pms, partId, pmId: pmId ?? "" };
   }
 
@@ -131,7 +129,6 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
           year={ym.year}
           month={ym.month}
           readOnly={!writer}
-          ownerName={ownerName}
           clients={data.clients}
           other={data.other}
         />

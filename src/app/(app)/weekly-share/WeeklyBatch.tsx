@@ -42,13 +42,12 @@ const inputCls =
 const ghostBtn = "rounded px-2 py-1 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-hover)] disabled:opacity-50";
 
 export function WeeklyBatch({
-  weekStart, year, month, readOnly, ownerName, clients, other,
+  weekStart, year, month, readOnly, clients, other,
 }: {
   weekStart: string;
   year: number;
   month: number;
   readOnly: boolean;
-  ownerName: string;
   clients: WeeklyBatchClient[];
   other: OtherWorkView | null;
 }) {
@@ -157,11 +156,6 @@ export function WeeklyBatch({
 
   return (
     <div className="flex flex-col gap-4 pb-24">
-      {readOnly && (
-        <div className="rounded-[10px] bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
-          {ownerName} PM이 작성한 내용이에요. 관리자는 보기만 할 수 있어요.
-        </div>
-      )}
       {banner && (
         <p
           role="status"
@@ -312,7 +306,6 @@ export function WeeklyBatch({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-5 py-3">
           <div className="flex flex-wrap items-baseline gap-3">
             <h3 className="text-base font-semibold">기타 업무</h3>
-            <span className="text-sm text-[var(--color-muted)]">TF · 타 고객사 지원 · 내부 업무 · 없으면 비워 두세요</span>
           </div>
           <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
             <span className={`rounded-full px-2.5 py-0.5 font-medium ${otherView ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>

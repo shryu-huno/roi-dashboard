@@ -136,7 +136,7 @@ export async function PartStatusView({
         <span>{year}년 누적 <b className="text-[var(--color-fg)]">{formatWon(selected.cumulative)}</b></span>
         {month !== null && <span>{month}월 실적 <b className="text-[var(--color-fg)]">{formatWon(selected.monthAmount ?? 0)}</b></span>}
         {quarter !== null && <span>{quarter}분기 실적 <b className="text-[var(--color-fg)]">{formatWon(selected.quarterAmount ?? 0)}</b></span>}
-        <span className="ml-auto text-xs">부가세 {includeVat ? "포함" : "미포함"} 기준 · 전체 현황과 같은 계산식</span>
+        <span className="ml-auto text-xs">부가세 {includeVat ? "포함" : "미포함"} 기준</span>
       </div>
       {/* 파트별 요약 카드: 누르면 그 파트로 차트·표가 바뀌고, 다시 누르면 전체로 돌아온다 */}
       <section aria-label="파트별 요약" className={`grid gap-3 ${partFixed ? "grid-cols-1 sm:max-w-sm" : "grid-cols-2 lg:grid-cols-4"}`}>
@@ -194,9 +194,6 @@ export async function PartStatusView({
       <section className={`${card} p-5`}>
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h2 className="text-base font-semibold">월별 실적 추이</h2>
-          <span className="text-sm text-[var(--color-muted)]">
-            {year}년 1~12월 · {partName || "파트별 누적 막대"}
-          </span>
         </div>
         <PartTrendChart columns={columns} series={series} totals={trend.totals} />
         {/* 표 보기: 청록처럼 대비가 낮은 색을 쓰는 경우에도 값을 모두 읽을 수 있게 한다 */}
@@ -304,7 +301,6 @@ export async function PartStatusView({
       <section className={`${card} p-5`}>
         <div className="mb-1 flex flex-wrap items-baseline gap-3">
           <h2 className="text-base font-semibold">파트별 PM 담당 고객사</h2>
-          <span className="text-sm text-[var(--color-muted)]">고객사 옆 금액은 {year}년에 귀속되는 계약금이에요(달성률 계산과 같은 기준).</span>
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[720px] table-fixed text-sm">

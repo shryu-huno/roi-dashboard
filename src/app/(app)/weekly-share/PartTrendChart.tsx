@@ -48,7 +48,6 @@ export function PartTrendChart({
               {s.name}
             </span>
           ))}
-          {columns.some((c) => c.partial) && <span>진행 중인 달은 옅게 표시 · 막대를 누르면 그 달의 월별 보기로 이동해요</span>}
         </div>
       )}
       <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-2" onMouseLeave={() => setTip(null)}>
