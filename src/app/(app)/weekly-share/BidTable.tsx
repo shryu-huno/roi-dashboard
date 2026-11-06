@@ -187,7 +187,7 @@ export function BidTable({
                 <input type="date" className={inputCls} value={draft.dueDate} onChange={(e) => set("dueDate", e.target.value)} />
               </label>
               <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)]">
-                결과 발표일 <span className="text-[11px]">(비우면 제출 마감일과 같게)</span>
+                결과 발표일
                 <input type="date" className={inputCls} value={draft.announceDate} onChange={(e) => set("announceDate", e.target.value)} />
               </label>
               <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)] sm:col-span-2">
