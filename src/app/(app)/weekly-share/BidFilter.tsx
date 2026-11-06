@@ -15,8 +15,8 @@ const STATUS: { value: BidStatusFilter; label: string }[] = [
   { value: "closed", label: "실주·유찰" },
 ];
 const DUE: { value: "all" | "month"; label: string }[] = [
-  { value: "all", label: "전체" },
   { value: "month", label: "월별" },
+  { value: "all", label: "전체" },
 ];
 
 // 입찰·수주 필터: [상태] [제출 마감: 전체/월별 + 연도·월] [검색]. 바꾸면 바로 이동하고 조건은 URL에 담긴다.
