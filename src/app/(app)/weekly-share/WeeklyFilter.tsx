@@ -68,10 +68,10 @@ export function WeeklyFilter({
       <div className="flex flex-wrap items-end gap-4">
         {admin && (
           <>
-            <label className="flex flex-col text-xs text-[var(--color-muted)]">
+            <label className="flex flex-col items-center text-[15px] font-semibold text-[var(--color-fg)]">
               파트
               <select
-                className={`mt-1 w-32 ${selectCls}`}
+                className={`mt-1.5 w-32 ${selectCls}`}
                 value={admin.partId}
                 onChange={(e) => {
                   const partId = e.target.value;
@@ -86,9 +86,9 @@ export function WeeklyFilter({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col text-xs text-[var(--color-muted)]">
+            <label className="flex flex-col items-center text-[15px] font-semibold text-[var(--color-fg)]">
               PM
-              <select className={`mt-1 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pmId: e.target.value })}>
+              <select className={`mt-1.5 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pmId: e.target.value })}>
                 {visiblePms.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -97,11 +97,11 @@ export function WeeklyFilter({
           </>
         )}
 
-        <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} onChange={(target) => go({ ym: target, week: "" })} />
+        <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} large onChange={(target) => go({ ym: target, week: "" })} />
 
-        <div className="flex min-w-0 flex-col text-xs text-[var(--color-muted)]">
+        <div className="flex min-w-0 flex-col items-center text-[15px] font-semibold text-[var(--color-fg)]">
           주차
-          <div className="mt-1 flex flex-wrap gap-1.5" role="group" aria-label="주차">
+          <div className="mt-1.5 flex flex-wrap justify-center gap-1.5" role="group" aria-label="주차">
             {weeks.map((w) => {
               const active = w.key === selectedWeek;
               return (

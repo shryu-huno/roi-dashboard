@@ -4,7 +4,7 @@ export type WeeklyTabKey = "batch" | "history" | "status" | "bids";
 export type WeeklyTab = { key: WeeklyTabKey; label: string; adminOnly?: boolean };
 
 export const WEEKLY_TABS: readonly WeeklyTab[] = [
-  { key: "batch", label: "주간 공유" },
+  { key: "batch", label: "일지작성" },
   { key: "history", label: "히스토리" },
   { key: "status", label: "파트 현황", adminOnly: true },
   { key: "bids", label: "입찰·수주", adminOnly: true },
