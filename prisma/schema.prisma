@@ -89,6 +89,10 @@ model User {
   partLeaderId String?
   partLeader   User?  @relation("PartMembers", fields: [partLeaderId], references: [id], onDelete: SetNull)
   partMembers  User[] @relation("PartMembers")
+  // 소속 파트(팀 아래 1·2·3파트). PM·파트장에게 의미가 있다. 파트장 = 이 파트에 속한 활성 PART_LEADER.
+  // PM의 partLeaderId(권한 RLS 기준)는 앱이 partId에서 파트장으로 맞춘다(src/lib/data/parts.ts#syncPartLeaders).
+  partId    String?
+  part      Part?      @relation(fields: [partId], references: [id], onDelete: SetNull)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -103,6 +107,7 @@ model User {
   @@index([status])
   @@index([teamId])
   @@index([partLeaderId])
+  @@index([partId])
 }
 
 // 팀. 팀 관리자(ADMIN)와 PM이 소속되며, 팀 관리자는 자기 팀 소속 PM이 담당하는
@@ -114,6 +119,24 @@ model Team {
   updatedAt DateTime @updatedAt
 
   members   User[]
+  parts     Part[]
+}
+
+// 팀 아래의 파트(예: 사업운영팀 > 1파트). 사용자는 파트 1개에 소속되며, 파트 안의 PART_LEADER가 파트장이다.
+// 쓰기는 최고관리자 전용(Team과 동일 RLS). 팀 삭제 시 파트도 함께 삭제되고 소속 인원의 partId는 해제된다.
+model Part {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   User[]
+
+  @@unique([teamId, name])
+  @@index([teamId])
 }
 
 model Client {
