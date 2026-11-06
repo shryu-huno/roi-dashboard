@@ -10,9 +10,10 @@ import { WeeklyFilter, type AdminPick, type WeekChip } from "./WeeklyFilter";
 import { WeeklyBatch } from "./WeeklyBatch";
 import { HistoryView, type HistoryParams } from "./HistoryView";
 import { PartStatusView, type StatusParams } from "./PartStatusView";
+import { BidsView, type BidParams } from "./BidsView";
 import { loadAdminLists, weeklyRange } from "./range";
 
-type SearchParams = HistoryParams & StatusParams & { tab?: string; week?: string };
+type SearchParams = HistoryParams & StatusParams & BidParams & { tab?: string; week?: string };
 
 export default async function WeeklySharePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
@@ -21,8 +22,9 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
   if (!user.role || user.role === "SETTLEMENT") redirect("/");
   const ctx = getRlsContext(user);
   const writer = canWriteWeeklyShare(user.role);
-  // 파트 현황은 관리자(최고관리자·팀 관리자)만. 그 외 역할이 주소로 들어오면 주간 공유 탭으로 돌려보낸다.
-  const tab = sp.tab === "history" ? "history" : sp.tab === "status" && canSeeAdminTabs(user.role) ? "status" : "batch";
+  // 파트 현황·입찰·수주는 관리자(최고관리자·팀 관리자)만. 그 외 역할이 주소로 들어오면 주간 공유 탭으로 돌려보낸다.
+  const canAdminTabs = canSeeAdminTabs(user.role);
+  const tab = sp.tab === "history" ? "history" : sp.tab === "status" && canAdminTabs ? "status" : sp.tab === "bids" && canAdminTabs ? "bids" : "batch";
 
   const range = await weeklyRange(ctx, sp.ym);
   const adminLists = writer ? null : await loadAdminLists(user);
@@ -38,6 +40,15 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
       <WeeklyTabs tabs={visibleTabs(user.role)} current={tab} />
     </>
   );
+
+  if (tab === "bids") {
+    return (
+      <div>
+        {header}
+        <BidsView ctx={ctx} sp={sp} />
+      </div>
+    );
+  }
 
   if (tab === "status" && adminLists) {
     return (

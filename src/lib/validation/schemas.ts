@@ -3,6 +3,7 @@ import { CYCLE_VALUES } from "@/lib/clients/summary-view";
 import { PAYMENT_REQUEST_ENTITY_LABELS, TAX_TYPE_LABELS } from "@/lib/labels";
 import { isWeekStart } from "@/lib/week";
 import { WEEKLY_TAGS } from "@/lib/weekly-share-view";
+import { BID_KINDS, BID_STATUSES, isValidYmd } from "@/lib/bids";
 
 export const EXPENSE_CATEGORIES = [
   "CORPORATE_CARD", "PERSONAL_CARD", "LABOR_COUNSELOR", "LABOR_INSTRUCTOR",
@@ -309,3 +310,26 @@ export const weeklySubmitSchema = z.object({
     })
     .nullable(),
 });
+
+// 입찰 등록·수정. 발주처·사업명·입찰 금액(1원 이상)·제출 마감일은 필수.
+// 결과 발표일이 비어 있으면 제출 마감일과 같게 두고, 마감일보다 빠를 수는 없다.
+const bidDate = z.string().trim().refine(isValidYmd, "날짜(YYYY-MM-DD)가 올바르지 않습니다.");
+export const bidSchema = z
+  .object({
+    orgName: z.string().trim().min(1, "발주처를 입력하세요."),
+    title: z.string().trim().min(1, "사업명을 입력하세요."),
+    kind: z.enum(BID_KINDS),
+    amount: z.preprocess(
+      (v) => {
+        const s = stripCommas(v);
+        return typeof s === "string" && s.trim() === "" ? NaN : s;
+      },
+      z.coerce.number().int().min(1, "입찰 금액을 입력하세요."),
+    ),
+    dueDate: bidDate,
+    announceDate: z.string().trim().refine((v) => v === "" || isValidYmd(v), "날짜(YYYY-MM-DD)가 올바르지 않습니다."),
+    status: z.enum(BID_STATUSES),
+    note: z.string().trim().default(""),
+  })
+  .transform((v) => ({ ...v, announceDate: v.announceDate || v.dueDate }))
+  .refine((v) => v.announceDate >= v.dueDate, { message: "결과 발표일이 제출 마감일보다 빠릅니다.", path: ["announceDate"] });

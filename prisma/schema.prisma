@@ -74,6 +74,19 @@ enum PaymentRequestStatus {
   COMPLETED  // 지급완료
 }
 
+enum BidKind {
+  NEW     // 신규
+  RENEWAL // 갱신
+}
+
+enum BidStatus {
+  PREPARING // 준비중
+  REVIEWING // 심사중
+  WON       // 수주
+  LOST      // 실주
+  FAILED    // 유찰
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
@@ -502,6 +515,26 @@ model WeeklyOtherWork {
 
   @@unique([weekStart, authorId])
   @@index([weekStart])
+}
+
+// 입찰·수주. 최고관리자·팀 관리자만 읽고 쓴다(RLS). 삭제 정책은 없다(잘못 등록하면 수정한다).
+// 담당 PM·고객사와는 연결하지 않는다(발주처는 자유 입력). 날짜는 DATE: 제출 마감일(준비중 D-day 기준),
+// 결과 발표일(심사중 D-day 기준). 수주율 = 수주 ÷ (수주+실주), 유찰은 제외.
+model Bid {
+  id           String    @id @default(cuid())
+  orgName      String
+  title        String
+  kind         BidKind   @default(NEW)
+  amount       Int
+  dueDate      DateTime  @db.Date
+  announceDate DateTime  @db.Date
+  status       BidStatus @default(PREPARING)
+  note         String    @default("")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
 }
 
 // --- Auth.js (NextAuth) 어댑터 모델 ---
