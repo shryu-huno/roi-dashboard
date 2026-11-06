@@ -96,11 +96,13 @@ describe("applyApproval — 파트 배정", () => {
     expect(res2.ok).toBe(false);
   });
 
-  it("PM·파트장이 아닌 역할은 파트를 저장하지 않는다", async () => {
+  it("PM·파트장이 아닌 역할도 파트를 저장하지만 소속 파트장은 두지 않는다", async () => {
+    const leader = await prisma.user.create({ data: { email: "l@huno.kr" } });
+    await applyApproval({ userId: leader.id, role: "PART_LEADER", teamId, partId: partA });
     const admin = await prisma.user.create({ data: { email: "a@huno.kr" } });
-    await applyApproval({ userId: admin.id, role: "ADMIN", teamId, partId: partA });
+    await applyApproval({ userId: admin.id, role: "SUPER_ADMIN", teamId, partId: partA });
     const after = await prisma.user.findUnique({ where: { id: admin.id } });
-    expect(after?.partId).toBeNull();
+    expect(after?.partId).toBe(partA);
     expect(after?.partLeaderId).toBeNull();
   });
 

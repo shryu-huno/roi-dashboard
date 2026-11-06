@@ -47,11 +47,7 @@ export default async function AdminUsersPage() {
                 {u.partId ? (
                   <>
                     {partName.get(u.partId) ?? "(삭제된 파트)"}
-                    {u.role === "PART_LEADER" ? (
-                      <span className="text-[var(--color-muted)]"> · 파트장</span>
-                    ) : u.role === "PM" ? (
-                      <span className="text-[var(--color-muted)]"> · 파트장 {leaderOfPart.get(u.partId) ?? "미지정"}</span>
-                    ) : null}
+                    <span className="text-[var(--color-muted)]"> · 파트장 {leaderOfPart.get(u.partId) ?? "미지정"}</span>
                   </>
                 ) : "-"}
               </td>
@@ -59,10 +55,16 @@ export default async function AdminUsersPage() {
               <td className="flex gap-2 py-2">
                 <form action={approveUser} className="flex gap-1">
                   <input type="hidden" name="userId" value={u.id} />
+                  <select name="role" defaultValue={u.role ?? "PM"} className="border border-[var(--color-border)] rounded px-1">
+                    <option value="SUPER_ADMIN">최고관리자</option>
+                    <option value="ADMIN">팀 관리자</option>
+                    <option value="PART_LEADER">파트장</option>
+                    <option value="SETTLEMENT">정산담당자</option>
+                    <option value="PM">PM</option>
+                  </select>
                   <TeamPartFields
                     teams={teams.map((t) => ({ id: t.id, name: t.name }))}
                     parts={parts.map((p) => ({ id: p.id, name: p.name, teamId: p.teamId }))}
-                    defaultRole={u.role ?? "PM"}
                     defaultTeamId={u.teamId ?? ""}
                     defaultPartId={u.partId ?? ""}
                   />

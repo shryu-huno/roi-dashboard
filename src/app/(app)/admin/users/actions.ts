@@ -8,7 +8,8 @@ import { syncPartLeaders } from "@/lib/data/parts";
 
 /**
  * DB 반영 코어 (테스트 대상, 세션 비의존).
- * 파트는 PM·파트장에게만 의미가 있고 반드시 선택한 팀의 파트여야 한다. 한 파트의 파트장은 1명.
+ * 파트는 어떤 역할에도 저장할 수 있고(소속 표시용) 반드시 선택한 팀의 파트여야 한다. 한 파트의 파트장은 1명.
+ * 소속 파트장(partLeaderId)은 PM에게만 의미가 있다.
  * 사람은 partId로 배분하고, PM의 partLeaderId(파트장 권한 RLS 기준)는 syncPartLeaders가 맞춘다.
  */
 export async function applyApproval(input: {
@@ -21,7 +22,7 @@ export async function applyApproval(input: {
   if (!current) return { ok: false, error: "사용자를 찾을 수 없습니다." };
 
   const teamId = input.teamId ?? null;
-  const partId = input.role === "PM" || input.role === "PART_LEADER" ? input.partId ?? null : null;
+  const partId = input.partId ?? null;
 
   if (partId) {
     const part = await prisma.part.findUnique({ where: { id: partId }, select: { teamId: true } });
