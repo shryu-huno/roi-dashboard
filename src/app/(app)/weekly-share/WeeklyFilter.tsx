@@ -22,10 +22,10 @@ export type AdminPick = {
 
 const selectCls =
   "h-[38px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]";
-const dot: Record<WeekChip["status"], string> = {
-  done: "bg-emerald-500",
-  part: "bg-amber-500",
-  none: "bg-slate-300",
+const statusMark: Record<WeekChip["status"], string> = {
+  done: "●", // 담당 고객사 전부 제출
+  part: "◐", // 일부 제출
+  none: "○", // 아직 없음
 };
 
 // 선택한 달 소속 주는 "1주차"로, 다음 달 소속(걸친 주)은 "12월 1주차"처럼 달을 붙여 헷갈리지 않게 한다.
@@ -34,7 +34,7 @@ function chipLabel(label: string, month: number): string {
   return m && Number(m[1]) === month ? label.replace(/^\d+월 /, "") : label;
 }
 
-// 주간 공유 필터: [연도 ‹ ›] [월 ‹ ›] [주차 칩] (+ 관리자는 [파트][PM]). 바꾸면 바로 이동한다.
+// 주간 공유 필터: [연도 ‹ ›] [월 ‹ ›] [주차 드롭다운] (+ 관리자는 [파트][PM]). 바꾸면 바로 이동한다.
 // 연도·월 모두 ‹ ›와 직접 입력이 가능하고, 이동 범위는 [minYm, maxYm](데이터가 있는 달 ~ 이번 달,
 // 첫 사용 시에도 최근 3개월은 이동 가능)이며 범위를 넘는 값은 범위 안으로 맞춘다.
 export function WeeklyFilter({
@@ -66,7 +66,7 @@ export function WeeklyFilter({
 
   return (
     <div className="mb-4 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <div className="flex flex-nowrap items-end gap-4 overflow-x-auto pb-1">
+      <div className="flex flex-wrap items-end gap-4">
         {admin && (
           <>
             <label className={FIELD}>
@@ -100,29 +100,20 @@ export function WeeklyFilter({
 
         <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} onChange={(target) => go({ ym: target, week: "" })} />
 
-        <div className="flex shrink-0 flex-nowrap items-center gap-1.5" role="group" aria-label="주차">
-          {weeks.map((w) => {
-            const active = w.key === selectedWeek;
-            return (
-              <button
-                key={w.key}
-                type="button"
-                disabled={w.future}
-                aria-pressed={active}
-                onClick={() => go({ week: w.key })}
-                className={`flex h-[38px] shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border px-3 text-sm disabled:cursor-default disabled:opacity-40 ${
-                  active
-                    ? "border-[var(--color-primary)] bg-[var(--color-hover)] font-semibold text-[var(--color-primary)]"
-                    : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg)]"
-                }`}
-              >
-                <span className={`inline-block h-2 w-2 rounded-full ${w.future ? "bg-slate-200" : dot[w.status]}`} />
-                {chipLabel(w.label, ym.month)}
-                <small className="text-xs font-normal text-[var(--color-muted)]">{w.range}</small>
-              </button>
-            );
-          })}
-        </div>
+        <label className={FIELD}>
+          주차
+          <select
+            className={`mt-1.5 w-60 ${selectCls}`}
+            value={selectedWeek}
+            onChange={(e) => go({ week: e.target.value })}
+          >
+            {weeks.map((w) => (
+              <option key={w.key} value={w.key} disabled={w.future}>
+                {`${statusMark[w.future ? "none" : w.status]} ${chipLabel(w.label, ym.month)}  ${w.range}`}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
     </div>
   );

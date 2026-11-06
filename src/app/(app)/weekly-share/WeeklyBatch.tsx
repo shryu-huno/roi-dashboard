@@ -221,16 +221,29 @@ export function WeeklyBatch({
                     ["note", "비고", "이슈, 요청사항"],
                   ] as const
                 ).map(([field, label, placeholder]) => (
-                  <label key={field} className="flex flex-col gap-1 text-sm font-semibold">
-                    {label}
-                    <textarea
-                      value={card.draft[field]}
-                      disabled={off}
-                      placeholder={readOnly ? "" : placeholder}
-                      onChange={(e) => setDraft(c.id, { [field]: e.target.value, ...(e.target.value.trim() ? { noSpecial: false } : {}) })}
-                      className={`${inputCls} min-h-[104px] resize-y font-normal`}
-                    />
-                  </label>
+                  <div key={field} className="flex flex-col gap-2">
+                    <label className="flex flex-col gap-1 text-sm font-semibold">
+                      {label}
+                      <textarea
+                        value={card.draft[field]}
+                        disabled={off}
+                        placeholder={readOnly ? "" : placeholder}
+                        onChange={(e) => setDraft(c.id, { [field]: e.target.value, ...(e.target.value.trim() ? { noSpecial: false } : {}) })}
+                        className={`${inputCls} min-h-[104px] resize-y font-normal`}
+                      />
+                    </label>
+                    {field === "thisWeek" && (
+                      <label className="inline-flex select-none items-center gap-2 text-sm text-[var(--color-muted)]">
+                        <input
+                          type="checkbox"
+                          checked={card.draft.noSpecial}
+                          disabled={readOnly}
+                          onChange={(e) => setDraft(c.id, { noSpecial: e.target.checked })}
+                        />
+                        이번 주 특이사항 없음
+                      </label>
+                    )}
+                  </div>
                 ))}
               </div>
 
@@ -278,24 +291,13 @@ export function WeeklyBatch({
               )}
               {card.message && <p className="text-sm text-[var(--color-danger)]">{card.message}</p>}
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              {!readOnly && c.prevNextWeek && (
                 <div className="flex flex-wrap items-center gap-1">
-                  {!readOnly && c.prevNextWeek && (
-                    <button type="button" className={ghostBtn} onClick={() => pullPrevious(c)}>
-                      지난주 계획 가져오기
-                    </button>
-                  )}
+                  <button type="button" className={ghostBtn} onClick={() => pullPrevious(c)}>
+                    지난주 계획 가져오기
+                  </button>
                 </div>
-                <label className="inline-flex select-none items-center gap-2 text-sm text-[var(--color-muted)]">
-                  <input
-                    type="checkbox"
-                    checked={card.draft.noSpecial}
-                    disabled={readOnly}
-                    onChange={(e) => setDraft(c.id, { noSpecial: e.target.checked })}
-                  />
-                  이번 주 특이사항 없음
-                </label>
-              </div>
+              )}
             </div>
           </section>
         );
