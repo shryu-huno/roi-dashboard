@@ -70,15 +70,15 @@ export type Card = {
   cumulative: number;
   contract: number;
   rate: number | null;
-  monthAmount: number; // 선택한 달 실적
+  monthAmount: number | null; // 선택한 달 실적(월이 "전체"면 null)
 };
 
-/** 요약 카드: 전체(고객사 기준 중복 제거) + 파트별(그 파트 PM이 담당하는 고객사 전부). */
-export function partCards(input: PartStatusInput, month: number): Card[] {
+/** 요약 카드: 전체(고객사 기준 중복 제거) + 파트별(그 파트 PM이 담당하는 고객사 전부). month=null이면 연도 누적만(월 실적 없음). */
+export function partCards(input: PartStatusInput, month: number | null): Card[] {
   const card = (id: string, name: string): Card => {
     const pms = pmsOf(input, id);
     const t = totalsFor(input, clientsOfPms(input, pms));
-    return { id, name, pmCount: pms.length, clientCount: t.clientCount, cumulative: t.cumulative, contract: t.contract, rate: t.rate, monthAmount: t.months[month - 1] };
+    return { id, name, pmCount: pms.length, clientCount: t.clientCount, cumulative: t.cumulative, contract: t.contract, rate: t.rate, monthAmount: month === null ? null : t.months[month - 1] };
   };
   return [card(ALL, "전체"), ...input.groups.map((g) => card(g.id, g.name))];
 }
@@ -99,15 +99,17 @@ const QUARTERS = [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]];
  * 분기별("q") / 최근 3개월("r3") 표. 전체면 파트별 행, 파트를 고르면 그 파트의 PM별 행.
  * 합계 행은 행 값을 더하지 않고 고객사를 한 번씩만 모아 다시 계산한다(공동 담당 중복 방지).
  * lastMonth: 지금 달 — 분기별에서 아직 시작하지 않은 분기는 null("—").
+ * month=null(월 "전체")이면 강조할 열이 없고(currentIndex -1), 최근 3개월은 가장 최근 달(lastMonth) 기준이다.
  */
 export function periodTable(
   input: PartStatusInput,
-  o: { groupId: string; view: "q" | "r3"; month: number; lastMonth: number },
+  o: { groupId: string; view: "q" | "r3"; month: number | null; lastMonth: number },
 ) {
-  const monthList = o.view === "r3" ? [o.month - 2, o.month - 1, o.month].filter((m) => m >= 1) : [];
+  const anchor = o.month ?? o.lastMonth;
+  const monthList = o.view === "r3" ? [anchor - 2, anchor - 1, anchor].filter((m) => m >= 1) : [];
   const columns =
     o.view === "q" ? QUARTERS.map((_, i) => `${i + 1}분기`) : [...monthList.map((m) => `${m}월`), "3개월 합계"];
-  const currentIndex = o.view === "q" ? Math.floor((o.month - 1) / 3) : monthList.length - 1;
+  const currentIndex = o.month === null ? -1 : o.view === "q" ? Math.floor((o.month - 1) / 3) : monthList.length - 1;
 
   const valuesOf = (t: Totals): (number | null)[] => {
     if (o.view === "q") return QUARTERS.map((q) => (q[0] > o.lastMonth ? null : q.reduce((s, m) => s + t.months[m - 1], 0)));

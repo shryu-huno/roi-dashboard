@@ -13,7 +13,7 @@ export function PartTrendChart({
   year, selectedMonth, partialMonth, lastMonth, series, totals, hrefs,
 }: {
   year: number;
-  selectedMonth: number;
+  selectedMonth: number | null; // 월이 "전체"면 null(강조 없음)
   partialMonth: number | null; // 진행 중인 달(옅게 표시)
   lastMonth: number; // 이 달 이후는 선택할 수 없다
   series: Series[];

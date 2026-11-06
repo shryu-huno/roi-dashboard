@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import type { RlsContext } from "@/lib/rls";
 import { getIncludeVat } from "@/lib/vat";
-import { clampYm, parseYm, ymValue, YEAR_MIN, type Ym } from "@/lib/month-range";
+import { clampYm, YEAR_MIN, type Ym } from "@/lib/month-range";
 import { formatPercent, formatWon, formatWonCompact } from "@/lib/format";
 import { colorAt, METER } from "@/lib/chart-colors";
 import { loadPartStatusFacts } from "@/lib/data/part-status";
@@ -14,7 +14,8 @@ import { PartTrendChart } from "./PartTrendChart";
 // 파트 현황 탭의 조회 조건(URL 쿼리).
 export type StatusParams = {
   part?: string; // 파트 id, 비우면 전체
-  ym?: string; // 기준 연·월 "YYYY-MM"(연도=집계 연도, 월=선택 월 실적·최근 3개월 기준)
+  year?: string; // 집계 연도(기본: 올해)
+  month?: string; // "all"(기본, 연도 누적만) 또는 1~12(그 달 실적·최근 3개월 기준)
   tv?: string; // q(분기별) | r3(최근 3개월)
 };
 
@@ -46,10 +47,17 @@ export async function PartStatusView({
   const includeVat = await getIncludeVat();
   const { maxYm } = range;
   const minYm: Ym = { year: YEAR_MIN, month: 1 };
-  const ym = clampYm(parseYm(sp.ym) ?? maxYm, minYm, maxYm);
+  // 연도는 [2000, 올해], 월은 기본 "전체". 올해라면 아직 오지 않은 달은 고를 수 없다(이번 달로 맞춘다).
+  const askedYear = Number(sp.year);
+  const year = Number.isInteger(askedYear) ? clampYm({ year: askedYear, month: 1 }, minYm, maxYm).year : maxYm.year;
+  const askedMonth = Number(sp.month);
+  const month: number | null =
+    sp.month && sp.month !== "all" && Number.isInteger(askedMonth) && askedMonth >= 1 && askedMonth <= 12
+      ? clampYm({ year, month: askedMonth }, minYm, maxYm).month
+      : null;
   const tv = sp.tv === "r3" ? "r3" : "q";
-  const lastMonth = ym.year < maxYm.year ? 12 : maxYm.month;
-  const partialMonth = ym.year === maxYm.year ? maxYm.month : null;
+  const lastMonth = year < maxYm.year ? 12 : maxYm.month;
+  const partialMonth = year === maxYm.year ? maxYm.month : null;
 
   // 파트가 없는 PM은 "파트 미지정" 그룹으로 모아 합계가 어긋나지 않게 한다.
   const known = new Set(adminLists.parts.map((p) => p.id));
@@ -69,36 +77,36 @@ export async function PartStatusView({
     );
   }
 
-  const facts = await loadPartStatusFacts(ctx, { pmIds: pms.map((p) => p.id), year: ym.year });
+  const facts = await loadPartStatusFacts(ctx, { pmIds: pms.map((p) => p.id), year });
   const input: PartStatusInput = { groups, pms, clientsByPm: facts.clientsByPm, clients: facts.clients, includeVat };
 
-  const cards = partCards(input, ym.month);
+  const cards = partCards(input, month);
   const selected = cards.find((c) => c.id === groupId) ?? cards[0];
   const trend = trendSeries(input, groupId);
-  const table = periodTable(input, { groupId, view: tv, month: ym.month, lastMonth });
+  const table = periodTable(input, { groupId, view: tv, month, lastMonth });
   const dir = directory(input, groupId);
   const colorOf = (id: string) => colorAt(Math.max(0, groups.findIndex((g) => g.id === id)));
   const series = trend.series.map((s) => ({ ...s, color: colorOf(s.id) }));
 
-  const href = (o: { ym?: Ym; part?: string; tv?: string }) => {
-    const p = new URLSearchParams({ tab: "status", ym: ymValue(o.ym ?? ym), tv: o.tv ?? tv });
+  const href = (o: { month?: number | "all"; part?: string; tv?: string }) => {
+    const p = new URLSearchParams({ tab: "status", year: String(year), month: String(o.month ?? month ?? "all"), tv: o.tv ?? tv });
     const part = o.part ?? partId;
     if (part) p.set("part", part);
     return `/weekly-share?${p.toString()}`;
   };
-  const monthHrefs = Array.from({ length: 12 }, (_, i) => href({ ym: { year: ym.year, month: i + 1 } }));
+  const monthHrefs = Array.from({ length: 12 }, (_, i) => href({ month: i + 1 }));
   const partName = partId ? groups.find((g) => g.id === partId)?.name ?? "" : "";
 
   return (
     <div className="flex flex-col gap-4">
-      <PartStatusFilter groups={groups} partId={partId} ym={ym} minYm={minYm} maxYm={maxYm} tv={tv} />
+      <PartStatusFilter groups={groups} partId={partId} year={year} month={month} minYm={minYm} maxYm={maxYm} tv={tv} />
 
       <div className={`${card} flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 text-sm text-[var(--color-muted)]`}>
         <span>
           <b className="text-[var(--color-fg)]">{partName || "전체"}</b> · PM {selected.pmCount}명 · 고객사 {selected.clientCount}곳
         </span>
-        <span>{ym.year}년 누적 <b className="text-[var(--color-fg)]">{formatWon(selected.cumulative)}</b></span>
-        <span>{ym.month}월 실적 <b className="text-[var(--color-fg)]">{formatWon(selected.monthAmount)}</b></span>
+        <span>{year}년 누적 <b className="text-[var(--color-fg)]">{formatWon(selected.cumulative)}</b></span>
+        {month !== null && <span>{month}월 실적 <b className="text-[var(--color-fg)]">{formatWon(selected.monthAmount ?? 0)}</b></span>}
         <span className="ml-auto text-xs">부가세 {includeVat ? "포함" : "미포함"} 기준 · 전체 현황과 같은 계산식</span>
       </div>
 
@@ -124,7 +132,7 @@ export async function PartStatusView({
                 <span className="text-xs text-[var(--color-muted)]">PM {c.pmCount}명 · 고객사 {c.clientCount}곳</span>
               </div>
               <div>
-                <div className="text-xs text-[var(--color-muted)]">{ym.year}년 누적 실적</div>
+                <div className="text-xs text-[var(--color-muted)]">{year}년 누적 실적</div>
                 <div className="text-xl font-bold tracking-tight tabular-nums">
                   {num(c.cumulative)}
                   <small className="ml-0.5 text-[13px] font-semibold text-[var(--color-muted)]">원</small>
@@ -139,9 +147,11 @@ export async function PartStatusView({
                   <i className="block h-full rounded-full" style={{ width: `${pct}%`, background: METER.fill }} />
                 </div>
               </div>
-              <div className="text-xs text-[var(--color-muted)]">
-                {ym.month}월 실적 <b className="tabular-nums text-[var(--color-fg)]">{num(c.monthAmount)}</b>원
-              </div>
+              {c.monthAmount !== null && (
+                <div className="text-xs text-[var(--color-muted)]">
+                  {month}월 실적 <b className="tabular-nums text-[var(--color-fg)]">{num(c.monthAmount)}</b>원
+                </div>
+              )}
             </Link>
           );
         })}
@@ -150,11 +160,11 @@ export async function PartStatusView({
       <section className={`${card} p-5`}>
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h2 className="text-base font-semibold">월별 실적 추이</h2>
-          <span className="text-sm text-[var(--color-muted)]">{ym.year}년 1~12월 · {partName || "파트별 누적 막대"}</span>
+          <span className="text-sm text-[var(--color-muted)]">{year}년 1~12월 · {partName || "파트별 누적 막대"}</span>
         </div>
         <PartTrendChart
-          year={ym.year}
-          selectedMonth={ym.month}
+          year={year}
+          selectedMonth={month}
           partialMonth={partialMonth}
           lastMonth={lastMonth}
           series={series}
@@ -200,6 +210,7 @@ export async function PartStatusView({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-baseline gap-3">
             <h2 className="text-base font-semibold">{tv === "q" ? "분기별 실적" : "최근 3개월 실적"}</h2>
+            {tv === "r3" && month === null && <span className="text-sm text-[var(--color-muted)]">가장 최근 달({lastMonth}월) 기준</span>}
             <span className="text-sm text-[var(--color-muted)]">{partName ? `${partName} PM별` : "파트별"} · 단위 원</span>
           </div>
           <div className="inline-flex gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="표 보기">
@@ -228,7 +239,7 @@ export async function PartStatusView({
                 {table.columns.map((c, i) => (
                   <th key={c} className={`${th} ${i === table.currentIndex ? "bg-[var(--color-hover)] text-[var(--color-primary)]" : ""}`}>{c}</th>
                 ))}
-                <th className={th}>{ym.year}년 누적</th>
+                <th className={th}>{year}년 누적</th>
                 <th className={th}>계약금</th>
                 <th className={th}>달성률</th>
               </tr>
@@ -263,7 +274,7 @@ export async function PartStatusView({
       <section className={`${card} p-5`}>
         <div className="mb-1 flex flex-wrap items-baseline gap-3">
           <h2 className="text-base font-semibold">파트별 PM 담당 고객사</h2>
-          <span className="text-sm text-[var(--color-muted)]">고객사 옆 금액은 {ym.year}년에 귀속되는 계약금이에요(달성률 계산과 같은 기준).</span>
+          <span className="text-sm text-[var(--color-muted)]">고객사 옆 금액은 {year}년에 귀속되는 계약금이에요(달성률 계산과 같은 기준).</span>
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[720px] table-fixed text-sm">

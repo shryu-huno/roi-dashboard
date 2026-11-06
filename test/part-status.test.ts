@@ -148,3 +148,24 @@ describe("niceMax — 차트 축의 보기 좋은 최댓값", () => {
     expect(niceMax(46_000_000)).toBe(50_000_000);
   });
 });
+
+describe("월 = 전체(month가 null) — 연도 누적만 보는 기본 상태", () => {
+  it("partCards: 선택 월 실적(monthAmount)이 없다(null), 누적·계약금·달성률은 그대로", () => {
+    const withMonth = partCards(base(false), 2);
+    const all = partCards(base(false), null);
+    expect(all.every((c) => c.monthAmount === null)).toBe(true);
+    expect(all.map((c) => [c.cumulative, c.contract, c.rate])).toEqual(withMonth.map((c) => [c.cumulative, c.contract, c.rate]));
+  });
+  it("periodTable 분기별: 강조할 분기가 없다(currentIndex -1)", () => {
+    const t = periodTable(base(false), { groupId: "all", view: "q", month: null, lastMonth: 5 });
+    expect(t.currentIndex).toBe(-1);
+    expect(t.columns).toEqual(["1분기", "2분기", "3분기", "4분기"]);
+  });
+  it("periodTable 최근 3개월: 가장 최근 달(lastMonth) 기준 3개월, 강조 없음", () => {
+    const t = periodTable(base(false), { groupId: "all", view: "r3", month: null, lastMonth: 5 });
+    expect(t.columns).toEqual(["3월", "4월", "5월", "3개월 합계"]);
+    expect(t.currentIndex).toBe(-1);
+    const p1 = t.rows.find((r) => r.label === "1파트")!;
+    expect(p1.values).toEqual([0, 1500, 3000, 4500]); // 3월 0 / 4월 B(1000+500) / 5월 C 3000
+  });
+});
