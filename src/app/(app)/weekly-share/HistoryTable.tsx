@@ -12,11 +12,19 @@ import type { OtherWorkView, WeeklyShareView } from "@/lib/data/weekly-share";
 
 type Draft = { thisWeek: string; nextWeek: string; note: string; noSpecial: boolean };
 
-const thCls = "px-3 py-3 text-left text-sm font-bold text-[var(--color-muted)] whitespace-nowrap";
-const tdCls = "px-3 py-3 align-top";
-const txtCls = `${tdCls} min-w-[11rem] whitespace-pre-line leading-relaxed`;
+// 가운데 정렬. 열 폭은 colgroup으로 고정(table-fixed)해서 월별 표마다 같은 열이 같은 위치에 오게 한다.
+const thCls = "px-3 py-3 text-center text-sm font-bold text-[var(--color-muted)]";
+const tdCls = "px-3 py-3 text-center align-middle break-words";
+const txtCls = `${tdCls} whitespace-pre-line leading-relaxed`;
 const areaCls =
-  "min-h-[84px] w-full min-w-[10rem] resize-y rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm leading-relaxed outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-bg)]";
+  "min-h-[84px] w-full min-w-0 resize-y rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm leading-relaxed outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-bg)]";
+
+// 열 폭(%). 고객사·PM 열 유무에 따라 합이 100이 되도록 세 가지 배치를 쓴다.
+function columnWidths(grouped: boolean, single: boolean): number[] {
+  if (grouped) return [9, 13, 9, 21, 21, 13, 14]; // PM · 고객사 · 주차 · 이번주 · 다음주 · 비고 · 작성
+  if (single) return [10, 26, 26, 16, 22]; // 주차 · 이번주 · 다음주 · 비고 · 작성
+  return [14, 10, 22, 22, 14, 18]; // 고객사 · 주차 · 이번주 · 다음주 · 비고 · 작성
+}
 
 function sectionsOf(rows: HistoryRow[], single: string | null): { title: string; rows: HistoryRow[] }[] {
   if (single) return [{ title: single, rows }];
@@ -164,7 +172,12 @@ export function HistoryTable({
                 <h2 className="text-base font-semibold">{sec.title}</h2>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[980px] table-fixed text-sm">
+                  <colgroup>
+                    {columnWidths(grouped, single).map((w, i) => (
+                      <col key={i} style={{ width: `${w}%` }} />
+                    ))}
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-[var(--color-border)]">
                       {grouped && <th className={thCls}>PM</th>}
@@ -205,9 +218,9 @@ export function HistoryTable({
                             </tr>
                           )}
                           <tr className={`border-b border-[var(--color-border)] ${missing ? "text-[var(--color-muted)]" : ""}`}>
-                            {grouped && <td className={`${tdCls} whitespace-nowrap font-bold`}>{showPm ? r.pmName : ""}</td>}
+                            {grouped && <td className={`${tdCls} font-bold`}>{showPm ? r.pmName : ""}</td>}
                             {!single && (
-                              <td className={`${tdCls} whitespace-nowrap font-semibold`}>
+                              <td className={`${tdCls} font-semibold`}>
                                 {showGroup ? (
                                   r.kind === "client" ? (
                                     r.clientName
@@ -219,11 +232,11 @@ export function HistoryTable({
                                 )}
                               </td>
                             )}
-                            <td className={`${tdCls} whitespace-nowrap`}>
+                            <td className={tdCls}>
                               <b className="block font-semibold">{weekLabel(r.weekStart)}</b>
                               <span className="text-xs text-[var(--color-muted)]">{weekRange(r.weekStart)}</span>
                               {r.kind === "other" && r.other.tags.length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
+                                <div className="mt-1 flex flex-wrap justify-center gap-1">
                                   {r.other.tags.map((t) => (
                                     <span key={t} className="rounded bg-[var(--color-bg)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-muted)]">{t}</span>
                                   ))}
@@ -261,7 +274,7 @@ export function HistoryTable({
                               </>
                             )}
 
-                            <td className={`${tdCls} whitespace-nowrap`}>
+                            <td className={tdCls}>
                               {missing ? (
                                 <>
                                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">미작성</span>
@@ -277,7 +290,7 @@ export function HistoryTable({
                                   )}
                                 </>
                               ) : isEditing ? (
-                                <div className="flex flex-col items-start gap-2">
+                                <div className="flex flex-col items-center gap-2">
                                   {r.kind === "client" && (
                                     <label className="inline-flex select-none items-center gap-1.5 text-xs text-[var(--color-muted)]">
                                       <input type="checkbox" checked={draft.noSpecial} onChange={(e) => setDraft((d) => ({ ...d, noSpecial: e.target.checked }))} />
@@ -295,7 +308,7 @@ export function HistoryTable({
                                 </div>
                               ) : (
                                 <>
-                                  <div className="max-w-[14rem] whitespace-normal text-xs text-[var(--color-muted)]">
+                                  <div className="text-xs leading-relaxed text-[var(--color-muted)]">
                                     {r.kind === "client"
                                       ? describeShareStamp(r.share!)
                                       : describeShareStamp({ createdByName: r.pmName, updatedByName: r.pmName, createdAt: r.other.createdAt, editedAt: r.other.editedAt })}
