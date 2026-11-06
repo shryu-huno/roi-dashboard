@@ -4,7 +4,7 @@ import { Fragment, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { submitWeeklyAction } from "./actions";
-import { describeShareStamp } from "@/lib/weekly-share-view";
+import { describeShareStampLines } from "@/lib/weekly-share-view";
 import { historyText, type HistoryRow } from "@/lib/weekly-history";
 import { ymValue } from "@/lib/month-range";
 import { weekLabel, weekMonth, weekRange } from "@/lib/week";
@@ -21,9 +21,9 @@ const areaCls =
 
 // 열 폭(%). 고객사·PM 열 유무에 따라 합이 100이 되도록 세 가지 배치를 쓴다.
 function columnWidths(grouped: boolean, single: boolean): number[] {
-  if (grouped) return [9, 13, 9, 21, 21, 13, 14]; // PM · 고객사 · 주차 · 이번주 · 다음주 · 비고 · 작성
-  if (single) return [10, 26, 26, 16, 22]; // 주차 · 이번주 · 다음주 · 비고 · 작성
-  return [14, 10, 22, 22, 14, 18]; // 고객사 · 주차 · 이번주 · 다음주 · 비고 · 작성
+  if (grouped) return [9, 13, 9, 22, 22, 14, 11]; // PM · 고객사 · 주차 · 이번주 · 다음주 · 비고 · 작성
+  if (single) return [10, 28, 28, 18, 16]; // 주차 · 이번주 · 다음주 · 비고 · 작성
+  return [14, 10, 25, 25, 14, 12]; // 고객사 · 주차 · 이번주 · 다음주 · 비고 · 작성
 }
 
 function sectionsOf(rows: HistoryRow[], single: string | null): { title: string; rows: HistoryRow[] }[] {
@@ -308,10 +308,14 @@ export function HistoryTable({
                                 </div>
                               ) : (
                                 <>
-                                  <div className="text-xs leading-relaxed text-[var(--color-muted)]">
-                                    {r.kind === "client"
-                                      ? describeShareStamp(r.share!)
-                                      : describeShareStamp({ createdByName: r.pmName, updatedByName: r.pmName, createdAt: r.other.createdAt, editedAt: r.other.editedAt })}
+                                  {/* 작성자 / 작성 시각 / (수정 정보) 줄로 나누고, 그 아래에 수정 버튼 */}
+                                  <div className="flex flex-col gap-0.5 text-xs leading-snug text-[var(--color-muted)]">
+                                    {(r.kind === "client"
+                                      ? describeShareStampLines(r.share!)
+                                      : describeShareStampLines({ createdByName: r.pmName, updatedByName: r.pmName, createdAt: r.other.createdAt, editedAt: r.other.editedAt })
+                                    ).map((line, i) => (
+                                      <span key={i} className={i === 0 ? "text-sm font-medium text-[var(--color-fg)]" : ""}>{line}</span>
+                                    ))}
                                   </div>
                                   {editable.has(r.key) && (
                                     <button type="button" onClick={() => startEdit(r)} className="mt-1 text-sm font-medium text-[var(--color-primary)]">

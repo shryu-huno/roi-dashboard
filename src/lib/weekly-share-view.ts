@@ -27,3 +27,18 @@ export function describeShareStamp(v: Stamp): string {
   if (editor === creator) return `${creator} · ${created} · 수정됨 ${edited}`;
   return `작성 ${creator} ${created} · 수정 ${editor} ${edited}`;
 }
+
+/**
+ * 표의 "작성" 칸용 줄 나누기: [작성자, 작성 시각] + 수정이 있으면 [수정 정보].
+ *  - 같은 사람이 수정: "수정됨 11/5(목) 09:10" / 다른 사람이 수정: "수정 이승준 11/5(목) 09:10"
+ */
+export function describeShareStampLines(v: Stamp): string[] {
+  const creator = v.createdByName ?? GONE;
+  const lines = [creator, formatKstDateTime(v.createdAt)];
+  if (v.editedAt) {
+    const editor = v.updatedByName ?? GONE;
+    const edited = formatKstDateTime(v.editedAt);
+    lines.push(editor === creator ? `수정됨 ${edited}` : `수정 ${editor} ${edited}`);
+  }
+  return lines;
+}
