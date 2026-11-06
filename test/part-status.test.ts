@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  totalsFor, partCards, trendSeries, periodTable, directory, rangeTable,
+  totalsFor, partCards, trendSeries, periodTable, directory,
   type ClientFacts, type PartStatusInput,
 } from "@/lib/part-status";
 import { niceMax } from "@/lib/chart-axis";
@@ -170,44 +170,23 @@ describe("월 = 전체(month가 null) — 연도 누적만 보는 기본 상태"
   });
 });
 
-describe("월 구간(기간 설정) — 12개월이 아닌 임의 길이", () => {
-  // 3개월 구간: 배열 길이 3
-  const short = (): PartStatusInput => ({
-    groups: [{ id: "g1", name: "1파트" }, { id: "g2", name: "2파트" }],
-    pms: [
-      { id: "kim", name: "김", groupId: "g1" },
-      { id: "lee", name: "이", groupId: "g1" },
-      { id: "park", name: "박", groupId: "g2" },
-    ],
-    clientsByPm: { kim: ["A", "B"], lee: ["B"], park: ["D"] },
-    clients: {
-      A: { id: "A", name: "A사", contractTaxable: 1000, contractExempt: 0, perfTaxable: [100, 200, 300], perfExempt: [0, 0, 0] },
-      B: { id: "B", name: "B사", contractTaxable: 500, contractExempt: 100, perfTaxable: [10, 20, 30], perfExempt: [1, 2, 3] },
-      D: { id: "D", name: "D사", contractTaxable: 2000, contractExempt: 0, perfTaxable: [0, 0, 400], perfExempt: [0, 0, 0] },
-    },
-    includeVat: false,
-    monthCount: 3,
+describe("분기 선택 — 월별과 같은 한 해 안의 계산", () => {
+  it("partCards: 분기를 고르면 그 분기 실적(quarterAmount)이 나오고 월 실적은 없다", () => {
+    const cards = partCards(base(false), null, 1); // 1분기 = 1~3월
+    expect(cards.every((c) => c.monthAmount === null)).toBe(true);
+    const [all, p1, p2] = cards;
+    expect(p1.quarterAmount).toBe(1000 + 1000 + 2000); // 1파트: A(1·2월 1000씩) + B(2월 2000)
+    expect(p2.quarterAmount).toBe(5000); // 2파트: D 1월
+    expect(all.quarterAmount).toBe(p1.quarterAmount! + p2.quarterAmount!);
   });
-
-  it("totalsFor: 월 배열 길이와 누적이 구간 길이를 따른다", () => {
-    const t = totalsFor(short(), ["A", "B"]);
-    expect(t.months).toEqual([111, 222, 333]);
-    expect(t.cumulative).toBe(666);
-    expect(t.contract).toBe(1600);
+  it("partCards: 분기를 안 고르면 quarterAmount는 null, 누적·계약금·달성률은 그대로", () => {
+    const plain = partCards(base(false), 2);
+    const withQ = partCards(base(false), null, 2);
+    expect(plain.every((c) => c.quarterAmount === null)).toBe(true);
+    expect(withQ.map((c) => [c.cumulative, c.contract, c.rate])).toEqual(plain.map((c) => [c.cumulative, c.contract, c.rate]));
   });
-  it("trendSeries: 계열 값 길이가 구간 길이", () => {
-    const tr = trendSeries(short(), "all");
-    expect(tr.series[0].values).toHaveLength(3);
-    expect(tr.totals).toEqual([111, 222, 733]);
-  });
-  it("rangeTable: 전체면 파트별 행, 파트를 고르면 PM별 행. 합계는 공동 담당(B)을 한 번만", () => {
-    const all = rangeTable(short(), "all");
-    expect(all.rows.map((r) => r.label)).toEqual(["1파트", "2파트"]);
-    expect(all.rows[0]).toMatchObject({ cumulative: 666, contract: 1600, clientCount: 2 });
-    expect(all.rows[0].rate).toBeCloseTo(666 / 1600);
-    expect(all.total).toMatchObject({ cumulative: 666 + 400, contract: 1600 + 2000, clientCount: 3 });
-    const g1 = rangeTable(short(), "g1");
-    expect(g1.rows.map((r) => r.label)).toEqual(["김", "이"]);
-    expect(g1.total.cumulative).toBe(666); // B를 김·이가 모두 맡아도 한 번
+  it("periodTable: 분기를 고르면 그 분기 열을 강조한다(currentIndex = 분기-1)", () => {
+    const t = periodTable(base(false), { groupId: "all", view: "q", month: null, quarter: 3, lastMonth: 12 });
+    expect(t.currentIndex).toBe(2);
   });
 });

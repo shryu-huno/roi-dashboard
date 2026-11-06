@@ -30,34 +30,3 @@ export function overlapRatio(
   const overlap = Math.max(0, Math.min(winTo, projTo) - Math.max(winFrom, projFrom) + 1);
   return totalMonths === 0 ? 0 : overlap / totalMonths;
 }
-
-export type MonthWindow = { from: { year: number; month: number }; to: { year: number; month: number } };
-
-/**
- * 임의의 월 구간(해를 넘어도 됨)과 프로젝트 계약기간의 월 겹침 비율 = 겹치는 월수 ÷ 계약 전체 월수.
- * 한 해 안의 구간이면 overlapRatio(연도+기간)와 같은 값이다(파트 현황의 "기간 설정"이 전체 현황과 같은 기준을 쓰도록).
- * 계약기간이 없으면 매년 1~12월 계약으로 보고, 구간이 걸친 연도마다 (걸친 월수 ÷ 12)를 더한다.
- */
-export function rangeOverlapRatio(win: MonthWindow, contractStart: Date | null, contractEnd: Date | null): number {
-  const idx = (y: number, m: number) => y * 12 + (m - 1);
-  const winFrom = idx(win.from.year, win.from.month);
-  const winTo = idx(win.to.year, win.to.month);
-  if (winTo < winFrom) return 0;
-
-  if (contractStart == null || contractEnd == null) {
-    let total = 0;
-    for (let y = win.from.year; y <= win.to.year; y++) {
-      const a = Math.max(winFrom, idx(y, 1));
-      const b = Math.min(winTo, idx(y, 12));
-      if (b >= a) total += (b - a + 1) / 12;
-    }
-    return total;
-  }
-  const aRaw = idx(contractStart.getFullYear(), contractStart.getMonth() + 1);
-  const bRaw = idx(contractEnd.getFullYear(), contractEnd.getMonth() + 1);
-  const projFrom = Math.min(aRaw, bRaw);
-  const projTo = Math.max(aRaw, bRaw);
-  const totalMonths = projTo - projFrom + 1;
-  const overlap = Math.max(0, Math.min(winTo, projTo) - Math.max(winFrom, projFrom) + 1);
-  return totalMonths === 0 ? 0 : overlap / totalMonths;
-}

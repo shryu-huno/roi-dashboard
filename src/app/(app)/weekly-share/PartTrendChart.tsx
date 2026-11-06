@@ -30,6 +30,8 @@ export function PartTrendChart({
   const max = niceMax(Math.max(...totals));
   const ticks = [0, 1, 2, 3, 4].map((k) => (max * k) / 4);
   const multi = series.length > 1;
+  // 월별은 선택한 달 하나, 분기별은 선택한 분기의 세 달이 강조된다. 값 라벨은 하나만 강조될 때만 붙인다(겹침 방지).
+  const labelSelected = columns.filter((c) => c.selected).length === 1;
 
   const show = (i: number, el: HTMLElement, pointer?: { x: number; y: number }) => {
     const r = el.getBoundingClientRect();
@@ -84,7 +86,7 @@ export function PartTrendChart({
                     col.selected ? "bg-[var(--color-hover)]" : "hover:bg-[var(--color-hover)]"
                   }`}
                 >
-                  {col.selected && total > 0 && (
+                  {labelSelected && col.selected && total > 0 && (
                     <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[11.5px] font-bold tabular-nums text-[var(--color-fg)]" style={{ bottom: `calc(${h}% + 4px)` }}>
                       {formatWonCompact(total)}
                     </span>

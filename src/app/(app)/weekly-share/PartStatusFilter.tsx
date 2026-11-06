@@ -9,47 +9,42 @@ const selectCls =
   "h-[38px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]";
 const MODES: { value: StatusMode; label: string }[] = [
   { value: "month", label: "월별" },
+  { value: "quarter", label: "분기별" },
   { value: "all", label: "전체" },
-  { value: "range", label: "기간 설정" },
 ];
+const quarterOf = (month: number) => Math.floor((month - 1) / 3) + 1;
 
-// 파트 현황 필터: [파트] · [기간: 월별/전체/기간 설정] · 월별=연도+월, 전체=연도(그 해 전체), 기간 설정=시작일~종료일.
-// 히스토리 탭과 같은 모양이다. 바꾸면 [조회] 없이 바로 이동하고, 모든 조건은 URL에 담긴다.
+// 파트 현황 필터: [파트] · [기간: 월별/분기별/전체] · 월별=연도+월, 분기별=연도+분기, 전체=연도(그 해 1~12월).
+// 세 가지 모두 한 해 안의 조회다. 바꾸면 [조회] 없이 바로 이동하고, 모든 조건은 URL에 담긴다.
 export function PartStatusFilter({
-  groups, partId, mode, year, month, from, to, today, minYm, maxYm, tv,
+  groups, partId, mode, year, month, quarter, minYm, maxYm, tv,
 }: {
   groups: { id: string; name: string }[];
   partId: string; // "" = 전체
   mode: StatusMode;
   year: number;
   month: number | null;
-  from: string;
-  to: string;
-  today: string;
+  quarter: number | null;
   minYm: Ym;
   maxYm: Ym;
   tv: string;
 }) {
   const router = useRouter();
-  // 월별로 바꿀 때의 기본 월: 올해면 이번 달, 아니면 12월.
-  const defaultMonth = year >= maxYm.year ? maxYm.month : 12;
+  const current = year >= maxYm.year;
+  // 모드를 바꿀 때의 기본값: 올해면 이번 달·이번 분기, 아니면 12월·4분기.
+  const defaultMonth = current ? maxYm.month : 12;
+  const defaultQuarter = current ? quarterOf(maxYm.month) : 4;
+  const lastQuarter = current ? quarterOf(maxYm.month) : 4; // 올해라면 아직 시작하지 않은 분기는 고를 수 없다
 
-  type Patch = Partial<{ part: string; mode: StatusMode; year: number; month: number; from: string; to: string }>;
+  type Patch = Partial<{ part: string; mode: StatusMode; year: number; month: number; quarter: number }>;
   function go(patch: Patch) {
-    const next = { part: partId, mode, year, month: month ?? defaultMonth, from, to, ...patch };
-    const params = new URLSearchParams({ tab: "status", mode: next.mode, tv });
-    if (next.mode !== "range") params.set("year", String(next.year));
+    const next = { part: partId, mode, year, month: month ?? defaultMonth, quarter: quarter ?? defaultQuarter, ...patch };
+    const params = new URLSearchParams({ tab: "status", mode: next.mode, year: String(next.year), tv });
     if (next.mode === "month") params.set("month", String(next.month));
-    if (next.mode === "range") {
-      if (next.from) params.set("from", next.from);
-      if (next.to) params.set("to", next.to);
-    }
+    if (next.mode === "quarter") params.set("quarter", String(next.quarter));
     if (next.part) params.set("part", next.part);
     router.push(`/weekly-share?${params.toString()}`);
   }
-
-  // 기간 설정으로 바꿀 때 시작일·종료일이 없으면 지금 보던 연도(올해면 오늘까지)로 채운다.
-  const rangeDefaults = { from: from || `${year}-01-01`, to: to || (year >= maxYm.year ? today : `${year}-12-31`) };
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -72,7 +67,7 @@ export function PartStatusFilter({
                 key={m.value}
                 type="button"
                 aria-pressed={mode === m.value}
-                onClick={() => go({ mode: m.value, ...(m.value === "range" ? rangeDefaults : {}) })}
+                onClick={() => go({ mode: m.value })}
                 className={`h-8 rounded-[8px] px-3 text-sm font-medium ${
                   mode === m.value ? "bg-[var(--color-surface)] text-[var(--color-primary)] shadow-sm" : "text-[var(--color-muted)]"
                 }`}
@@ -83,22 +78,32 @@ export function PartStatusFilter({
           </div>
         </div>
 
-        {mode !== "range" && (
-          <YearMonthControls
-            ym={{ year, month: month ?? defaultMonth }}
-            minYm={minYm}
-            maxYm={maxYm}
-            hideMonth={mode === "all"}
-            onChange={(target) => go({ year: target.year, month: target.month })}
-          />
-        )}
-        {mode === "range" && (
+        <YearMonthControls
+          ym={{ year, month: month ?? defaultMonth }}
+          minYm={minYm}
+          maxYm={maxYm}
+          hideMonth={mode !== "month"}
+          onChange={(target) => go({ year: target.year, month: target.month })}
+        />
+
+        {mode === "quarter" && (
           <div className="flex flex-col text-xs text-[var(--color-muted)]">
-            날짜
-            <div className="mt-1 flex items-center gap-1.5">
-              <input type="date" aria-label="시작일" max={today} value={from} onChange={(e) => go({ from: e.target.value })} className={`w-40 ${selectCls}`} />
-              <span>~</span>
-              <input type="date" aria-label="종료일" max={today} value={to} onChange={(e) => go({ to: e.target.value })} className={`w-40 ${selectCls}`} />
+            분기
+            <div className="mt-1 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="분기">
+              {[1, 2, 3, 4].map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  disabled={q > lastQuarter}
+                  aria-pressed={quarter === q}
+                  onClick={() => go({ quarter: q })}
+                  className={`h-8 rounded-[8px] px-3 text-sm font-medium disabled:cursor-default disabled:opacity-40 ${
+                    quarter === q ? "bg-[var(--color-surface)] text-[var(--color-primary)] shadow-sm" : "text-[var(--color-muted)]"
+                  }`}
+                >
+                  {q}분기
+                </button>
+              ))}
             </div>
           </div>
         )}

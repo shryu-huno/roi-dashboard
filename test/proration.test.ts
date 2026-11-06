@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { overlapRatio, rangeOverlapRatio } from "@/lib/metrics/proration";
+import { overlapRatio } from "@/lib/metrics/proration";
 
 // 날짜는 기존 코드(toYm)와 동일하게 로컬 게터로 해석된다. 테스트 환경(KST/UTC)에서
 // "YYYY-MM-01"은 해당 월로 안정적으로 매핑된다(기존 task-matrix 테스트와 동일 패턴).
@@ -49,32 +49,5 @@ describe("overlapRatio: 계약기간 월수 균등분배 비율", () => {
 
   it("시작·종료가 뒤집혀도 정렬해서 계산", () => {
     expect(overlapRatio(2026, "all", d("2026-12-31"), d("2026-01-01"))).toBe(1);
-  });
-});
-
-describe("rangeOverlapRatio: 임의의 월 구간(해를 넘어도 됨)의 계약금 귀속 비율", () => {
-  const w = (fy: number, fm: number, ty: number, tm: number) => ({ from: { year: fy, month: fm }, to: { year: ty, month: tm } });
-
-  it("한 해 안의 구간은 overlapRatio(연도+기간)와 같다", () => {
-    const start = d("2025-04-01");
-    const end = d("2026-03-31");
-    expect(rangeOverlapRatio(w(2026, 1, 2026, 12), start, end)).toBe(overlapRatio(2026, "all", start, end));
-    expect(rangeOverlapRatio(w(2026, 1, 2026, 6), start, end)).toBe(overlapRatio(2026, "h1", start, end));
-    expect(rangeOverlapRatio(w(2026, 1, 2026, 3), start, end)).toBe(overlapRatio(2026, "q1", start, end));
-    expect(rangeOverlapRatio(w(2026, 2, 2026, 2), start, end)).toBe(overlapRatio(2026, "2", start, end));
-  });
-
-  it("해를 넘는 구간: 계약기간과 겹치는 월수 ÷ 계약 전체 월수", () => {
-    // 계약 2025-04~2026-03(12개월), 구간 2025-10~2026-02 → 겹침 10,11,12,1,2 = 5개월
-    expect(rangeOverlapRatio(w(2025, 10, 2026, 2), d("2025-04-01"), d("2026-03-31"))).toBe(5 / 12);
-  });
-
-  it("계약기간 밖의 구간은 0", () => {
-    expect(rangeOverlapRatio(w(2027, 1, 2027, 6), d("2025-04-01"), d("2026-03-31"))).toBe(0);
-  });
-
-  it("계약기간이 없으면 매년 1~12월 계약으로 보고 연도마다 구간이 걸친 월수/12를 더한다", () => {
-    expect(rangeOverlapRatio(w(2026, 1, 2026, 6), null, null)).toBe(6 / 12);
-    expect(rangeOverlapRatio(w(2025, 11, 2026, 2), null, null)).toBe(2 / 12 + 2 / 12); // 2025년 11~12월, 2026년 1~2월
   });
 });

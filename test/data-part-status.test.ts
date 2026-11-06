@@ -8,7 +8,6 @@ import { mkClient, mkTask } from "./factories";
 
 const ROOT: RlsContext = { userId: "seed-admin", role: "SUPER_ADMIN" };
 const YEAR = 2026;
-const yearWindow = (y: number) => ({ from: { year: y, month: 1 }, to: { year: y, month: 12 } });
 
 let pmA: string, pmB: string, pmC: string, adminT1: string;
 let teamT1: string, teamT2: string;
@@ -58,7 +57,7 @@ beforeEach(async () => {
 
 describe("loadPartStatusFacts — 파트 현황 원자료", () => {
   it("PM별 담당 고객사(공동 담당은 모두에게), 보관된 고객사는 제외", async () => {
-    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmB, pmC], ...yearWindow(YEAR) });
+    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmB, pmC], year: YEAR });
     expect(f.clientsByPm[pmA]).toEqual([cX]);
     expect(f.clientsByPm[pmB]).toEqual([cX]);
     expect(f.clientsByPm[pmC]).toEqual([cY]);
@@ -66,7 +65,7 @@ describe("loadPartStatusFacts — 파트 현황 원자료", () => {
   });
 
   it("올해 월별 실적을 과세/면세로 나눠 담고 다른 해는 제외한다", async () => {
-    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA], ...yearWindow(YEAR) });
+    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA], year: YEAR });
     const x = f.clients[cX];
     expect(x.name).toBe("X사");
     expect(x.perfTaxable).toHaveLength(12);
@@ -76,36 +75,19 @@ describe("loadPartStatusFacts — 파트 현황 원자료", () => {
   });
 
   it("계약금은 계약기간 월수 비례로 올해 귀속분만, 과세/면세를 나눠 담는다", async () => {
-    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmC], ...yearWindow(YEAR) });
+    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmC], year: YEAR });
     expect(f.clients[cX]).toMatchObject({ contractTaxable: 1200, contractExempt: 600 });
     expect(f.clients[cY].contractTaxable).toBeCloseTo(600); // 12개월 중 올해 6개월
     expect(f.clients[cY].contractExempt).toBe(0);
-    const next = await loadPartStatusFacts(ctxSuper, { pmIds: [pmC], ...yearWindow(YEAR + 1) });
+    const next = await loadPartStatusFacts(ctxSuper, { pmIds: [pmC], year: YEAR + 1 });
     expect(next.clients[cY].contractTaxable).toBeCloseTo(600); // 내년 6개월
   });
 
-  it("월 구간(해를 넘어도 됨): 실적 배열은 구간의 월 순서에 맞추고, 계약금은 구간 몫만 귀속한다", async () => {
-    // 2026-02 ~ 2026-08 (7개월): X는 12개월 계약 중 7개월분, Y(2026-07~2027-06)는 7·8월 2개월분
-    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmC], from: { year: 2026, month: 2 }, to: { year: 2026, month: 8 } });
-    expect(f.months).toHaveLength(7);
-    expect(f.clients[cX].perfTaxable).toEqual([200, 0, 0, 0, 0, 0, 0]); // 2월 200, 1월은 구간 밖
-    expect(f.clients[cY].perfTaxable[6]).toBe(300); // 8월
-    expect(f.clients[cX].contractTaxable).toBeCloseTo((1200 * 7) / 12);
-    expect(f.clients[cX].contractExempt).toBeCloseTo((600 * 7) / 12);
-    expect(f.clients[cY].contractTaxable).toBeCloseTo((1200 * 2) / 12);
-  });
-
-  it("해를 넘는 구간: 작년 12월 실적(첫 칸)과 올해 1월 실적(둘째 칸)이 이어진다", async () => {
-    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA], from: { year: 2025, month: 12 }, to: { year: 2026, month: 1 } });
-    expect(f.clients[cX].perfTaxable).toEqual([999, 100]);
-    expect(f.clients[cX].perfExempt).toEqual([0, 50]);
-  });
-
   it("권한 범위: 팀 관리자는 자기 팀 PM의 고객사만, PM은 본인 담당만 읽힌다", async () => {
-    const team = await loadPartStatusFacts(ctxAdminT1, { pmIds: [pmA, pmB, pmC], ...yearWindow(YEAR) });
+    const team = await loadPartStatusFacts(ctxAdminT1, { pmIds: [pmA, pmB, pmC], year: YEAR });
     expect(Object.keys(team.clients)).toEqual([cX]);
     expect(team.clientsByPm[pmC] ?? []).toEqual([]);
-    const own = await loadPartStatusFacts(ctxPmA, { pmIds: [pmA, pmC], ...yearWindow(YEAR) });
+    const own = await loadPartStatusFacts(ctxPmA, { pmIds: [pmA, pmC], year: YEAR });
     expect(Object.keys(own.clients)).toEqual([cX]);
   });
 });
@@ -114,7 +96,7 @@ describe("loadPartStatusFacts — 파트 현황 원자료", () => {
 describe("전체 현황과의 일치", () => {
   for (const includeVat of [false, true]) {
     it(`부가세 ${includeVat ? "포함" : "미포함"}: 누적 실적·계약금·월별 실적이 전체 현황과 같다`, async () => {
-      const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmB, pmC], ...yearWindow(YEAR) });
+      const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmB, pmC], year: YEAR });
       const input: PartStatusInput = {
         groups: [{ id: "g", name: "전체" }],
         pms: [pmA, pmB, pmC].map((id) => ({ id, name: id, groupId: "g" })),

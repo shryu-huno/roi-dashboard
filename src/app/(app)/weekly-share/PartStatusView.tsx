@@ -3,12 +3,11 @@ import Link from "next/link";
 import type { RlsContext } from "@/lib/rls";
 import { getIncludeVat } from "@/lib/vat";
 import { YEAR_MIN, type Ym } from "@/lib/month-range";
-import { kstToday } from "@/lib/week";
 import { formatPercent, formatWon, formatWonCompact } from "@/lib/format";
 import { colorAt, METER } from "@/lib/chart-colors";
-import { MAX_RANGE_MONTHS, resolveStatusPeriod, type StatusMode } from "@/lib/part-status-period";
+import { resolveStatusPeriod, type StatusMode } from "@/lib/part-status-period";
 import { loadPartStatusFacts } from "@/lib/data/part-status";
-import { directory, partCards, periodTable, rangeTable, trendSeries, type PartGroup, type PartStatusInput } from "@/lib/part-status";
+import { directory, partCards, periodTable, trendSeries, type PartGroup, type PartStatusInput } from "@/lib/part-status";
 import type { AdminLists, WeeklyRange } from "./range";
 import { PartStatusFilter } from "./PartStatusFilter";
 import { PartTrendChart, type ChartColumn } from "./PartTrendChart";
@@ -16,12 +15,11 @@ import { PartTrendChart, type ChartColumn } from "./PartTrendChart";
 // 파트 현황 탭의 조회 조건(URL 쿼리). 해석 규칙은 lib/part-status-period.ts.
 export type StatusParams = {
   part?: string; // 파트 id, 비우면 전체
-  mode?: string; // month(월별) | all(전체, 기본) | range(기간 설정)
-  year?: string; // 월별·전체의 집계 연도(기본: 올해)
+  mode?: string; // month(월별) | quarter(분기별) | all(전체, 기본)
+  year?: string; // 집계 연도(기본: 올해)
   month?: string; // 월별의 월
-  from?: string; // 기간 설정 시작일
-  to?: string; // 기간 설정 종료일
-  tv?: string; // q(분기별) | r3(최근 3개월) — 월별·전체에서만
+  quarter?: string; // 분기별의 분기(1~4)
+  tv?: string; // q(분기별 표) | r3(최근 3개월 표) — 월별·전체에서만. 분기별 조회는 항상 분기별 표
 };
 
 const card = "rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]";
@@ -52,11 +50,9 @@ export async function PartStatusView({
   const includeVat = await getIncludeVat();
   const { maxYm } = range;
   const minYm: Ym = { year: YEAR_MIN, month: 1 };
-  const today = kstToday();
-  const period = resolveStatusPeriod(sp, { maxYm, today });
-  const { mode, year, month } = period;
+  const { mode, year, month, quarter } = resolveStatusPeriod(sp, { maxYm });
   const tv = sp.tv === "r3" ? "r3" : "q";
-  const lastMonth = year < maxYm.year ? 12 : maxYm.month; // 월별·전체(한 해)에서 지금 달
+  const lastMonth = year < maxYm.year ? 12 : maxYm.month; // 지금 달(올해가 아니면 12월)
 
   // 파트가 없는 PM은 "파트 미지정" 그룹으로 모아 합계가 어긋나지 않게 한다.
   const known = new Set(adminLists.parts.map((p) => p.id));
@@ -78,23 +74,15 @@ export async function PartStatusView({
 
   const filter = (
     <PartStatusFilter
-      groups={groups} partId={partId} mode={mode} year={year} month={month}
-      from={period.from} to={period.to} today={today} minYm={minYm} maxYm={maxYm} tv={tv}
+      groups={groups} partId={partId} mode={mode} year={year} month={month} quarter={quarter}
+      minYm={minYm} maxYm={maxYm} tv={tv}
     />
   );
-  if (period.invalid) {
-    return (
-      <div className="flex flex-col gap-4">
-        {filter}
-        <p className={`${card} border-dashed p-8 text-center text-[var(--color-muted)]`}>시작일이 종료일보다 늦어요. 날짜를 다시 골라 주세요.</p>
-      </div>
-    );
-  }
 
-  const facts = await loadPartStatusFacts(ctx, { pmIds: pms.map((p) => p.id), from: period.window.from, to: period.window.to });
-  const input: PartStatusInput = { groups, pms, clientsByPm: facts.clientsByPm, clients: facts.clients, includeVat, monthCount: facts.months.length };
+  const facts = await loadPartStatusFacts(ctx, { pmIds: pms.map((p) => p.id), year });
+  const input: PartStatusInput = { groups, pms, clientsByPm: facts.clientsByPm, clients: facts.clients, includeVat };
 
-  const cards = partCards(input, month);
+  const cards = partCards(input, month, quarter);
   const selected = cards.find((c) => c.id === groupId) ?? cards[0];
   const trend = trendSeries(input, groupId);
   const colorOf = (id: string) => colorAt(Math.max(0, groups.findIndex((g) => g.id === id)));
@@ -104,48 +92,32 @@ export async function PartStatusView({
   // 주소 만들기: 지금 조회 조건을 유지하면서 일부만 바꾼다.
   const href = (o: { mode?: StatusMode; year?: number; month?: number; part?: string; tv?: string }) => {
     const m = o.mode ?? mode;
-    const p = new URLSearchParams({ tab: "status", mode: m, tv: o.tv ?? tv });
-    if (m !== "range") p.set("year", String(o.year ?? year));
+    const p = new URLSearchParams({ tab: "status", mode: m, year: String(o.year ?? year), tv: o.tv ?? tv });
     if (m === "month") p.set("month", String(o.month ?? month ?? lastMonth));
-    if (m === "range") {
-      p.set("from", period.from);
-      p.set("to", period.to);
-    }
+    if (m === "quarter" && quarter !== null) p.set("quarter", String(quarter));
     const part = o.part ?? partId;
     if (part) p.set("part", part);
     return `/weekly-share?${p.toString()}`;
   };
 
-  // 차트 열: 구간의 달마다 한 칸. 누르면 그 달의 월별 보기로 이동한다.
-  const crossYear = facts.months.some((m) => m.year !== facts.months[0].year);
-  const dense = facts.months.length > 18;
-  const columns: ChartColumn[] = facts.months.map((m, i) => {
-    const future = mode !== "range" && m.year === maxYm.year && m.month > maxYm.month;
-    const showLabel = !dense || i === 0 || i === facts.months.length - 1 || [1, 4, 7, 10].includes(m.month);
+  // 차트 열: 1~12월 한 칸씩. 월별은 선택한 달, 분기별은 선택한 분기의 세 달을 강조한다. 누르면 그 달의 월별 보기로 이동한다.
+  const columns: ChartColumn[] = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
     return {
-      label: !showLabel ? "" : crossYear ? `${String(m.year).slice(2)}.${m.month}` : `${m.month}월`,
-      title: `${m.year}년 ${m.month}월`,
-      href: href({ mode: "month", year: m.year, month: m.month }),
-      disabled: future,
-      selected: mode === "month" && m.month === month,
-      partial: m.year === maxYm.year && m.month === maxYm.month,
+      label: `${m}월`,
+      title: `${year}년 ${m}월`,
+      href: href({ mode: "month", month: m }),
+      disabled: year === maxYm.year && m > maxYm.month,
+      selected: mode === "month" ? m === month : mode === "quarter" ? Math.floor((m - 1) / 3) + 1 === quarter : false,
+      partial: year === maxYm.year && m === maxYm.month,
     };
   });
 
-  // 기간 설정이 너무 길어 줄였다면, 요청한 날짜가 아니라 실제로 보여 주는 구간을 표기한다.
-  const w = period.window;
-  const periodText =
-    mode === "month"
-      ? `${year}년 ${month}월`
-      : mode === "all"
-        ? `${year}년 전체`
-        : period.capped
-          ? `${w.from.year}년 ${w.from.month}월 ~ ${w.to.year}년 ${w.to.month}월`
-          : `${period.from} ~ ${period.to}`;
-  const cumulativeLabel = mode === "range" ? "기간 누적 실적" : `${year}년 누적 실적`;
-  const contractScope = mode === "range" ? "선택한 기간" : `${year}년`;
-  const table = mode === "range" ? null : periodTable(input, { groupId, view: tv, month, lastMonth });
-  const rtable = mode === "range" ? rangeTable(input, groupId) : null;
+  const periodText = mode === "month" ? `${year}년 ${month}월` : mode === "quarter" ? `${year}년 ${quarter}분기` : `${year}년 전체`;
+  const cumulativeLabel = `${year}년 누적 실적`;
+  // 분기별 조회는 항상 분기별 표(선택한 분기 강조). 월별·전체는 분기별/최근 3개월 표를 고를 수 있다.
+  const tableView = mode === "quarter" ? "q" : tv;
+  const table = periodTable(input, { groupId, view: tableView, month, quarter, lastMonth });
   const dir = directory(input, groupId);
 
   return (
@@ -156,16 +128,11 @@ export async function PartStatusView({
         <span>
           <b className="text-[var(--color-fg)]">{partName || "전체"}</b> · {periodText} · PM {selected.pmCount}명 · 고객사 {selected.clientCount}곳
         </span>
-        <span>{mode === "range" ? "기간" : `${year}년`} 누적 <b className="text-[var(--color-fg)]">{formatWon(selected.cumulative)}</b></span>
+        <span>{year}년 누적 <b className="text-[var(--color-fg)]">{formatWon(selected.cumulative)}</b></span>
         {month !== null && <span>{month}월 실적 <b className="text-[var(--color-fg)]">{formatWon(selected.monthAmount ?? 0)}</b></span>}
+        {quarter !== null && <span>{quarter}분기 실적 <b className="text-[var(--color-fg)]">{formatWon(selected.quarterAmount ?? 0)}</b></span>}
         <span className="ml-auto text-xs">부가세 {includeVat ? "포함" : "미포함"} 기준 · 전체 현황과 같은 계산식</span>
       </div>
-      {period.capped && (
-        <p className="rounded-[10px] bg-amber-50 px-4 py-2 text-sm text-amber-700">
-          기간이 길어서 종료일 기준 최근 {MAX_RANGE_MONTHS}개월만 보여 드려요.
-        </p>
-      )}
-
       {/* 파트별 요약 카드: 누르면 그 파트로 차트·표가 바뀌고, 다시 누르면 전체로 돌아온다 */}
       <section aria-label="파트별 요약" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map((c) => {
@@ -208,6 +175,11 @@ export async function PartStatusView({
                   {month}월 실적 <b className="tabular-nums text-[var(--color-fg)]">{num(c.monthAmount)}</b>원
                 </div>
               )}
+              {c.quarterAmount !== null && (
+                <div className="text-xs text-[var(--color-muted)]">
+                  {quarter}분기 실적 <b className="tabular-nums text-[var(--color-fg)]">{num(c.quarterAmount)}</b>원
+                </div>
+              )}
             </Link>
           );
         })}
@@ -217,7 +189,7 @@ export async function PartStatusView({
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h2 className="text-base font-semibold">월별 실적 추이</h2>
           <span className="text-sm text-[var(--color-muted)]">
-            {mode === "range" ? periodText : `${year}년 1~12월`} · {partName || "파트별 누적 막대"}
+            {year}년 1~12월 · {partName || "파트별 누적 막대"}
           </span>
         </div>
         <PartTrendChart columns={columns} series={series} totals={trend.totals} />
@@ -256,14 +228,14 @@ export async function PartStatusView({
         </details>
       </section>
 
-      {table && (
-        <section className={`${card} p-5`}>
+      <section className={`${card} p-5`}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-3">
-              <h2 className="text-base font-semibold">{tv === "q" ? "분기별 실적" : "최근 3개월 실적"}</h2>
+              <h2 className="text-base font-semibold">{tableView === "q" ? "분기별 실적" : "최근 3개월 실적"}</h2>
               <span className="text-sm text-[var(--color-muted)]">{partName ? `${partName} PM별` : "파트별"} · 단위 원</span>
-              {tv === "r3" && month === null && <span className="text-sm text-[var(--color-muted)]">가장 최근 달({lastMonth}월) 기준</span>}
+              {tableView === "r3" && month === null && <span className="text-sm text-[var(--color-muted)]">가장 최근 달({lastMonth}월) 기준</span>}
             </div>
+            {mode !== "quarter" && (
             <div className="inline-flex gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="표 보기">
               {(
                 [
@@ -281,6 +253,7 @@ export async function PartStatusView({
                 </Link>
               ))}
             </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
@@ -320,54 +293,12 @@ export async function PartStatusView({
               </tbody>
             </table>
           </div>
-        </section>
-      )}
-
-      {rtable && (
-        <section className={`${card} p-5`}>
-          <div className="mb-3 flex flex-wrap items-baseline gap-3">
-            <h2 className="text-base font-semibold">기간 합계</h2>
-            <span className="text-sm text-[var(--color-muted)]">{partName ? `${partName} PM별` : "파트별"} · {periodText} · 단위 원</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-[var(--color-border)]">
-                  <th className={th}>{partName ? "PM" : "파트"}</th>
-                  <th className={th}>고객사</th>
-                  <th className={th}>기간 실적</th>
-                  <th className={th}>계약금(기간 귀속)</th>
-                  <th className={th}>달성률</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...rtable.rows, rtable.total].map((r, idx) => {
-                  const isTotal = idx === rtable.rows.length;
-                  return (
-                    <tr key={r.id} className={`border-b border-[var(--color-border)] last:border-b-0 ${isTotal ? "font-bold" : ""}`}>
-                      <td className={`${td} font-semibold`}>
-                        <span className="inline-flex items-center gap-1.5">
-                          {!isTotal && !partName && <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: colorOf(r.id) }} />}
-                          {r.label}
-                        </span>
-                      </td>
-                      <td className={td}>{r.clientCount}곳</td>
-                      <td className={td}>{num(r.cumulative)}</td>
-                      <td className={td}>{num(r.contract)}</td>
-                      <td className={td}><RateBar rate={r.rate} /></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      </section>
 
       <section className={`${card} p-5`}>
         <div className="mb-1 flex flex-wrap items-baseline gap-3">
           <h2 className="text-base font-semibold">파트별 PM 담당 고객사</h2>
-          <span className="text-sm text-[var(--color-muted)]">고객사 옆 금액은 {contractScope}에 귀속되는 계약금이에요(달성률 계산과 같은 기준).</span>
+          <span className="text-sm text-[var(--color-muted)]">고객사 옆 금액은 {year}년에 귀속되는 계약금이에요(달성률 계산과 같은 기준).</span>
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[720px] table-fixed text-sm">
