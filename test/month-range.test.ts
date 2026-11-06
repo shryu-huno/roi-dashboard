@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addMonths, parseYearInput, parseMonthInput, YEAR_MIN, YEAR_MAX } from "@/lib/month-range";
+import { addMonths, parseYearInput, parseMonthInput, clampYm, YEAR_MIN, YEAR_MAX } from "@/lib/month-range";
 
 describe("addMonths", () => {
   it("같은 해 안에서 한 달 앞뒤로 이동한다", () => {
@@ -57,5 +57,25 @@ describe("parseMonthInput — 직접 입력한 월", () => {
     expect(parseMonthInput("")).toBeNull();
     expect(parseMonthInput("월")).toBeNull();
     expect(parseMonthInput("1.5")).toBeNull();
+  });
+});
+
+describe("clampYm — 이동 범위 안으로 맞추기", () => {
+  const min = { year: 2026, month: 9 };
+  const max = { year: 2026, month: 11 };
+  it("범위 안이면 그대로", () => {
+    expect(clampYm({ year: 2026, month: 10 }, min, max)).toEqual({ year: 2026, month: 10 });
+  });
+  it("최대보다 뒤면 최대로, 최소보다 앞이면 최소로", () => {
+    expect(clampYm({ year: 2026, month: 12 }, min, max)).toEqual(max);
+    expect(clampYm({ year: 2027, month: 1 }, min, max)).toEqual(max);
+    expect(clampYm({ year: 2026, month: 8 }, min, max)).toEqual(min);
+    expect(clampYm({ year: 2020, month: 5 }, min, max)).toEqual(min);
+  });
+  it("범위가 해를 넘어도 동작한다", () => {
+    const lo = { year: 2025, month: 11 };
+    const hi = { year: 2026, month: 2 };
+    expect(clampYm({ year: 2026, month: 1 }, lo, hi)).toEqual({ year: 2026, month: 1 });
+    expect(clampYm({ year: 2025, month: 10 }, lo, hi)).toEqual(lo);
   });
 });

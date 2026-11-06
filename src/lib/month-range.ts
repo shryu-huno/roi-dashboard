@@ -62,3 +62,11 @@ export function parseMonthInput(text: string): number | null {
   const n = Number(m[1]);
   return n >= 1 && n <= 12 ? n : null;
 }
+
+// ym을 [min, max] 범위 안으로 맞춘다(연 경계를 넘나드는 범위도 가능).
+export function clampYm(ym: Ym, min: Ym, max: Ym): Ym {
+  const v = (y: Ym) => y.year * 12 + y.month;
+  if (v(ym) > v(max)) return max;
+  if (v(ym) < v(min)) return min;
+  return ym;
+}
