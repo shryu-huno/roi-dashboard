@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  totalsFor, partCards, trendSeries, periodTable, directory,
+  totalsFor, partCards, trendSeries, periodTable, directory, rangeTable,
   type ClientFacts, type PartStatusInput,
 } from "@/lib/part-status";
 import { niceMax } from "@/lib/chart-axis";
@@ -167,5 +167,47 @@ describe("월 = 전체(month가 null) — 연도 누적만 보는 기본 상태"
     expect(t.currentIndex).toBe(-1);
     const p1 = t.rows.find((r) => r.label === "1파트")!;
     expect(p1.values).toEqual([0, 1500, 3000, 4500]); // 3월 0 / 4월 B(1000+500) / 5월 C 3000
+  });
+});
+
+describe("월 구간(기간 설정) — 12개월이 아닌 임의 길이", () => {
+  // 3개월 구간: 배열 길이 3
+  const short = (): PartStatusInput => ({
+    groups: [{ id: "g1", name: "1파트" }, { id: "g2", name: "2파트" }],
+    pms: [
+      { id: "kim", name: "김", groupId: "g1" },
+      { id: "lee", name: "이", groupId: "g1" },
+      { id: "park", name: "박", groupId: "g2" },
+    ],
+    clientsByPm: { kim: ["A", "B"], lee: ["B"], park: ["D"] },
+    clients: {
+      A: { id: "A", name: "A사", contractTaxable: 1000, contractExempt: 0, perfTaxable: [100, 200, 300], perfExempt: [0, 0, 0] },
+      B: { id: "B", name: "B사", contractTaxable: 500, contractExempt: 100, perfTaxable: [10, 20, 30], perfExempt: [1, 2, 3] },
+      D: { id: "D", name: "D사", contractTaxable: 2000, contractExempt: 0, perfTaxable: [0, 0, 400], perfExempt: [0, 0, 0] },
+    },
+    includeVat: false,
+    monthCount: 3,
+  });
+
+  it("totalsFor: 월 배열 길이와 누적이 구간 길이를 따른다", () => {
+    const t = totalsFor(short(), ["A", "B"]);
+    expect(t.months).toEqual([111, 222, 333]);
+    expect(t.cumulative).toBe(666);
+    expect(t.contract).toBe(1600);
+  });
+  it("trendSeries: 계열 값 길이가 구간 길이", () => {
+    const tr = trendSeries(short(), "all");
+    expect(tr.series[0].values).toHaveLength(3);
+    expect(tr.totals).toEqual([111, 222, 733]);
+  });
+  it("rangeTable: 전체면 파트별 행, 파트를 고르면 PM별 행. 합계는 공동 담당(B)을 한 번만", () => {
+    const all = rangeTable(short(), "all");
+    expect(all.rows.map((r) => r.label)).toEqual(["1파트", "2파트"]);
+    expect(all.rows[0]).toMatchObject({ cumulative: 666, contract: 1600, clientCount: 2 });
+    expect(all.rows[0].rate).toBeCloseTo(666 / 1600);
+    expect(all.total).toMatchObject({ cumulative: 666 + 400, contract: 1600 + 2000, clientCount: 3 });
+    const g1 = rangeTable(short(), "g1");
+    expect(g1.rows.map((r) => r.label)).toEqual(["김", "이"]);
+    expect(g1.total.cumulative).toBe(666); // B를 김·이가 모두 맡아도 한 번
   });
 });

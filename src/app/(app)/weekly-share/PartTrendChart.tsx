@@ -6,19 +6,24 @@ import { formatWon, formatWonCompact } from "@/lib/format";
 import { niceMax } from "@/lib/chart-axis";
 
 type Series = { id: string; name: string; color: string; values: number[] };
+export type ChartColumn = {
+  label: string; // 축 라벨("11월" 또는 해를 넘는 구간의 "25.11")
+  title: string; // 툴팁·접근성 제목("2026년 11월")
+  href: string; // 누르면 이동할 주소(그 달의 월별 보기)
+  disabled: boolean; // 아직 오지 않은 달
+  selected: boolean; // 강조(월별에서 선택한 달)
+  partial: boolean; // 진행 중인 달(옅게 표시)
+};
 
-// 월별 실적 추이: 파트별 누적 막대(12개월). 막대 폭 ≤24px, 데이터 쪽 끝만 4px 둥글게, 구간 사이 2px 표면 간격.
-// 막대를 누르면 그 달로 이동한다. 값은 툴팁·표 보기에서도 모두 볼 수 있다(청록은 대비가 낮아 표 보기를 함께 둔다).
+// 월별 실적 추이: 파트별 누적 막대. 열 개수는 조회 구간의 달 수(한 해면 12개).
+// 막대 폭 ≤24px, 데이터 쪽 끝만 4px 둥글게, 구간 사이 2px 표면 간격. 막대를 누르면 그 달의 월별 보기로 이동한다.
+// 값은 툴팁·표 보기에서도 모두 볼 수 있다(청록은 대비가 낮아 표 보기를 함께 둔다).
 export function PartTrendChart({
-  year, selectedMonth, partialMonth, lastMonth, series, totals, hrefs,
+  columns, series, totals,
 }: {
-  year: number;
-  selectedMonth: number | null; // 월이 "전체"면 null(강조 없음)
-  partialMonth: number | null; // 진행 중인 달(옅게 표시)
-  lastMonth: number; // 이 달 이후는 선택할 수 없다
+  columns: ChartColumn[];
   series: Series[];
   totals: number[];
-  hrefs: string[]; // 달별 이동 주소(12개)
 }) {
   const router = useRouter();
   const [tip, setTip] = useState<{ i: number; x: number; y: number } | null>(null);
@@ -41,7 +46,7 @@ export function PartTrendChart({
               {s.name}
             </span>
           ))}
-          {partialMonth && <span>{partialMonth}월은 진행 중인 달이라 옅게 표시 · 막대를 누르면 그 달로 바뀌어요</span>}
+          {columns.some((c) => c.partial) && <span>진행 중인 달은 옅게 표시 · 막대를 누르면 그 달의 월별 보기로 이동해요</span>}
         </div>
       )}
       <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-2" onMouseLeave={() => setTip(null)}>
@@ -62,31 +67,30 @@ export function PartTrendChart({
               <span key={t} className="absolute left-0 right-0 h-px bg-[var(--color-border)]" style={{ bottom: `${(t / max) * 100}%` }} />
             ))}
             {totals.map((total, i) => {
-              const m = i + 1;
-              const disabled = m > lastMonth;
+              const col = columns[i];
               const h = (total / max) * 100;
               return (
                 <button
-                  key={m}
+                  key={i}
                   type="button"
-                  disabled={disabled}
-                  aria-label={`${year}년 ${m}월 실적 ${formatWon(total)}`}
-                  aria-current={m === selectedMonth ? "true" : undefined}
-                  onClick={() => router.push(hrefs[i])}
-                  onMouseMove={(e) => !disabled && show(i, e.currentTarget, { x: e.clientX, y: e.clientY })}
-                  onFocus={(e) => !disabled && show(i, e.currentTarget)}
+                  disabled={col.disabled}
+                  aria-label={`${col.title} 실적 ${formatWon(total)}`}
+                  aria-current={col.selected ? "true" : undefined}
+                  onClick={() => router.push(col.href)}
+                  onMouseMove={(e) => !col.disabled && show(i, e.currentTarget, { x: e.clientX, y: e.clientY })}
+                  onFocus={(e) => !col.disabled && show(i, e.currentTarget)}
                   onBlur={() => setTip(null)}
-                  className={`relative flex h-full flex-1 items-end justify-center rounded-t-md disabled:cursor-default ${
-                    m === selectedMonth ? "bg-[var(--color-hover)]" : "hover:bg-[var(--color-hover)]"
+                  className={`relative flex h-full min-w-0 flex-1 items-end justify-center rounded-t-md disabled:cursor-default ${
+                    col.selected ? "bg-[var(--color-hover)]" : "hover:bg-[var(--color-hover)]"
                   }`}
                 >
-                  {m === selectedMonth && total > 0 && (
+                  {col.selected && total > 0 && (
                     <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[11.5px] font-bold tabular-nums text-[var(--color-fg)]" style={{ bottom: `calc(${h}% + 4px)` }}>
                       {formatWonCompact(total)}
                     </span>
                   )}
                   <span
-                    className={`flex w-[min(24px,70%)] flex-col-reverse gap-[2px] ${m === partialMonth ? "opacity-50" : ""}`}
+                    className={`flex w-[min(24px,70%)] flex-col-reverse gap-[2px] ${col.partial ? "opacity-50" : ""}`}
                     style={{ height: `${h}%` }}
                   >
                     {series.map((s) =>
@@ -104,12 +108,12 @@ export function PartTrendChart({
             })}
           </div>
           <div className="mt-1.5 flex gap-1 text-xs" aria-hidden="true">
-            {totals.map((_, i) => (
+            {columns.map((col, i) => (
               <span
                 key={i}
-                className={`flex-1 text-center ${i + 1 === selectedMonth ? "font-bold text-[var(--color-primary)]" : i + 1 > lastMonth ? "text-[var(--color-muted)] opacity-60" : "text-[var(--color-muted)]"}`}
+                className={`min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-center ${col.selected ? "font-bold text-[var(--color-primary)]" : col.disabled ? "text-[var(--color-muted)] opacity-60" : "text-[var(--color-muted)]"}`}
               >
-                {i + 1}월
+                {col.label}
               </span>
             ))}
           </div>
@@ -122,7 +126,8 @@ export function PartTrendChart({
           style={{ left: Math.max(8, tip.x - 90), top: Math.max(8, tip.y - 12 - (multi ? 24 + series.length * 18 : 40)) }}
         >
           <div className="mb-1 font-bold">
-            {year}년 {tip.i + 1}월{tip.i + 1 === partialMonth ? " · 진행 중" : ""}
+            {columns[tip.i].title}
+            {columns[tip.i].partial ? " · 진행 중" : ""}
           </div>
           {series.map((s) => (
             <div key={s.id} className="flex items-center justify-between gap-4">

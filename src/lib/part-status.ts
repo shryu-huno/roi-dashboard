@@ -16,8 +16,8 @@ export type ClientFacts = {
   name: string;
   contractTaxable: number; // 올해에 귀속되는 계약금(기간 비례) — 과세 과업
   contractExempt: number; // 면세 과업
-  perfTaxable: number[]; // 1~12월 실적(과세), 길이 12
-  perfExempt: number[]; // 1~12월 실적(면세), 길이 12
+  perfTaxable: number[]; // 구간의 월별 실적(과세). 길이 = 구간의 달 수(한 해면 12)
+  perfExempt: number[]; // 면세
 };
 
 export type PartStatusInput = {
@@ -26,10 +26,11 @@ export type PartStatusInput = {
   clientsByPm: Record<string, string[]>; // 공동 담당 고객사는 담당 PM 모두에게 들어 있다
   clients: Record<string, ClientFacts>;
   includeVat: boolean;
+  monthCount?: number; // 고객사별 월 배열의 길이(조회 구간의 달 수). 기본 12(한 해)
 };
 
 export type Totals = {
-  months: number[]; // 1~12월 실적(부가세 규칙 적용)
+  months: number[]; // 구간의 월별 실적(부가세 규칙 적용). 한 해 조회면 1~12월
   cumulative: number; // 올해 누적 실적
   contract: number; // 올해 귀속 계약금
   rate: number | null; // 달성률(계약금이 0이면 null)
@@ -49,10 +50,11 @@ function clientsOfPms(input: PartStatusInput, pms: StatusPm[]): string[] {
 /** 고객사 집합의 합계. 같은 고객사가 여러 번 들어와도 한 번만 센다. */
 export function totalsFor(input: PartStatusInput, clientIds: string[]): Totals {
   const ids = uniq(clientIds).filter((id) => input.clients[id]);
+  const n = input.monthCount ?? 12;
   const sum = (pick: (c: ClientFacts) => number[], i: number) => ids.reduce((s, id) => s + pick(input.clients[id])[i], 0);
-  const months = Array.from({ length: 12 }, (_, i) => withVatSplit(sum((c) => c.perfTaxable, i), sum((c) => c.perfExempt, i), input.includeVat));
-  const taxable = Array.from({ length: 12 }, (_, i) => sum((c) => c.perfTaxable, i)).reduce((a, b) => a + b, 0);
-  const exempt = Array.from({ length: 12 }, (_, i) => sum((c) => c.perfExempt, i)).reduce((a, b) => a + b, 0);
+  const months = Array.from({ length: n }, (_, i) => withVatSplit(sum((c) => c.perfTaxable, i), sum((c) => c.perfExempt, i), input.includeVat));
+  const taxable = Array.from({ length: n }, (_, i) => sum((c) => c.perfTaxable, i)).reduce((a, b) => a + b, 0);
+  const exempt = Array.from({ length: n }, (_, i) => sum((c) => c.perfExempt, i)).reduce((a, b) => a + b, 0);
   const cumulative = withVatSplit(taxable, exempt, input.includeVat);
   const contract = withVatSplit(
     ids.reduce((s, id) => s + input.clients[id].contractTaxable, 0),
@@ -83,11 +85,11 @@ export function partCards(input: PartStatusInput, month: number | null): Card[] 
   return [card(ALL, "전체"), ...input.groups.map((g) => card(g.id, g.name))];
 }
 
-/** 12개월 추이: 전체면 파트별 계열(누적 막대), 파트를 고르면 그 파트 한 계열. */
+/** 월별 추이(한 해면 12개월, 기간 설정이면 구간의 달들): 전체면 파트별 계열(누적 막대), 파트를 고르면 그 파트 한 계열. */
 export function trendSeries(input: PartStatusInput, groupId: string) {
   const groups = groupId === ALL ? input.groups : input.groups.filter((g) => g.id === groupId);
   const series = groups.map((g) => ({ id: g.id, name: g.name, values: totalsFor(input, clientsOfPms(input, pmsOf(input, g.id))).months }));
-  const totals = Array.from({ length: 12 }, (_, i) => series.reduce((s, x) => s + x.values[i], 0));
+  const totals = Array.from({ length: input.monthCount ?? 12 }, (_, i) => series.reduce((s, x) => s + x.values[i], 0));
   return { series, totals };
 }
 
@@ -127,6 +129,25 @@ export function periodTable(
       : pmsOf(input, o.groupId).map((p) => row(p.id, p.name, input.clientsByPm[p.id] ?? []));
   const allClients = uniq(o.groupId === ALL ? clientsOfPms(input, input.pms) : clientsOfPms(input, pmsOf(input, o.groupId)));
   return { columns, currentIndex, rows, total: row("total", "합계", allClients) };
+}
+
+export type RangeRow = { id: string; label: string; clientCount: number; cumulative: number; contract: number; rate: number | null };
+
+/**
+ * 기간 설정용 합계 표: 구간 전체의 실적·계약금(구간 귀속분)·달성률. 전체면 파트별 행, 파트를 고르면 PM별 행.
+ * 합계 행은 고객사를 한 번씩만 모아 다시 계산한다(공동 담당 중복 방지).
+ */
+export function rangeTable(input: PartStatusInput, groupId: string): { rows: RangeRow[]; total: RangeRow } {
+  const row = (id: string, label: string, clientIds: string[]): RangeRow => {
+    const t = totalsFor(input, clientIds);
+    return { id, label, clientCount: t.clientCount, cumulative: t.cumulative, contract: t.contract, rate: t.rate };
+  };
+  const rows =
+    groupId === ALL
+      ? input.groups.map((g) => row(g.id, g.name, clientsOfPms(input, pmsOf(input, g.id))))
+      : pmsOf(input, groupId).map((p) => row(p.id, p.name, input.clientsByPm[p.id] ?? []));
+  const allClients = clientsOfPms(input, groupId === ALL ? input.pms : pmsOf(input, groupId));
+  return { rows, total: row("total", "합계", allClients) };
 }
 
 export type DirectoryPm = {
