@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { CommitInput } from "@/components/CommitInput";
-import { addMonths, clampYm, parseMonthInput, parseYearInput, ymValue, type Ym } from "@/lib/month-range";
+import { ymValue, type Ym } from "@/lib/month-range";
+import { YearMonthControls } from "./YearMonthControls";
 
 export type WeekChip = {
   key: string; // 그 주 일요일
@@ -19,8 +19,6 @@ export type AdminPick = {
   pmId: string;
 };
 
-const stepBtn =
-  "h-[38px] w-9 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] text-base text-[var(--color-muted)] hover:text-[var(--color-fg)] disabled:cursor-default disabled:opacity-40 disabled:hover:text-[var(--color-muted)]";
 const selectCls =
   "h-[38px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]";
 const dot: Record<WeekChip["status"], string> = {
@@ -63,11 +61,6 @@ export function WeeklyFilter({
     router.push(`/weekly-share?${params.toString()}`);
   }
 
-  const idx = (y: Ym) => y.year * 12 + y.month;
-  // 연도·월을 바꿀 때 이동 범위(minYm~maxYm) 밖이면 범위 안으로 맞춰 이동한다(주는 새 달 기준으로 다시 고른다).
-  const goYm = (target: Ym) => go({ ym: clampYm(target, minYm, maxYm), week: "" });
-  const prev = addMonths(ym, -1);
-  const next = addMonths(ym, 1);
   const visiblePms = admin ? admin.pms.filter((p) => !admin.partId || p.partId === admin.partId) : [];
 
   return (
@@ -104,23 +97,7 @@ export function WeeklyFilter({
           </>
         )}
 
-        <div className="flex flex-col text-xs text-[var(--color-muted)]">
-          연도
-          <div className="mt-1 flex items-center gap-1.5">
-            <button type="button" aria-label="이전 연도" className={stepBtn} disabled={ym.year <= minYm.year} onClick={() => goYm({ year: ym.year - 1, month: ym.month })}>‹</button>
-            <CommitInput label="연도" value={ym.year} parse={parseYearInput} onCommit={(y) => goYm({ year: y, month: ym.month })} suffix="년" className="w-28 pl-3 pr-7" />
-            <button type="button" aria-label="다음 연도" className={stepBtn} disabled={ym.year >= maxYm.year} onClick={() => goYm({ year: ym.year + 1, month: ym.month })}>›</button>
-          </div>
-        </div>
-
-        <div className="flex flex-col text-xs text-[var(--color-muted)]">
-          월
-          <div className="mt-1 flex items-center gap-1.5">
-            <button type="button" aria-label="이전 달" className={stepBtn} disabled={idx(prev) < idx(minYm)} onClick={() => goYm(prev)}>‹</button>
-            <CommitInput label="월" value={ym.month} parse={parseMonthInput} onCommit={(m) => goYm({ year: ym.year, month: m })} suffix="월" className="w-28 pl-3 pr-7" />
-            <button type="button" aria-label="다음 달" className={stepBtn} disabled={idx(next) > idx(maxYm)} onClick={() => goYm(next)}>›</button>
-          </div>
-        </div>
+        <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} onChange={(target) => go({ ym: target, week: "" })} />
 
         <div className="flex min-w-0 flex-col text-xs text-[var(--color-muted)]">
           주차

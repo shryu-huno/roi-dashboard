@@ -2,46 +2,52 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getRlsContext } from "@/lib/context";
 import { canWriteWeeklyShare } from "@/lib/auth/rbac";
-import { prisma } from "@/lib/db";
-import { addMonths, parseYm, type Ym } from "@/lib/month-range";
-import {
-  currentWeek, kstToday, prevWeek, weekLabel, weekMonth, weekRange, weeksOverlappingMonth,
-} from "@/lib/week";
-import { earliestWeekStart, loadWeeklyBatch } from "@/lib/data/weekly-share";
+import { prevWeek, weekLabel, weekRange, weeksOverlappingMonth } from "@/lib/week";
+import { loadWeeklyBatch } from "@/lib/data/weekly-share";
 import { WEEKLY_TABS } from "./tabs";
 import { WeeklyTabs } from "./WeeklyTabs";
 import { WeeklyFilter, type AdminPick, type WeekChip } from "./WeeklyFilter";
 import { WeeklyBatch } from "./WeeklyBatch";
+import { HistoryView, type HistoryParams } from "./HistoryView";
+import { loadAdminLists, weeklyRange } from "./range";
 
-const idx = (y: Ym) => y.year * 12 + y.month;
+type SearchParams = HistoryParams & { tab?: string; week?: string };
 
-export default async function WeeklySharePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string; ym?: string; week?: string; part?: string; pm?: string }>;
-}) {
+export default async function WeeklySharePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
   const user = await requireUser();
   // 정산담당자는 이 메뉴가 없다. 역할이 없으면 접근할 수 없다.
   if (!user.role || user.role === "SETTLEMENT") redirect("/");
   const ctx = getRlsContext(user);
   const writer = canWriteWeeklyShare(user.role);
+  const tab = sp.tab === "history" ? "history" : "batch";
 
-  // ---- 기간: 월(기본 = 이번 주 소속 월)과 주(일~토, 키=일요일). 미래 주는 선택할 수 없다 ----
-  const now = new Date();
-  const curWeek = currentWeek(now);
-  const curMonth = weekMonth(curWeek);
-  const today = kstToday(now);
-  const todayYm: Ym = { year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) };
-  const maxYm = idx(curMonth) >= idx(todayYm) ? curMonth : todayYm;
-  // 이동 범위: 데이터가 있는 가장 이른 달 ~ 이번 달. 첫 사용 때도 지난 기록을 쓸 수 있게 최소 최근 3개월은 열어 둔다.
-  const earliest = await earliestWeekStart(ctx);
-  const earliestYm = earliest ? weekMonth(earliest) : maxYm;
-  const floorYm = addMonths(maxYm, -2);
-  const minYm = idx(earliestYm) < idx(floorYm) ? earliestYm : floorYm;
-  const asked = parseYm(sp.ym) ?? curMonth;
-  const ym = idx(asked) > idx(maxYm) ? maxYm : idx(asked) < idx(minYm) ? minYm : asked;
+  const range = await weeklyRange(ctx, sp.ym);
+  const adminLists = writer ? null : await loadAdminLists(user);
 
+  const header = (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold">주간 공유</h1>
+        {!writer && (
+          <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">관리자 · 조회 전용</span>
+        )}
+      </div>
+      <WeeklyTabs tabs={WEEKLY_TABS} current={tab} />
+    </>
+  );
+
+  if (tab === "history") {
+    return (
+      <div>
+        {header}
+        <HistoryView ctx={ctx} user={user} writer={writer} range={range} sp={sp} adminLists={adminLists} />
+      </div>
+    );
+  }
+
+  // ---- 주간 공유 탭: 월(기본 = 이번 주 소속 월)과 주(일~토, 키=일요일). 미래 주는 선택할 수 없다 ----
+  const { curWeek, ym, minYm, maxYm } = range;
   const weekKeys = weeksOverlappingMonth(ym.year, ym.month);
   const selectable = weekKeys.filter((k) => k <= curWeek);
   const week =
@@ -57,27 +63,14 @@ export default async function WeeklySharePage({
   let admin: AdminPick | null = null;
   if (writer) {
     pmId = user.id;
-  } else {
-    const teamScope = user.role === "ADMIN" ? { teamId: user.teamId ?? "__none__" } : {};
-    const [parts, pms] = await Promise.all([
-      prisma.part.findMany({ where: teamScope, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true } }),
-      prisma.user.findMany({
-        where: { role: "PM", status: "ACTIVE", ...teamScope },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, email: true, partId: true },
-      }),
-    ]);
+  } else if (adminLists) {
+    const { parts, pms } = adminLists;
     const partId = parts.some((p) => p.id === sp.part) ? (sp.part as string) : "";
     const inPart = pms.filter((p) => !partId || p.partId === partId);
     const picked = inPart.find((p) => p.id === sp.pm) ?? inPart[0] ?? null;
     pmId = picked?.id ?? null;
-    ownerName = picked ? picked.name ?? picked.email : "";
-    admin = {
-      parts,
-      pms: pms.map((p) => ({ id: p.id, name: p.name ?? p.email, partId: p.partId })),
-      partId,
-      pmId: pmId ?? "",
-    };
+    ownerName = picked?.name ?? "";
+    admin = { parts, pms, partId, pmId: pmId ?? "" };
   }
 
   const data = pmId
@@ -98,13 +91,7 @@ export default async function WeeklySharePage({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">주간 공유</h1>
-        {!writer && (
-          <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">관리자 · 조회 전용</span>
-        )}
-      </div>
-      <WeeklyTabs tabs={WEEKLY_TABS} current="batch" />
+      {header}
       <WeeklyFilter ym={ym} minYm={minYm} maxYm={maxYm} weeks={chips} selectedWeek={week} admin={admin} />
       {pmId ? (
         <WeeklyBatch

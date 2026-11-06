@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS, type RlsContext } from "@/lib/rls";
-import { submitWeekly, loadWeeklyBatch, type WeeklyEntryInput } from "@/lib/data/weekly-share";
+import { submitWeekly, loadWeeklyBatch, loadWeeklyHistory, type WeeklyEntryInput } from "@/lib/data/weekly-share";
 import { mkClient } from "./factories";
 
 const ROOT: RlsContext = { userId: "seed-admin", role: "SUPER_ADMIN" };
@@ -356,5 +356,57 @@ describe("loadWeeklyBatch — 주간 공유 화면용 조회", () => {
     await withRLS(ROOT, (tx) => tx.client.update({ where: { id: c3 }, data: { deletedAt: new Date() } }));
     const data = await loadWeeklyBatch(ctxA, params(pmA));
     expect(data.clients.map((c) => c.name)).toEqual(["C1"]);
+  });
+});
+
+describe("loadWeeklyHistory — 히스토리용 조회", () => {
+  const weeks = ["2026-10-25", WEEK];
+  beforeEach(async () => {
+    // 파트: A·B는 1파트, C는 2파트
+    const p1 = await withRLS(ROOT, (tx) => tx.part.create({ data: { teamId: teamT1, name: "1파트", sortOrder: 1 } }));
+    const p2 = await withRLS(ROOT, (tx) => tx.part.create({ data: { teamId: teamT2, name: "2파트", sortOrder: 2 } }));
+    await prisma.user.updateMany({ where: { id: { in: [pmA, pmB] } }, data: { partId: p1.id } });
+    await prisma.user.update({ where: { id: pmC }, data: { partId: p2.id } });
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1), entry(c3, { thisWeek: "C3 내용" })], other: { tags: ["TF"], thisWeek: "TF 회의", nextWeek: "", note: "" } });
+    await submitWeekly(ctxC, { weekStart: "2026-10-25", entries: [entry(c2)], other: null });
+  });
+
+  it("PM을 파트 순서·이름순으로, 담당 고객사는 PM별로 돌려준다(공동 담당 고객사는 담당 PM 모두에게)", async () => {
+    const data = await loadWeeklyHistory(ctxSuper, { pmIds: [pmC, pmB, pmA], weeks });
+    expect(data.pms.map((p) => `${p.partName}/${p.name}`)).toEqual(["1파트/pma", "1파트/pmb", "2파트/pmc"]);
+    expect(data.clientsByPm[pmA].map((c) => c.name).sort()).toEqual(["C1", "C3"]);
+    expect(data.clientsByPm[pmB].map((c) => c.name)).toEqual(["C1"]); // C1은 A·B 공동 담당
+    expect(data.clientsByPm[pmC].map((c) => c.name)).toEqual(["C2"]);
+  });
+
+  it("조회한 주의 기록만, 작성자 이름·주 키와 함께 돌려준다", async () => {
+    const data = await loadWeeklyHistory(ctxSuper, { pmIds: [pmA, pmC], weeks });
+    expect(data.shares.map((s) => `${s.clientId === c1 ? "C1" : s.clientId === c2 ? "C2" : "C3"}@${s.weekStart}`).sort()).toEqual([
+      "C1@2026-11-01", "C2@2026-10-25", "C3@2026-11-01",
+    ]);
+    expect(data.shares.find((s) => s.clientId === c3)).toMatchObject({ thisWeek: "C3 내용", createdByName: "pma", version: 1 });
+    expect(data.others).toHaveLength(1);
+    expect(data.others[0]).toMatchObject({ authorId: pmA, weekStart: WEEK, tags: ["TF"] });
+    const narrow = await loadWeeklyHistory(ctxSuper, { pmIds: [pmA, pmC], weeks: ["2026-10-25"] });
+    expect(narrow.shares).toHaveLength(1);
+    expect(narrow.others).toHaveLength(0);
+  });
+
+  it("PM은 자기 범위만 보인다(다른 PM의 고객사·기록은 RLS로 숨겨진다)", async () => {
+    const data = await loadWeeklyHistory(ctxA, { pmIds: [pmA, pmC], weeks });
+    expect(data.clientsByPm[pmC] ?? []).toEqual([]);
+    expect(data.shares.every((s) => s.clientId !== c2)).toBe(true);
+    expect(data.others.every((o) => o.authorId === pmA)).toBe(true);
+  });
+
+  it("팀 관리자는 자기 팀 PM의 기록만 본다", async () => {
+    const data = await loadWeeklyHistory(ctxAdminT1, { pmIds: [pmA, pmB, pmC], weeks });
+    expect(data.shares.map((s) => s.clientId).sort()).toEqual([c1, c3].sort());
+  });
+
+  it("보관(삭제)된 고객사는 제외한다", async () => {
+    await withRLS(ROOT, (tx) => tx.client.update({ where: { id: c3 }, data: { deletedAt: new Date() } }));
+    const data = await loadWeeklyHistory(ctxSuper, { pmIds: [pmA], weeks });
+    expect(data.clientsByPm[pmA].map((c) => c.name)).toEqual(["C1"]);
   });
 });

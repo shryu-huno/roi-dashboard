@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { canWriteWeeklyShare } from "@/lib/auth/rbac";
+import type { HistoryOther, HistoryShare } from "@/lib/weekly-history";
 
 // ---- 입력/결과 타입 ---------------------------------------------------------------
 
@@ -342,5 +343,52 @@ export function earliestWeekStart(ctx: RlsContext): Promise<string | null> {
     ]);
     const dates = [a._min.weekStart, b._min.weekStart].filter((d): d is Date => !!d).map(ymdOf).sort();
     return dates[0] ?? null;
+  });
+}
+
+// ---- 히스토리용 조회 -----------------------------------------------------------------------------
+
+export type WeeklyHistoryData = {
+  pms: { id: string; name: string; partName: string | null }[]; // 파트 순서 → 이름순
+  clientsByPm: Record<string, { id: string; name: string }[]>; // 공동 담당 고객사는 담당 PM 모두에게 들어간다
+  shares: HistoryShare[];
+  others: HistoryOther[];
+};
+
+/**
+ * 선택한 PM들의 담당 고객사와, 조회한 주(일요일 키)의 주간 공유·기타 업무 기록을 한 번에 읽는다.
+ * 조회 범위는 RLS가 정한다(PM은 본인 담당, 팀 관리자는 자기 팀, 최고관리자는 전체).
+ * 행 구성·정렬·검색은 순수 함수(lib/weekly-history.ts)가 맡는다.
+ */
+export function loadWeeklyHistory(ctx: RlsContext, p: { pmIds: string[]; weeks: string[] }): Promise<WeeklyHistoryData> {
+  return withRLS(ctx, async (tx) => {
+    const users = await tx.user.findMany({
+      where: { id: { in: p.pmIds } },
+      select: { id: true, name: true, email: true, part: { select: { name: true, sortOrder: true } } },
+    });
+    const pms = users
+      .map((u) => ({ id: u.id, name: u.name ?? u.email, partName: u.part?.name ?? null, partSort: u.part?.sortOrder ?? Number.MAX_SAFE_INTEGER }))
+      .sort((a, b) => a.partSort - b.partSort || a.name.localeCompare(b.name, "ko"))
+      .map(({ id, name, partName }) => ({ id, name, partName }));
+
+    const assignments = await tx.clientManager.findMany({
+      where: { userId: { in: p.pmIds }, client: { deletedAt: null } },
+      select: { userId: true, client: { select: { id: true, name: true } } },
+    });
+    const clientsByPm: WeeklyHistoryData["clientsByPm"] = {};
+    for (const a of assignments) (clientsByPm[a.userId] ??= []).push(a.client);
+    const clientIds = [...new Set(assignments.map((a) => a.client.id))];
+
+    const weekDates = p.weeks.map(toDate);
+    const [shares, others] = await Promise.all([
+      tx.weeklyShare.findMany({ where: { clientId: { in: clientIds }, weekStart: { in: weekDates } }, include: shareInclude }),
+      tx.weeklyOtherWork.findMany({ where: { authorId: { in: p.pmIds }, weekStart: { in: weekDates } } }),
+    ]);
+    return {
+      pms,
+      clientsByPm,
+      shares: shares.map((r) => ({ ...toShareView(r), clientId: r.clientId, weekStart: ymdOf(r.weekStart) })),
+      others: others.map((r) => ({ ...toOtherView(r), authorId: r.authorId, weekStart: ymdOf(r.weekStart) })),
+    };
   });
 }
