@@ -1,11 +1,111 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClientCombobox } from "@/components/ClientCombobox";
-import { addMonths, type Ym } from "@/lib/month-range";
+import { addMonths, parseYearInput, parseMonthInput, YEAR_MIN, YEAR_MAX, type Ym } from "@/lib/month-range";
 
-// 실적 입력 필터: [고객사][월 ‹ ›]. 고객사를 고르거나 월을 바꾸면 [조회] 없이 바로 이동한다.
-// 월 선택 목록은 선택한 달 기준 앞뒤 12개월이고, ‹ › 는 제한 없이 연 경계를 넘나든다.
+const stepBtn =
+  "h-[38px] w-9 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] text-base text-[var(--color-muted)] hover:text-[var(--color-fg)] disabled:cursor-default disabled:opacity-40 disabled:hover:text-[var(--color-muted)]";
+const fieldCls =
+  "h-[38px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] text-center text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]";
+
+// 직접 입력 칸. 입력은 Enter 또는 칸을 벗어날 때 확정하고, 올바르지 않은 값이면 원래 값으로 되돌린다.
+// 값이 바뀌어 다시 그려질 때는 key로 새로 만들어 항상 현재 값이 보이게 한다.
+function CommitInput({
+  value, parse, onCommit, suffix, className, label,
+}: {
+  value: number;
+  parse: (text: string) => number | null;
+  onCommit: (n: number) => void;
+  suffix: string;
+  className: string;
+  label: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  function commit() {
+    const n = parse(ref.current?.value ?? "");
+    if (n === null || n === value) {
+      if (ref.current) ref.current.value = String(value);
+      return;
+    }
+    onCommit(n);
+  }
+  return (
+    <span className="relative inline-flex items-center">
+      <input
+        ref={ref}
+        key={value}
+        type="text"
+        inputMode="numeric"
+        aria-label={label}
+        defaultValue={value}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.currentTarget.value = String(value);
+            e.currentTarget.blur();
+          }
+        }}
+        className={`${fieldCls} ${className}`}
+      />
+      <span className="pointer-events-none absolute right-3 text-sm text-[var(--color-muted)]">{suffix}</span>
+    </span>
+  );
+}
+
+// 월 칸: 직접 입력 + 1~12월 드롭다운.
+function MonthField({ month, onPick }: { month: number; onPick: (m: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  return (
+    <div ref={boxRef} className="relative flex items-center gap-1">
+      <CommitInput label="월" value={month} parse={parseMonthInput} onCommit={onPick} suffix="월" className="w-24 pl-3 pr-7" />
+      <button
+        type="button"
+        aria-label="월 목록 열기"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="h-[38px] w-8 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+      >
+        ▾
+      </button>
+      {open && (
+        <ul className="absolute left-0 top-full z-10 mt-1 max-h-64 w-full min-w-28 overflow-auto rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+            <li key={m}>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onPick(m);
+                }}
+                className={`block w-full px-3 py-2 text-center text-sm hover:bg-[var(--color-border)] ${m === month ? "bg-[var(--color-hover)] font-semibold" : ""}`}
+              >
+                {m}월
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// 실적 입력 필터: [고객사] [연도 ‹ › ] [월 ‹ ▾ ›]. 고르거나 바꾸면 [조회] 없이 바로 이동한다.
+// 연도: ‹ ›(±1년)·직접 입력. 월: ‹ ›·직접 입력·1~12월 목록. 월 ‹ ›는 12월↔1월에서 연도도 함께 넘어간다.
 export function PerformanceFilter({
   clients, clientId, year, month,
 }: {
@@ -27,9 +127,9 @@ export function PerformanceFilter({
     router.push(`/performance?${params.toString()}`);
   }
 
-  const options = Array.from({ length: 25 }, (_, i) => addMonths(current, i - 12));
-  const stepBtn =
-    "h-[38px] w-9 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] text-base text-[var(--color-muted)] hover:text-[var(--color-fg)]";
+  const inRange = (ym: Ym) => ym.year >= YEAR_MIN && ym.year <= YEAR_MAX;
+  const prevMonth = addMonths(current, -1);
+  const nextMonth = addMonths(current, 1);
 
   return (
     <div className="mb-6 flex flex-wrap items-end gap-4 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -37,26 +137,22 @@ export function PerformanceFilter({
         고객사
         <ClientCombobox clients={clients} defaultClientId={clientId} className="w-56" onSelect={(id) => go({ clientId: id })} />
       </label>
+
+      <div className="flex flex-col text-xs text-[var(--color-muted)]">
+        연도
+        <div className="mt-1 flex items-center gap-1.5">
+          <button type="button" aria-label="이전 연도" className={stepBtn} disabled={year <= YEAR_MIN} onClick={() => go({ ym: { year: year - 1, month } })}>‹</button>
+          <CommitInput label="연도" value={year} parse={parseYearInput} onCommit={(y) => go({ ym: { year: y, month } })} suffix="년" className="w-28 pl-3 pr-7" />
+          <button type="button" aria-label="다음 연도" className={stepBtn} disabled={year >= YEAR_MAX} onClick={() => go({ ym: { year: year + 1, month } })}>›</button>
+        </div>
+      </div>
+
       <div className="flex flex-col text-xs text-[var(--color-muted)]">
         월
         <div className="mt-1 flex items-center gap-1.5">
-          <button type="button" aria-label="이전 달" className={stepBtn} onClick={() => go({ ym: addMonths(current, -1) })}>‹</button>
-          <select
-            aria-label="월 선택"
-            value={`${year}-${month}`}
-            onChange={(e) => {
-              const [y, m] = e.target.value.split("-").map(Number);
-              go({ ym: { year: y, month: m } });
-            }}
-            className="h-[38px] w-36 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-center text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]"
-          >
-            {options.map((o) => (
-              <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>
-                {o.year}년 {o.month}월
-              </option>
-            ))}
-          </select>
-          <button type="button" aria-label="다음 달" className={stepBtn} onClick={() => go({ ym: addMonths(current, 1) })}>›</button>
+          <button type="button" aria-label="이전 달" className={stepBtn} disabled={!inRange(prevMonth)} onClick={() => go({ ym: prevMonth })}>‹</button>
+          <MonthField month={month} onPick={(m) => go({ ym: { year, month: m } })} />
+          <button type="button" aria-label="다음 달" className={stepBtn} disabled={!inRange(nextMonth)} onClick={() => go({ ym: nextMonth })}>›</button>
         </div>
       </div>
     </div>

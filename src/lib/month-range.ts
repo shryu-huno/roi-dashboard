@@ -42,3 +42,23 @@ export function addMonths(ym: Ym, delta: number): Ym {
   const v = ym.year * 12 + (ym.month - 1) + delta;
   return { year: Math.floor(v / 12), month: (v % 12) + 1 };
 }
+
+// 화면에서 고를 수 있는 연도 범위. 실적 저장 스키마(schemas.ts의 year)와 같은 범위다.
+export const YEAR_MIN = 2000;
+export const YEAR_MAX = 2100;
+
+// 직접 입력한 연도("2026", "2026년") 해석. 범위를 벗어나거나 숫자가 아니면 null.
+export function parseYearInput(text: string): number | null {
+  const m = /^(\d+)\s*년?$/.exec(text.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  return y >= YEAR_MIN && y <= YEAR_MAX ? y : null;
+}
+
+// 직접 입력한 월("11", "11월") 해석. 1~12가 아니거나 숫자가 아니면 null.
+export function parseMonthInput(text: string): number | null {
+  const m = /^(\d+)\s*월?$/.exec(text.trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 1 && n <= 12 ? n : null;
+}
