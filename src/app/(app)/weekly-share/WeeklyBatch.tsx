@@ -9,22 +9,18 @@ import { formatKstDateTime } from "@/lib/week";
 import type { OtherWorkView, WeeklyBatchClient, WeeklyShareView, WeeklySubmitResult } from "@/lib/data/weekly-share";
 
 type Draft = { thisWeek: string; nextWeek: string; note: string; noSpecial: boolean };
-type PerfDraft = { counts: Record<string, string>; amounts: Record<string, string>; touched: boolean };
 type Card = {
   draft: Draft;
   version: number | null; // 불러온(또는 마지막으로 맞춘) 서버 기록 버전. 기록이 없으면 null
   share: WeeklyShareView | null;
   conflict: { updatedByName: string | null; current: WeeklyShareView } | null;
   message: string | null;
-  perf: PerfDraft;
-  perfOpen: boolean;
 };
 type OtherDraft = { tags: string[]; thisWeek: string; nextWeek: string; note: string };
 type Banner = { kind: "ok" | "warn" | "error"; text: string };
 
 const fromView = (v: WeeklyShareView): Draft => ({ thisWeek: v.thisWeek, nextWeek: v.nextWeek, note: v.note, noSpecial: v.noSpecial });
 const hasContent = (d: Draft) => d.noSpecial || !!(d.thisWeek.trim() || d.nextWeek.trim() || d.note.trim());
-const won = (n: number) => n.toLocaleString("ko-KR");
 
 function initCard(c: WeeklyBatchClient): Card {
   const s = c.share;
@@ -34,31 +30,11 @@ function initCard(c: WeeklyBatchClient): Card {
     share: s,
     conflict: null,
     message: null,
-    // 실적 입력 화면과 같은 방식: 횟수 모드는 count, 금액 직접입력 모드는 amount(count 없음)로 복원한다.
-    perf: {
-      counts: Object.fromEntries(c.tasks.filter((t) => t.count != null).map((t) => [t.id, String(t.count)])),
-      amounts: Object.fromEntries(c.tasks.filter((t) => t.count == null && t.amount != null).map((t) => [t.id, won(t.amount!)])),
-      touched: false,
-    },
-    perfOpen: false,
   };
 }
 
 function initOther(o: OtherWorkView | null): OtherDraft {
   return { tags: o?.tags ?? [], thisWeek: o?.thisWeek ?? "", nextWeek: o?.nextWeek ?? "", note: o?.note ?? "" };
-}
-
-// 과업 한 줄의 유효 금액: 금액 직접입력이면 그 값, 아니면 단가×횟수(반올림).
-function effectiveAmount(unitPrice: number, count: string, amount: string): number {
-  if ((amount ?? "").trim() !== "") {
-    const n = Number(amount.replace(/,/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  }
-  if ((count ?? "").trim() !== "") {
-    const n = Number(count);
-    return Number.isFinite(n) ? Math.round(unitPrice * n) : 0;
-  }
-  return 0;
 }
 
 const inputCls =
@@ -114,25 +90,11 @@ export function WeeklyBatch({
   function submit() {
     setBanner(null);
     const entries = clients.map((c) => ({ clientId: c.id, ...cards[c.id].draft, version: cards[c.id].version }));
-    const performance = clients
-      .filter((c) => cards[c.id].perf.touched)
-      .map((c) => {
-        const { counts, amounts } = cards[c.id].perf;
-        const rows = c.tasks.flatMap((t) => {
-          if ((counts[t.id] ?? "").trim() !== "") return [{ taskId: t.id, count: counts[t.id], amount: "" }];
-          if ((amounts[t.id] ?? "").trim() !== "") return [{ taskId: t.id, count: "", amount: amounts[t.id].replace(/,/g, "") }];
-          return []; // 비워 두면 저장하지 않는다(실적 입력 화면과 동일)
-        });
-        return { clientId: c.id, year, month, rows };
-      })
-      .filter((p) => p.rows.length > 0);
-
     startTransition(async () => {
       const out = await submitWeeklyAction({
         weekStart,
         entries,
         other: otherDraft,
-        performance,
       });
       if (!out.ok) {
         setBanner({ kind: "error", text: out.error });
@@ -147,7 +109,7 @@ export function WeeklyBatch({
     setCards((prev) => {
       const next = { ...prev };
       for (const c of clients) {
-        const card: Card = { ...prev[c.id], perf: { ...prev[c.id].perf, touched: false } };
+        const card: Card = { ...prev[c.id] };
         const cur = r.current[c.id] ?? null;
         const conflict = r.conflicts.find((x) => x.clientId === c.id);
         const rejected = r.rejected.find((x) => x.clientId === c.id);
@@ -232,8 +194,6 @@ export function WeeklyBatch({
       {clients.map((c) => {
         const card = cards[c.id];
         const off = readOnly || card.draft.noSpecial;
-        const perfOff = readOnly;
-        const amount = c.tasks.reduce((sum, t) => sum + effectiveAmount(t.unitPrice, card.perf.counts[t.id] ?? "", card.perf.amounts[t.id] ?? ""), 0);
         return (
           <section key={c.id} className={`rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] ${card.draft.noSpecial ? "opacity-90" : ""}`}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-5 py-3">
@@ -247,9 +207,6 @@ export function WeeklyBatch({
                     {c.name} <span className="text-[var(--color-muted)]">›</span>
                   </Link>
                 </h3>
-                <span className="text-sm text-[var(--color-muted)]">
-                  {month}월 실적 <b className="text-[var(--color-fg)]">{won(amount)}</b>원
-                </span>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-muted)]">
                 <span
@@ -327,71 +284,8 @@ export function WeeklyBatch({
               )}
               {card.message && <p className="text-sm text-[var(--color-danger)]">{card.message}</p>}
 
-              {card.perfOpen && (
-                <div className="rounded-[10px] bg-[var(--color-bg)] p-3">
-                  <p className="mb-2 text-xs text-[var(--color-muted)]">
-                    {year}년 {month}월 실적이에요. 실적 입력 화면과 같은 숫자라 어느 쪽에서 고쳐도 같이 바뀌어요. 칸을 비워 두면 저장하지 않아요.
-                  </p>
-                  {c.tasks.length === 0 ? (
-                    <p className="text-sm text-[var(--color-muted)]">이 달에 계약기간이 걸친 과업이 없어요. 고객사 설정에서 과업을 먼저 등록하세요.</p>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-xs text-[var(--color-muted)]">
-                          <th className="py-1 font-semibold">과업</th>
-                          <th className="font-semibold">단가</th>
-                          <th className="font-semibold">횟수</th>
-                          <th className="font-semibold">금액</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {c.tasks.map((t) => {
-                          const counts = card.perf.counts;
-                          const amounts = card.perf.amounts;
-                          const countFilled = (counts[t.id] ?? "").trim() !== "";
-                          const amountFilled = (amounts[t.id] ?? "").trim() !== "";
-                          return (
-                            <tr key={t.id} className="border-t border-[var(--color-border)]">
-                              <td className="py-1.5 pr-3">{t.name}</td>
-                              <td className="pr-3">{won(t.unitPrice)}</td>
-                              <td className="pr-3">
-                                <input
-                                  type="number" min="0" step="any" aria-label={`${t.name} 횟수`}
-                                  value={counts[t.id] ?? ""}
-                                  disabled={perfOff || amountFilled}
-                                  onChange={(e) => patchCard(c.id, (k) => ({ ...k, perf: { ...k.perf, touched: true, counts: { ...k.perf.counts, [t.id]: e.target.value } } }))}
-                                  className="w-24 rounded border border-[var(--color-border)] px-2 py-1 disabled:bg-[var(--color-border)] disabled:text-[var(--color-muted)]"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text" inputMode="numeric" aria-label={`${t.name} 금액`}
-                                  value={countFilled ? won(effectiveAmount(t.unitPrice, counts[t.id], "")) : amounts[t.id] ?? ""}
-                                  disabled={perfOff || countFilled}
-                                  onChange={(e) => {
-                                    const digits = e.target.value.replace(/[^\d]/g, "");
-                                    patchCard(c.id, (k) => ({
-                                      ...k,
-                                      perf: { ...k.perf, touched: true, amounts: { ...k.perf.amounts, [t.id]: digits === "" ? "" : won(Number(digits)) } },
-                                    }));
-                                  }}
-                                  className="w-32 rounded border border-[var(--color-border)] px-2 py-1 disabled:bg-[var(--color-border)] disabled:text-[var(--color-muted)]"
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
-
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1">
-                  <button type="button" aria-expanded={card.perfOpen} className={ghostBtn} onClick={() => patchCard(c.id, (k) => ({ ...k, perfOpen: !k.perfOpen }))}>
-                    {card.perfOpen ? "▾" : "▸"} {month}월 실적 횟수 {readOnly ? "보기" : "수정"}
-                  </button>
                   {!readOnly && c.prevNextWeek && (
                     <button type="button" className={ghostBtn} onClick={() => pullPrevious(c)}>
                       지난주 계획 가져오기

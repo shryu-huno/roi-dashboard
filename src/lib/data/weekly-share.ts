@@ -1,8 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { canWriteWeeklyShare } from "@/lib/auth/rbac";
-import { upsertPerformanceInTx, type PerformanceBatchInput } from "@/lib/data/performance";
-import { periodProjectFilter, TASK_ORDER_BY } from "@/lib/data/tasks";
 
 // ---- 입력/결과 타입 ---------------------------------------------------------------
 
@@ -27,8 +25,6 @@ export type WeeklySubmitInput = {
   weekStart: string; // 그 주 일요일 "YYYY-MM-DD"
   entries: WeeklyEntryInput[];
   other: OtherWorkInput | null; // null = 이번 제출에서 기타 업무를 다루지 않음
-  // "실적 횟수 수정"으로 고친 월별 실적. 텍스트와 같은 트랜잭션에서 저장하고, 하나라도 실패하면 전부 롤백한다.
-  performance?: PerformanceBatchInput[];
 };
 
 // 화면에 보여 주는 저장 상태(날짜는 ISO 문자열 — 화면에서 formatKstDateTime으로 표기).
@@ -147,12 +143,6 @@ export function submitWeekly(ctx: RlsContext, input: WeeklySubmitInput): Promise
       current: {}, otherCurrent: null,
     };
     const writer = canWriteWeeklyShare(ctx.role);
-
-    // 실적 횟수 수정은 텍스트와 한 트랜잭션: 어느 쪽이든 실패하면 전부 롤백된다(잘못된 과업이면 오류를 던짐).
-    if (input.performance?.length) {
-      if (!writer) throw new Error("FORBIDDEN_PERFORMANCE_WRITE");
-      for (const p of input.performance) await upsertPerformanceInTx(tx, p);
-    }
 
     const assigned = new Set(
       writer && input.entries.length
@@ -282,15 +272,11 @@ async function saveOtherWork(
 
 // ---- 주간 공유 화면용 조회 ---------------------------------------------------------------------
 
-export type WeeklyBatchTask = { id: string; name: string; unitPrice: number; count: number | null; amount: number | null };
-
 export type WeeklyBatchClient = {
   id: string;
   name: string;
   share: WeeklyShareView | null; // 이번 주 기록(없으면 미작성)
   prevNextWeek: string; // 지난주 기록의 "다음주" 내용 — "지난주 계획 가져오기"용
-  monthAmount: number; // 선택한 달 실적 합계(실적 입력의 월 실적 합계와 같은 기준)
-  tasks: WeeklyBatchTask[]; // 선택한 달에 계약기간이 걸친 프로젝트의 과업 + 그 달 저장값
 };
 
 export type WeeklyBatchData = {
@@ -300,12 +286,12 @@ export type WeeklyBatchData = {
 };
 
 /**
- * 한 PM의 담당 고객사 전체와 그 주의 기록·실적을 한 번에 읽는다. 조회 범위는 RLS가 정한다
+ * 한 PM의 담당 고객사 전체와 그 주의 기록을 한 번에 읽는다. 조회 범위는 RLS가 정한다
  * (PM은 본인 담당만, 관리자는 자기 범위 안에서 다른 PM의 것을 읽기 전용으로 본다).
  */
 export function loadWeeklyBatch(
   ctx: RlsContext,
-  p: { pmId: string; weekStart: string; prevWeekStart: string; year: number; month: number; weeks: string[] },
+  p: { pmId: string; weekStart: string; prevWeekStart: string; weeks: string[] },
 ): Promise<WeeklyBatchData> {
   return withRLS(ctx, async (tx) => {
     const assignments = await tx.clientManager.findMany({
@@ -317,15 +303,10 @@ export function loadWeeklyBatch(
     const weekStart = toDate(p.weekStart);
     const prevWeekStart = toDate(p.prevWeekStart);
 
-    const [shares, tasks, grouped, other] = await Promise.all([
+    const [shares, grouped, other] = await Promise.all([
       tx.weeklyShare.findMany({
         where: { clientId: { in: ids }, weekStart: { in: [weekStart, prevWeekStart] } },
         include: shareInclude,
-      }),
-      tx.task.findMany({
-        where: { clientId: { in: ids }, ...periodProjectFilter({ year: p.year, month: p.month }) },
-        orderBy: TASK_ORDER_BY,
-        select: { id: true, name: true, unitPrice: true, clientId: true },
       }),
       tx.weeklyShare.groupBy({
         by: ["weekStart"],
@@ -334,29 +315,16 @@ export function loadWeeklyBatch(
       }),
       tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: p.pmId } } }),
     ]);
-    const perf = await tx.monthlyPerformance.findMany({
-      where: { taskId: { in: tasks.map((t) => t.id) }, year: p.year, month: p.month },
-    });
-    const perfByTask = new Map(perf.map((r) => [r.taskId, r]));
-
     return {
       clients: clients.map((c) => {
         const mine = shares.filter((r) => r.clientId === c.id);
         const cur = mine.find((r) => ymdOf(r.weekStart) === p.weekStart);
         const prev = mine.find((r) => ymdOf(r.weekStart) === p.prevWeekStart);
-        const cTasks: WeeklyBatchTask[] = tasks
-          .filter((t) => t.clientId === c.id)
-          .map((t) => {
-            const r = perfByTask.get(t.id);
-            return { id: t.id, name: t.name, unitPrice: t.unitPrice, count: r?.count ?? null, amount: r ? r.amount : null };
-          });
         return {
           id: c.id,
           name: c.name,
           share: cur ? toShareView(cur) : null,
           prevNextWeek: prev?.nextWeek ?? "",
-          monthAmount: cTasks.reduce((sum, t) => sum + (t.amount ?? 0), 0),
-          tasks: cTasks,
         };
       }),
       other: other ? toOtherView(other) : null,

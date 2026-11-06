@@ -81,7 +81,7 @@ export default async function WeeklySharePage({
   }
 
   const data = pmId
-    ? await loadWeeklyBatch(ctx, { pmId, weekStart: week, prevWeekStart: prevWeek(week), year: ym.year, month: ym.month, weeks: weekKeys })
+    ? await loadWeeklyBatch(ctx, { pmId, weekStart: week, prevWeekStart: prevWeek(week), weeks: weekKeys })
     : { clients: [], other: null, weekStatus: {} as Record<string, number> };
 
   const total = data.clients.length;

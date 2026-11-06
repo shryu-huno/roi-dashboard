@@ -509,13 +509,4 @@ describe("weeklySubmitSchema", () => {
     expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["없는구분"] } }).success).toBe(false);
     expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["TF", "TF"] } }).success).toBe(false);
   });
-
-  it("실적 횟수 수정 값(performance)을 함께 받는다 — 과업별 횟수 또는 금액 중 하나만", () => {
-    const ok = { ...base, performance: [{ clientId: "c1", year: 2026, month: 11, rows: [{ taskId: "t1", count: "2.5", amount: "" }] }] };
-    const r = weeklySubmitSchema.safeParse(ok);
-    expect(r.success).toBe(true);
-    if (r.success) expect(r.data.performance?.[0].rows[0]).toMatchObject({ count: 2.5, amount: null });
-    const both = { ...base, performance: [{ clientId: "c1", year: 2026, month: 11, rows: [{ taskId: "t1", count: 1, amount: 1000 }] }] };
-    expect(weeklySubmitSchema.safeParse(both).success).toBe(false);
-  });
 });

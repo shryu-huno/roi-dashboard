@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { submitWeekly, loadWeeklyBatch, type WeeklyEntryInput } from "@/lib/data/weekly-share";
-import { mkClient, mkTask } from "./factories";
+import { mkClient } from "./factories";
 
 const ROOT: RlsContext = { userId: "seed-admin", role: "SUPER_ADMIN" };
 const WEEK = "2026-11-01"; // 일요일
@@ -290,30 +290,7 @@ describe("submitWeekly — 기타 업무", () => {
   });
 });
 
-describe("submitWeekly — 실적 횟수 동시 저장과 최신 상태 반환", () => {
-  it("실적 횟수를 함께 제출하면 같은 월별 실적(MonthlyPerformance)에 저장된다", async () => {
-    const t = await mkTask(ROOT, { clientId: c1, name: "심리진단", unitPrice: 1000 });
-    const res = await submitWeekly(ctxA, {
-      weekStart: WEEK, entries: [entry(c1)], other: null,
-      performance: [{ clientId: c1, year: 2026, month: 11, rows: [{ taskId: t.id, count: 3, amount: null }] }],
-    });
-    expect(res.saved).toEqual([c1]);
-    const perf = await withRLS(ROOT, (tx) => tx.monthlyPerformance.findMany({ where: { taskId: t.id } }));
-    expect(perf).toHaveLength(1);
-    expect(perf[0]).toMatchObject({ year: 2026, month: 11, count: 3, amount: 3000 });
-  });
-
-  it("실적 저장이 실패하면(다른 고객사 과업) 주간 공유 텍스트도 함께 저장되지 않는다", async () => {
-    const foreign = await mkTask(ROOT, { clientId: c2, name: "타사 과업", unitPrice: 500 });
-    await expect(
-      submitWeekly(ctxA, {
-        weekStart: WEEK, entries: [entry(c1)], other: null,
-        performance: [{ clientId: c1, year: 2026, month: 11, rows: [{ taskId: foreign.id, count: 1, amount: null }] }],
-      }),
-    ).rejects.toThrow();
-    expect(await rowOf(c1)).toBeNull();
-  });
-
+describe("submitWeekly — 최신 상태 반환", () => {
   it("저장한 카드의 최신 상태(version·작성자·수정자)를 돌려준다", async () => {
     const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null });
     expect(res.current[c1]).toMatchObject({
@@ -335,23 +312,17 @@ describe("submitWeekly — 실적 횟수 동시 저장과 최신 상태 반환",
 
 describe("loadWeeklyBatch — 주간 공유 화면용 조회", () => {
   const params = (pmId: string, over = {}) => ({
-    pmId, weekStart: WEEK, prevWeekStart: "2026-10-25", year: 2026, month: 11, weeks: [WEEK, "2026-10-25"], ...over,
+    pmId, weekStart: WEEK, prevWeekStart: "2026-10-25", weeks: [WEEK, "2026-10-25"], ...over,
   });
 
-  it("담당 고객사를 이름순으로, 이번 주 기록과 지난주 '다음주' 내용·월 실적과 함께 돌려준다", async () => {
-    const t = await mkTask(ROOT, { clientId: c1, name: "심리진단", unitPrice: 1000 });
+  it("담당 고객사를 이름순으로, 이번 주 기록과 지난주 '다음주' 내용과 함께 돌려준다", async () => {
     await submitWeekly(ctxA, { weekStart: "2026-10-25", entries: [entry(c1, { thisWeek: "지난주 한 일", nextWeek: "이번주 하기로 한 일" })], other: null });
-    await submitWeekly(ctxA, {
-      weekStart: WEEK, entries: [entry(c1)], other: null,
-      performance: [{ clientId: c1, year: 2026, month: 11, rows: [{ taskId: t.id, count: 2, amount: null }] }],
-    });
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null });
     const data = await loadWeeklyBatch(ctxA, params(pmA));
     expect(data.clients.map((c) => c.name)).toEqual(["C1", "C3"]);
     const c = data.clients[0];
     expect(c.share).toMatchObject({ thisWeek: "이번주 내용", version: 1, createdByName: "pma" });
     expect(c.prevNextWeek).toBe("이번주 하기로 한 일");
-    expect(c.monthAmount).toBe(2000);
-    expect(c.tasks).toEqual([{ id: t.id, name: "심리진단", unitPrice: 1000, count: 2, amount: 2000 }]);
     expect(data.clients[1].share).toBeNull();
     expect(data.clients[1].prevNextWeek).toBe("");
   });

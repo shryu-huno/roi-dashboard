@@ -90,28 +90,22 @@ export async function listPerformanceTotals(
 
 const FORBIDDEN = "FORBIDDEN_OR_MISSING_TASK";
 
-// 월별 실적 저장 코어. 호출자가 연 트랜잭션 안에서 실행한다(실적 입력 화면과 주간 공유 제출이 공유).
-// 잘못된 과업이면 FORBIDDEN_OR_MISSING_TASK 오류를 던져 호출 트랜잭션 전체를 롤백한다.
-export async function upsertPerformanceInTx(tx: Prisma.TransactionClient, input: PerformanceBatchInput): Promise<void> {
-  for (const row of input.rows) {
-    const task = await tx.task.findUnique({ where: { id: row.taskId } });
-    // task가 null이면: 존재하지 않거나 RLS가 은닉(타 고객사) → 위조로 간주하고 전체 롤백.
-    if (!task || task.clientId !== input.clientId) throw new Error(FORBIDDEN);
-    // 금액 모드: 입력 금액 저장, count는 null. 횟수 모드: 단가×횟수로 금액 파생.
-    const count = row.count;
-    // 횟수 모드 파생 금액은 원 단위 정수로 반올림한다(소수 횟수 × 단가 → 소수 원 방지).
-    const amount = row.amount != null ? row.amount : Math.round(task.unitPrice * (row.count as number));
-    await tx.monthlyPerformance.upsert({
-      where: { taskId_year_month: { taskId: row.taskId, year: input.year, month: input.month } },
-      create: { taskId: row.taskId, year: input.year, month: input.month, count, amount },
-      update: { count, amount },
-    });
-  }
-}
-
 export function upsertPerformanceBatch(ctx: RlsContext, input: PerformanceBatchInput): Promise<ActionState> {
   return withRLS(ctx, async (tx) => {
-    await upsertPerformanceInTx(tx, input);
+    for (const row of input.rows) {
+      const task = await tx.task.findUnique({ where: { id: row.taskId } });
+      // task가 null이면: 존재하지 않거나 RLS가 은닉(타 고객사) → 위조로 간주하고 전체 롤백.
+      if (!task || task.clientId !== input.clientId) throw new Error(FORBIDDEN);
+      // 금액 모드: 입력 금액 저장, count는 null. 횟수 모드: 단가×횟수로 금액 파생.
+      const count = row.count;
+      // 횟수 모드 파생 금액은 원 단위 정수로 반올림한다(소수 횟수 × 단가 → 소수 원 방지).
+      const amount = row.amount != null ? row.amount : Math.round(task.unitPrice * (row.count as number));
+      await tx.monthlyPerformance.upsert({
+        where: { taskId_year_month: { taskId: row.taskId, year: input.year, month: input.month } },
+        create: { taskId: row.taskId, year: input.year, month: input.month, count, amount },
+        update: { count, amount },
+      });
+    }
     return { ok: true } as ActionState;
   }).catch((e: unknown) => {
     if (e instanceof Error && e.message === FORBIDDEN) {

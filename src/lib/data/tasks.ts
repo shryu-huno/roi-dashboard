@@ -1,4 +1,3 @@
-import type { Prisma } from "@prisma/client";
 import { withRLS, type RlsContext } from "@/lib/rls";
 import { recomputePerformanceAmounts } from "@/lib/data/performance";
 import type { ActionState } from "@/lib/action-state";
@@ -30,40 +29,35 @@ export function resolveContractAmount(input: TaskAmounts): number | null {
   return input.contractAmount ?? deriveContractAmount(input.unitPrice, input.contractCount);
 }
 
-// period(연·월)를 계약기간에 포함하는 프로젝트의 과업만 고르는 where 조각. period가 없으면 제약 없음.
-// 실적 입력과 주간 공유의 "실적 횟수 수정"이 같은 과업 목록을 보도록 공유한다.
-export function periodProjectFilter(period?: { year: number; month: number }) {
-  if (!period) return {};
-  const monthStart = new Date(Date.UTC(period.year, period.month - 1, 1));
-  const monthEnd = new Date(Date.UTC(period.year, period.month, 0, 23, 59, 59, 999));
-  return {
-    project: {
-      AND: [
-        { OR: [{ contractStart: null }, { contractStart: { lte: monthEnd } }] },
-        { OR: [{ contractEnd: null }, { contractEnd: { gte: monthStart } }] },
-      ],
-    },
-  };
-}
-
-// 고객사 단위 조회라 여러 프로젝트가 섞인다. 설정 화면의 프로젝트 정렬(계약시작 최신순)과
-// 동일하게 프로젝트별로 묶고, 프로젝트 내에서는 저장된 과업 순서(sortOrder)로 정렬한다.
-export const TASK_ORDER_BY: Prisma.TaskOrderByWithRelationInput[] = [
-  { project: { contractStart: { sort: "desc", nulls: "last" } } },
-  { project: { createdAt: "desc" } },
-  { sortOrder: "asc" },
-  { name: "asc" },
-];
-
 // 고객사 단위 과업 조회. period가 주어지면 그 연·월(달)을 계약기간에 포함하는 프로젝트의
 // 과업만 반환한다(실적 입력 화면용). period 미전달이면 모든 프로젝트의 과업을 반환한다.
 // 계약 시작/종료일이 비어있으면(열린 구간) 해당 방향 제약은 걸지 않는다.
 // 설정 화면은 프로젝트별 과업을 listProjects의 include로 로드하므로 이 함수를 쓰지 않는다.
 export function listTasks(ctx: RlsContext, clientId: string, period?: { year: number; month: number }) {
+  let projectFilter = {};
+  if (period) {
+    const monthStart = new Date(Date.UTC(period.year, period.month - 1, 1));
+    const monthEnd = new Date(Date.UTC(period.year, period.month, 0, 23, 59, 59, 999));
+    projectFilter = {
+      project: {
+        AND: [
+          { OR: [{ contractStart: null }, { contractStart: { lte: monthEnd } }] },
+          { OR: [{ contractEnd: null }, { contractEnd: { gte: monthStart } }] },
+        ],
+      },
+    };
+  }
+  // 고객사 단위 조회라 여러 프로젝트가 섞인다. 설정 화면의 프로젝트 정렬(계약시작 최신순)과
+  // 동일하게 프로젝트별로 묶고, 프로젝트 내에서는 저장된 과업 순서(sortOrder)로 정렬한다.
   return withRLS(ctx, (tx) =>
     tx.task.findMany({
-      where: { clientId, ...periodProjectFilter(period) },
-      orderBy: TASK_ORDER_BY,
+      where: { clientId, ...projectFilter },
+      orderBy: [
+        { project: { contractStart: { sort: "desc", nulls: "last" } } },
+        { project: { createdAt: "desc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
     }),
   );
 }
