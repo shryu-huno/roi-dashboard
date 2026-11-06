@@ -14,7 +14,7 @@ export function DeleteUserButton({ id, email }: { id: string; email: string }) {
       }}
     >
       <input type="hidden" name="userId" value={id} />
-      <button type="submit" className="rounded border border-[var(--color-danger)] px-2 py-1 text-[var(--color-danger)]">
+      <button type="submit" className="rounded border border-[var(--color-danger)] px-3 py-1.5 text-xs text-[var(--color-danger)]">
         완전 삭제
       </button>
     </form>
