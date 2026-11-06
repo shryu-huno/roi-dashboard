@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { Ym } from "@/lib/month-range";
 import type { StatusMode } from "@/lib/part-status-period";
 import { YearMonthControls } from "./YearMonthControls";
+import { FIELD } from "./filter-style";
 
 const selectCls =
   "h-[38px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]";
@@ -49,9 +50,9 @@ export function PartStatusFilter({
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <div className="flex flex-wrap items-end gap-4">
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+        <label className={FIELD}>
           파트
-          <select className={`mt-1 w-36 ${selectCls}`} value={partId} onChange={(e) => go({ part: e.target.value })}>
+          <select className={`mt-1.5 w-36 ${selectCls}`} value={partId} onChange={(e) => go({ part: e.target.value })}>
             <option value="">전체</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>{g.name}</option>
@@ -59,9 +60,9 @@ export function PartStatusFilter({
           </select>
         </label>
 
-        <div className="flex flex-col text-xs text-[var(--color-muted)]">
+        <div className={FIELD}>
           기간
-          <div className="mt-1 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="기간">
+          <div className="mt-1.5 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="기간">
             {MODES.map((m) => (
               <button
                 key={m.value}
@@ -87,9 +88,9 @@ export function PartStatusFilter({
         />
 
         {mode === "quarter" && (
-          <div className="flex flex-col text-xs text-[var(--color-muted)]">
+          <div className={FIELD}>
             분기
-            <div className="mt-1 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="분기">
+            <div className="mt-1.5 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="분기">
               {[1, 2, 3, 4].map((q) => (
                 <button
                   key={q}

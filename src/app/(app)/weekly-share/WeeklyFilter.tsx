@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ymValue, type Ym } from "@/lib/month-range";
 import { YearMonthControls } from "./YearMonthControls";
+import { FIELD } from "./filter-style";
 
 export type WeekChip = {
   key: string; // 그 주 일요일
@@ -68,7 +69,7 @@ export function WeeklyFilter({
       <div className="flex flex-wrap items-end gap-4">
         {admin && (
           <>
-            <label className="flex flex-col items-center text-[15px] font-semibold text-[var(--color-fg)]">
+            <label className={FIELD}>
               파트
               <select
                 className={`mt-1.5 w-32 ${selectCls}`}
@@ -86,7 +87,7 @@ export function WeeklyFilter({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col items-center text-[15px] font-semibold text-[var(--color-fg)]">
+            <label className={FIELD}>
               PM
               <select className={`mt-1.5 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pmId: e.target.value })}>
                 {visiblePms.map((p) => (
@@ -97,9 +98,9 @@ export function WeeklyFilter({
           </>
         )}
 
-        <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} large onChange={(target) => go({ ym: target, week: "" })} />
+        <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} onChange={(target) => go({ ym: target, week: "" })} />
 
-        <div className="flex min-w-0 flex-col items-center text-[15px] font-semibold text-[var(--color-fg)]">
+        <div className={`${FIELD} min-w-0`}>
           주차
           <div className="mt-1.5 flex flex-wrap justify-center gap-1.5" role="group" aria-label="주차">
             {weeks.map((w) => {

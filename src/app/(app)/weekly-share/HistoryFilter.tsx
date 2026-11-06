@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ymValue, type Ym } from "@/lib/month-range";
 import type { HistoryMode } from "@/lib/weekly-history";
 import { YearMonthControls } from "./YearMonthControls";
+import { FIELD } from "./filter-style";
 
 type Admin = {
   parts: { id: string; name: string }[];
@@ -71,18 +72,18 @@ export function HistoryFilter({
       <div className="flex flex-wrap items-end gap-4">
         {admin && (
           <>
-            <label className="flex flex-col text-xs text-[var(--color-muted)]">
+            <label className={FIELD}>
               파트
-              <select className={`mt-1 w-32 ${selectCls}`} value={admin.partId} onChange={(e) => go({ part: e.target.value, pm: "", client: "" })}>
+              <select className={`mt-1.5 w-32 ${selectCls}`} value={admin.partId} onChange={(e) => go({ part: e.target.value, pm: "", client: "" })}>
                 <option value="">전체</option>
                 {admin.parts.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             </label>
-            <label className="flex flex-col text-xs text-[var(--color-muted)]">
+            <label className={FIELD}>
               PM
-              <select className={`mt-1 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pm: e.target.value, client: "" })}>
+              <select className={`mt-1.5 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pm: e.target.value, client: "" })}>
                 <option value="">전체</option>
                 {visiblePms.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -92,9 +93,9 @@ export function HistoryFilter({
           </>
         )}
 
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
+        <label className={FIELD}>
           고객사
-          <select className={`mt-1 w-56 ${selectCls}`} value={clientFilter} onChange={(e) => go({ client: e.target.value })}>
+          <select className={`mt-1.5 w-56 ${selectCls}`} value={clientFilter} onChange={(e) => go({ client: e.target.value })}>
             <option value="">전체</option>
             <option value="other">기타 업무</option>
             {clientOptions.map((c) => (
@@ -103,9 +104,9 @@ export function HistoryFilter({
           </select>
         </label>
 
-        <div className="flex flex-col text-xs text-[var(--color-muted)]">
+        <div className={FIELD}>
           기간
-          <div className="mt-1 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="기간">
+          <div className="mt-1.5 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5" role="group" aria-label="기간">
             {MODES.map((m) => (
               <button
                 key={m.value}
@@ -124,9 +125,9 @@ export function HistoryFilter({
 
         {mode === "month" && <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} onChange={(target) => go({ ym: target })} />}
         {mode === "range" && (
-          <div className="flex flex-col text-xs text-[var(--color-muted)]">
+          <div className={FIELD}>
             날짜
-            <div className="mt-1 flex items-center gap-1.5">
+            <div className="mt-1.5 flex items-center gap-1.5">
               <input type="date" aria-label="시작일" max={today} value={from} onChange={(e) => go({ from: e.target.value })} className={`w-40 ${selectCls}`} />
               <span>~</span>
               <input type="date" aria-label="종료일" max={today} value={to} onChange={(e) => go({ to: e.target.value })} className={`w-40 ${selectCls}`} />
@@ -134,7 +135,7 @@ export function HistoryFilter({
           </div>
         )}
 
-        <label className="flex min-w-[10rem] flex-1 flex-col text-xs text-[var(--color-muted)]">
+        <label className={`${FIELD} min-w-[10rem] flex-1`}>
           검색
           <input
             type="search"
@@ -146,7 +147,7 @@ export function HistoryFilter({
               clearTimeout(timer.current);
               timer.current = setTimeout(() => go({ q: v }), 350);
             }}
-            className={`mt-1 w-full ${selectCls}`}
+            className={`mt-1.5 w-full ${selectCls}`}
           />
         </label>
 

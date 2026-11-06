@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { BidStatusFilter } from "@/lib/bids";
 import type { Ym } from "@/lib/month-range";
 import { YearMonthControls } from "./YearMonthControls";
+import { FIELD } from "./filter-style";
 
 const selectCls =
   "h-[38px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]";
@@ -48,12 +49,12 @@ export function BidFilter({
 
   const segCls = (active: boolean) =>
     `h-8 rounded-[8px] px-3 text-sm font-medium ${active ? "bg-[var(--color-surface)] text-[var(--color-primary)] shadow-sm" : "text-[var(--color-muted)]"}`;
-  const segWrap = "mt-1 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5";
+  const segWrap = "mt-1.5 inline-flex h-[38px] items-center gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5";
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <div className="flex flex-wrap items-end gap-4">
-        <div className="flex flex-col text-xs text-[var(--color-muted)]">
+        <div className={FIELD}>
           상태
           <div className={segWrap} role="group" aria-label="상태">
             {STATUS.map((s) => (
@@ -64,7 +65,7 @@ export function BidFilter({
           </div>
         </div>
 
-        <div className="flex flex-col text-xs text-[var(--color-muted)]">
+        <div className={FIELD}>
           제출 마감
           <div className={segWrap} role="group" aria-label="제출 마감 기간">
             {DUE.map((d) => (
@@ -77,7 +78,7 @@ export function BidFilter({
 
         {due === "month" && <YearMonthControls ym={ym} minYm={minYm} maxYm={maxYm} onChange={(target) => go({ ym: target })} />}
 
-        <label className="flex min-w-[10rem] flex-1 flex-col text-xs text-[var(--color-muted)]">
+        <label className={`${FIELD} min-w-[10rem] flex-1`}>
           검색
           <input
             type="search"
@@ -89,7 +90,7 @@ export function BidFilter({
               clearTimeout(timer.current);
               timer.current = setTimeout(() => go({ q: v }), 350);
             }}
-            className={`mt-1 w-full ${selectCls}`}
+            className={`mt-1.5 w-full ${selectCls}`}
           />
         </label>
       </div>
