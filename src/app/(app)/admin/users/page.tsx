@@ -46,8 +46,8 @@ export default async function AdminUsersPage() {
               <td>
                 {u.partId ? (
                   <>
-                    {partName.get(u.partId) ?? "(삭제된 파트)"}
-                    <span className="text-[var(--color-muted)]"> · 파트장 {leaderOfPart.get(u.partId) ?? "미지정"}</span>
+                    {/* 파트 열에는 파트장 이름만 보인다. 파트장이 없으면 파트 이름으로 대신한다. */}
+                    {leaderOfPart.get(u.partId) ?? `${partName.get(u.partId) ?? "(삭제된 파트)"} (파트장 미지정)`}
                   </>
                 ) : "-"}
               </td>
