@@ -358,7 +358,10 @@ export async function PartStatusView({
                   </tr>
                   {g.pms.map((p) => (
                     <tr key={p.id} className="border-b border-[var(--color-border)]">
-                      <td className={`${td} font-semibold`}>{p.name}</td>
+                      <td className={`${td} font-semibold`}>
+                        {p.name}
+                        {p.jointOf && <div className="mt-0.5 text-xs font-normal text-[var(--color-muted)]">{p.jointOf.join(" · ")}</div>}
+                      </td>
                       <td className={td}><b>{p.clientCount}</b>곳</td>
                       <td className="px-3 py-3 align-middle">
                         <div className="flex flex-wrap justify-center gap-1.5">

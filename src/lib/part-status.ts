@@ -161,37 +161,55 @@ export type DirectoryPm = {
   clientCount: number;
   contract: number;
   clients: { id: string; name: string; contract: number; performanceContract: boolean }[];
+  jointOf?: string[]; // "공동 담당" 행일 때만: 그 고객사들을 함께 맡는 PM 이름들
 };
 export type DirectoryGroup = { id: string; name: string; pmCount: number; clientCount: number; contract: number; pms: DirectoryPm[] };
 
 /** 파트별 PM 담당 고객사 수와 계약 금액(계약 기간 전체 금액). 파트 합계는 고객사를 한 번만 센다. */
 export function directory(input: PartStatusInput, groupId: string) {
+  const row = (id: string, name: string, ids: string[], jointOf?: string[]): DirectoryPm => {
+    const pt = totalsFor(input, ids);
+    return {
+      id,
+      name,
+      clientCount: pt.clientCount,
+      contract: fullContractFor(input, ids),
+      clients: ids
+        .map((cid) => ({ id: cid, name: input.clients[cid].name, contract: fullContractFor(input, [cid]), performanceContract: input.clients[cid].performanceContract }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ko")),
+      ...(jointOf ? { jointOf } : {}),
+    };
+  };
   const groups: DirectoryGroup[] = (groupId === ALL ? input.groups : input.groups.filter((g) => g.id === groupId)).map((g) => {
     const pms = pmsOf(input, g.id);
     const t = totalsFor(input, clientsOfPms(input, pms));
+    const idsOf = (pmId: string) => uniq(input.clientsByPm[pmId] ?? []).filter((id) => input.clients[id]);
+    // 같은 파트의 PM 둘 이상이 맡은 고객사는 PM 행에서 빼고 "공동 담당" 행(담당자 조합별)에 한 번만 둔다.
+    // 그러면 파트 안의 행을 더한 값이 파트 합계와 같다. 다른 파트 PM과의 공동 담당은 이 파트에서는 한 명만 맡은 것으로 본다.
+    const holders = new Map<string, StatusPm[]>();
+    for (const p of pms) for (const id of idsOf(p.id)) holders.set(id, [...(holders.get(id) ?? []), p]);
+    const jointByKey = new Map<string, { pms: StatusPm[]; ids: string[] }>();
+    for (const [id, hs] of holders) {
+      if (hs.length < 2) continue;
+      const key = hs.map((h) => h.id).sort().join("|");
+      const cur = jointByKey.get(key) ?? { pms: hs, ids: [] };
+      cur.ids.push(id);
+      jointByKey.set(key, cur);
+    }
+    const pmRows = pms.map((p) => row(p.id, p.name, idsOf(p.id).filter((id) => (holders.get(id)?.length ?? 0) < 2)));
+    const jointRows = [...jointByKey.entries()].map(([key, j]) =>
+      row(`joint:${key}`, "공동 담당", j.ids, j.pms.map((h) => h.name).sort((a, b) => a.localeCompare(b, "ko"))),
+    );
     return {
       id: g.id,
       name: g.name,
       pmCount: realCount(pms),
       clientCount: t.clientCount,
       contract: fullContractFor(input, clientsOfPms(input, pms)),
-      pms: pms.map((p) => {
-        const ids = uniq(input.clientsByPm[p.id] ?? []).filter((id) => input.clients[id]);
-        const pt = totalsFor(input, ids);
-        return {
-          id: p.id,
-          name: p.name,
-          clientCount: pt.clientCount,
-          contract: fullContractFor(input, ids),
-          clients: ids
-            .map((id) => ({ id, name: input.clients[id].name, contract: fullContractFor(input, [id]), performanceContract: input.clients[id].performanceContract }))
-            .sort((a, b) => a.name.localeCompare(b.name, "ko")),
-        };
-      }),
+      pms: [...pmRows, ...jointRows],
     };
   });
-  const shown = groups.flatMap((g) => g.pms.map((p) => p.id));
-  const total = totalsFor(input, clientsOfPms(input, input.pms.filter((p) => shown.includes(p.id))));
-  const shownPms = input.pms.filter((p) => shown.includes(p.id));
+  const shownPms = input.pms.filter((p) => groups.some((g) => g.pms.some((r) => r.id === p.id)));
+  const total = totalsFor(input, clientsOfPms(input, shownPms));
   return { groups, total: { pmCount: realCount(shownPms), clientCount: total.clientCount, contract: fullContractFor(input, clientsOfPms(input, shownPms)) } };
 }
