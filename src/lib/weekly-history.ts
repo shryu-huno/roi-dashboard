@@ -2,7 +2,6 @@
 // DB를 읽는 일은 data/weekly-share.ts(loadWeeklyHistory)가, 화면은 이 결과를 그대로 그린다.
 import type { OtherWorkView, WeeklyShareView } from "@/lib/data/weekly-share";
 import type { Ym } from "@/lib/month-range";
-import { describeShareStamp } from "@/lib/weekly-share-view";
 import { addWeeks, weekLabel, weekMonth, weekStartOf, weeksOverlappingMonth, type WeekKey } from "@/lib/week";
 
 export type HistoryMode = "month" | "all" | "range";
@@ -163,81 +162,60 @@ function stripOtherKeys({ authorId: _a, weekStart: _w, ...view }: HistoryOther):
 // ---- 복사용 텍스트 ----------------------------------------------------------------------------
 
 const oneLine = (s: string) => (s ? s.split("\n").join(" / ") : "-");
-const monthIndex = (weekStart: string) => {
-  const m = weekMonth(weekStart);
-  return m.year * 12 + m.month;
-};
 
 /**
  * 지금 조회한 조건 그대로의 텍스트(메일·메신저 붙여넣기용). 미작성 행은 뺀다.
- * section을 주면 모든 행을 그 제목(예: "2026년 11월") 한 구역으로, 없으면 주의 소속 월별로 나눈다.
+ * 주차는 구역 제목("■ 2026년 11월 2주차")에 한 번만 적고(여러 주면 최신 주부터 구역을 나눈다), 고객사 아래에는
+ * 주차·작성자·작성 시간을 되풀이하지 않는다. 특이사항 없음은 "- 특이사항 없음" 한 줄.
  * grouped: 파트·PM 줄을 넣는다(관리자 보기). single: 고객사 줄을 생략한다(고객사 하나만 볼 때).
  */
 export function historyText(
   rows: HistoryRow[],
-  opt: { scope: string; rangeLabel: string; grouped: boolean; single?: boolean; section?: string },
+  opt: { scope: string; rangeLabel: string; grouped: boolean; single?: boolean },
 ): string {
   const items = rows.filter((r) => r.kind === "other" || r.share);
-  const ordered = opt.section ? items : [...items].sort((a, b) => monthIndex(b.weekStart) - monthIndex(a.weekStart));
+  const weeks = [...new Set(items.map((r) => r.weekStart))].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
   let t = `[주간공유] ${opt.scope} · ${opt.rangeLabel}\n`;
-  let lastMonth = opt.section ? opt.section : "";
-  let lastPart: string | null = null;
-  let lastPm: string | null = null;
-  let lastGroup = "";
-  if (opt.section) t += `\n■ ${opt.section}\n`;
 
-  for (const r of ordered) {
-    if (!opt.section) {
-      const m = weekMonth(r.weekStart);
-      const title = `${m.year}년 ${m.month}월`;
-      if (title !== lastMonth) {
-        lastMonth = title;
-        lastPart = lastPm = null;
-        lastGroup = "";
-        t += `\n■ ${title}\n`;
+  for (const week of weeks) {
+    const m = weekMonth(week);
+    t += `\n■ ${m.year}년 ${weekLabel(week)}\n`;
+    let lastPart: string | null = null;
+    let lastPm: string | null = null;
+    let lastGroup = "";
+
+    for (const r of items.filter((x) => x.weekStart === week)) {
+      if (opt.grouped && r.pmId) {
+        const part = r.partName ?? "파트 미지정";
+        if (part !== lastPart) {
+          lastPart = part;
+          lastPm = null;
+          lastGroup = "";
+          t += `\n[${part}]\n`;
+        }
+        if (r.pmId !== lastPm) {
+          lastPm = r.pmId;
+          lastGroup = "";
+          t += `● ${r.pmName}\n`;
+        }
       }
-    }
-    if (opt.grouped && r.pmId) {
-      const part = r.partName ?? "파트 미지정";
-      if (part !== lastPart) {
-        lastPart = part;
-        lastPm = null;
-        lastGroup = "";
-        t += `\n[${part}]\n`;
+      let ind = "";
+      if (!opt.single) {
+        const group = `${r.pmId ?? "-"}/${r.kind === "client" ? r.clientId : "other"}`;
+        if (group !== lastGroup) {
+          lastGroup = group;
+          const tags = r.kind === "other" && r.other.tags.length ? ` [${r.other.tags.join(", ")}]` : "";
+          t += `  ▸ ${r.kind === "client" ? r.clientName : "기타 업무"}${tags}\n`;
+        }
+        ind = "    ";
       }
-      if (r.pmId !== lastPm) {
-        lastPm = r.pmId;
-        lastGroup = "";
-        t += `● ${r.pmName}\n`;
-      }
-    }
-    let ind = "";
-    if (!opt.single) {
-      const group = `${r.pmId ?? "-"}/${r.kind === "client" ? r.clientId : "other"}`;
-      if (group !== lastGroup) {
-        lastGroup = group;
-        t += `  ▸ ${r.kind === "client" ? r.clientName : "기타 업무"}\n`;
-      }
-      ind = "    ";
-    }
-    const label = weekLabel(r.weekStart);
-    if (r.kind === "client") {
-      const s = r.share!;
-      const stamp = describeShareStamp(s);
-      if (s.noSpecial) {
-        t += `${ind}- ${label}: 특이사항 없음\n${ind}  작성: ${stamp}\n`;
+      const body = r.kind === "client" ? r.share! : r.other;
+      if (r.kind === "client" && r.share!.noSpecial) {
+        t += `${ind}- 특이사항 없음\n`;
       } else {
-        t += `${ind}- ${label}\n${ind}  이번주: ${oneLine(s.thisWeek)}\n${ind}  다음주: ${oneLine(s.nextWeek)}\n`;
-        if (s.note) t += `${ind}  비고: ${oneLine(s.note)}\n`;
-        t += `${ind}  작성: ${stamp}\n`;
+        t += `${ind}- 이번주: ${oneLine(body.thisWeek)}\n${ind}  다음주: ${oneLine(body.nextWeek)}\n`;
+        if (body.note) t += `${ind}  비고: ${oneLine(body.note)}\n`;
       }
-    } else {
-      const o = r.other;
-      const tags = o.tags.length ? ` [${o.tags.join(", ")}]` : "";
-      const stamp = describeShareStamp({ createdByName: r.pmName, updatedByName: r.pmName, createdAt: o.createdAt, editedAt: o.editedAt });
-      t += `${ind}- ${label}${tags}\n${ind}  이번주: ${oneLine(o.thisWeek)}\n${ind}  다음주: ${oneLine(o.nextWeek)}\n`;
-      if (o.note) t += `${ind}  비고: ${oneLine(o.note)}\n`;
-      t += `${ind}  작성: ${stamp}\n`;
     }
   }
   return t;

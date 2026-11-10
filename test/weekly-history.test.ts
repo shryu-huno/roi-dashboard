@@ -127,7 +127,7 @@ describe("buildHistoryRows — 파트 > PM > 고객사 > 주차(최신순)", () 
 });
 
 describe("historyText — 복사용 텍스트", () => {
-  it("월별 제목, 파트·PM·고객사 순 들여쓰기, 이번주/다음주(줄바꿈은 ' / '), 작성자 표기를 담는다", () => {
+  it("주차는 구역 제목에 한 번만, 파트·PM·고객사 순 들여쓰기, 이번주/다음주(줄바꿈은 ' / '), 작성자·시간·주차 줄은 없다", () => {
     const rows = buildHistoryRows({
       ...base, weeks: ["2026-11-01"],
       shares: [share("cA", "2026-11-01", { thisWeek: "상담 5건\n보고서 정리", nextWeek: "상담 6건", note: "일정 조정" })],
@@ -135,26 +135,50 @@ describe("historyText — 복사용 텍스트", () => {
     });
     const text = historyText(rows, { scope: "PM 3명", rangeLabel: "2026년 11월", grouped: true });
     expect(text).toContain("[주간공유] PM 3명 · 2026년 11월");
-    expect(text).toContain("■ 2026년 11월");
+    expect(text).toContain("■ 2026년 11월 1주차");
+    expect(text.match(/11월 1주차/g)).toHaveLength(1); // 고객사마다 주차를 되풀이하지 않는다
     expect(text).toContain("[1파트]");
     expect(text).toContain("● 김서연");
     expect(text).toContain("▸ A사");
-    expect(text).toContain("- 11월 1주차");
-    expect(text).toContain("이번주: 상담 5건 / 보고서 정리");
+    expect(text).toContain("- 이번주: 상담 5건 / 보고서 정리");
     expect(text).toContain("다음주: 상담 6건");
     expect(text).toContain("비고: 일정 조정");
-    expect(text).toContain("작성: 김서연 · 11/3(화) 10:34");
-    expect(text).toContain("▸ 기타 업무");
-    expect(text).toContain("[TF]");
+    expect(text).toContain("▸ 기타 업무 [TF]");
+    expect(text).not.toContain("작성:");
+    expect(text).not.toContain("11/3(화)");
   });
-  it("특이사항 없음과 미작성 행을 구분하고, 미작성은 복사에서 뺀다", () => {
+  it("특이사항 없음은 '- 특이사항 없음' 한 줄, 미작성 행은 복사에서 뺀다", () => {
     const rows = buildHistoryRows({
       ...base, weeks: ["2026-11-01"], showMissing: true,
       shares: [share("cA", "2026-11-01", { noSpecial: true, thisWeek: "", nextWeek: "" })],
     });
     const text = historyText(rows, { scope: "내 고객사 전체", rangeLabel: "전체 기간", grouped: false });
-    expect(text).toContain("11월 1주차: 특이사항 없음");
+    expect(text).toContain("▸ A사\n    - 특이사항 없음\n");
     expect(text).not.toContain("미작성");
     expect(text).not.toContain("B사");
+    expect(text).not.toContain("주차:");
+  });
+  it("여러 주가 섞이면 주차별 구역으로 나누고 최신 주가 위, 각 구역 안에서 파트·PM을 다시 묶는다", () => {
+    const rows = buildHistoryRows({
+      ...base, weeks: ["2026-10-25", "2026-11-01"],
+      shares: [
+        share("cA", "2026-10-25", { thisWeek: "지난주 일" }),
+        share("cA", "2026-11-01", { thisWeek: "이번주 일" }),
+      ],
+    });
+    const text = historyText(rows, { scope: "PM 3명", rangeLabel: "2026년 10~11월", grouped: true });
+    const iNew = text.indexOf("■ 2026년 11월 1주차");
+    const iOld = text.indexOf("■ 2026년 10월 4주차");
+    expect(iNew).toBeGreaterThan(-1);
+    expect(iOld).toBeGreaterThan(iNew);
+    expect(text.slice(iNew, iOld)).toContain("이번주 일");
+    expect(text.slice(iOld)).toContain("지난주 일");
+    expect(text.slice(iOld)).toContain("[1파트]"); // 구역마다 파트가 다시 나온다
+  });
+  it("고객사 하나만 볼 때는 고객사 줄 없이 주차 구역 아래 바로 내용", () => {
+    const rows = buildHistoryRows({ ...base, clientFilter: "cA", weeks: ["2026-11-01"], shares: [share("cA", "2026-11-01", { thisWeek: "내용" })] });
+    const text = historyText(rows, { scope: "A사", rangeLabel: "2026년 11월", grouped: false, single: true });
+    expect(text).toContain("■ 2026년 11월 1주차\n- 이번주: 내용");
+    expect(text).not.toContain("▸");
   });
 });
