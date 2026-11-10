@@ -49,3 +49,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# security audit reports (local only)
+.security-reports/

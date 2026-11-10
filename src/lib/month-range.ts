@@ -11,6 +11,13 @@ export function parseYm(v: string | undefined): Ym | null {
   return { year, month };
 }
 
+// 주소의 정수 값(연도·월 등). 비어 있거나 숫자가 아니면 null — Number("")이 0이 되는 함정을 피한다.
+export function intParam(v: string | undefined): number | null {
+  if (v === undefined || v.trim() === "") return null;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : null;
+}
+
 // Ym → "YYYY-MM" (input[type=month] value / 쿼리 파라미터용).
 export function ymValue(ym: Ym): string {
   return `${ym.year}-${String(ym.month).padStart(2, "0")}`;
@@ -35,4 +42,38 @@ export function eachMonth(from: Ym, to: Ym): Ym[] {
     out.push({ year: Math.floor(v / 12), month: (v % 12) + 1 });
   }
   return out;
+}
+
+// ym에서 delta개월 이동한 달(연 경계를 넘나든다). 월 스테퍼의 ‹ › 와 월 선택 목록이 쓴다.
+export function addMonths(ym: Ym, delta: number): Ym {
+  const v = ym.year * 12 + (ym.month - 1) + delta;
+  return { year: Math.floor(v / 12), month: (v % 12) + 1 };
+}
+
+// 화면에서 고를 수 있는 연도 범위. 실적 저장 스키마(schemas.ts의 year)와 같은 범위다.
+export const YEAR_MIN = 2000;
+export const YEAR_MAX = 2100;
+
+// 직접 입력한 연도("2026", "2026년") 해석. 범위를 벗어나거나 숫자가 아니면 null.
+export function parseYearInput(text: string): number | null {
+  const m = /^(\d+)\s*년?$/.exec(text.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  return y >= YEAR_MIN && y <= YEAR_MAX ? y : null;
+}
+
+// 직접 입력한 월("11", "11월") 해석. 1~12가 아니거나 숫자가 아니면 null.
+export function parseMonthInput(text: string): number | null {
+  const m = /^(\d+)\s*월?$/.exec(text.trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 1 && n <= 12 ? n : null;
+}
+
+// ym을 [min, max] 범위 안으로 맞춘다(연 경계를 넘나드는 범위도 가능).
+export function clampYm(ym: Ym, min: Ym, max: Ym): Ym {
+  const v = (y: Ym) => y.year * 12 + y.month;
+  if (v(ym) > v(max)) return max;
+  if (v(ym) < v(min)) return min;
+  return ym;
 }

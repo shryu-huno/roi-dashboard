@@ -74,6 +74,19 @@ enum PaymentRequestStatus {
   COMPLETED  // 지급완료
 }
 
+enum BidKind {
+  NEW     // 신규
+  RENEWAL // 갱신
+}
+
+enum BidStatus {
+  PREPARING // 준비중
+  REVIEWING // 심사중
+  WON       // 수주
+  LOST      // 실주
+  FAILED    // 유찰
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
@@ -100,6 +113,9 @@ model User {
   managedProjects ProjectManager[]
   paymentRequests PaymentRequest[]
   authoredMemos ClientMemo[]
+  weeklySharesCreated WeeklyShare[]    @relation("WeeklyShareCreator")
+  weeklySharesUpdated WeeklyShare[]    @relation("WeeklyShareUpdater")
+  weeklyOtherWorks    WeeklyOtherWork[]
   accounts  Account[]
   sessions  Session[]
 
@@ -162,6 +178,7 @@ model Client {
   corporateCardExpenses CorporateCardExpense[]
   paymentRequests PaymentRequest[]
   memos        ClientMemo[]
+  weeklyShares WeeklyShare[]
 }
 
 // 고객사 특이사항 메모(이력). 담당 PM·관리자가 고객사별로 자유 텍스트 메모를 여러 건 남긴다
@@ -453,6 +470,71 @@ model PaymentRequestNotice {
   id        String   @id @default("singleton")
   content   String   @default("")
   updatedAt DateTime @updatedAt
+}
+
+// 주간 공유: 고객사별 주 1건. weekStart = 그 주 일요일(DATE). 그 고객사의 담당 PM 전원이 수정할 수 있다
+// (RLS: 담당 PM(ClientManager)만 쓰기, 관리자는 읽기 전용). 동시 수정은 version(낙관적 잠금)으로 감지한다.
+// createdById=최초 제출자, updatedById=마지막 저장자. editedAt은 최초 제출 후 내용이 바뀐 저장에서만 채운다("수정됨").
+// noSpecial=true는 "이번 주 특이사항 없음"(내용 없이 작성 완료). 작성자 계정이 삭제돼도 기록은 보존한다(SetNull).
+model WeeklyShare {
+  id          String    @id @default(cuid())
+  weekStart   DateTime  @db.Date
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  thisWeek    String    @default("")
+  nextWeek    String    @default("")
+  note        String    @default("")
+  noSpecial   Boolean   @default(false)
+  createdById String?
+  createdBy   User?     @relation("WeeklyShareCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?     @relation("WeeklyShareUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  editedAt    DateTime?
+  version     Int       @default(1)
+
+  @@unique([weekStart, clientId])
+  @@index([clientId])
+  @@index([weekStart])
+}
+
+// 기타 업무(TF·타 고객사 지원·내부 업무 등): PM별 주 1건. 열람은 본인과 관리자 범위(RLS).
+model WeeklyOtherWork {
+  id              String    @id @default(cuid())
+  weekStart       DateTime  @db.Date
+  authorId        String?
+  author          User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  tags            String[]  @default([])
+  thisWeek        String    @default("")
+  nextWeek        String    @default("")
+  note            String    @default("")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  editedAt        DateTime?
+
+  @@unique([weekStart, authorId])
+  @@index([weekStart])
+}
+
+// 입찰·수주. 최고관리자·팀 관리자만 읽고 쓴다(RLS). 삭제 정책은 없다(잘못 등록하면 수정한다).
+// 담당 PM·고객사와는 연결하지 않는다(발주처는 자유 입력). 날짜는 DATE: 제출 마감일(준비중 D-day 기준),
+// 결과 발표일(심사중 D-day 기준). 수주율 = 수주 ÷ (수주+실주), 유찰은 제외.
+model Bid {
+  id           String    @id @default(cuid())
+  orgName      String
+  title        String
+  kind         BidKind   @default(NEW)
+  amount       BigInt
+  dueDate      DateTime  @db.Date
+  announceDate DateTime  @db.Date
+  status       BidStatus @default(PREPARING)
+  note         String    @default("")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
 }
 
 // --- Auth.js (NextAuth) 어댑터 모델 ---

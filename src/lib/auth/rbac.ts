@@ -56,3 +56,11 @@ export function canManageTeams(role: AppRole | null | undefined): boolean {
 export function canEditSettlement(role: AppRole | null | undefined): boolean {
   return isAllAccess(role);
 }
+
+/**
+ * 주간 공유를 쓸 수 있는 역할(PM·파트장). 최고관리자·팀 관리자·정산담당은 조회만 한다.
+ * 실제 쓰기 범위(그 고객사의 담당 PM)는 DB RLS(app_can_write_weekly_share)가 강제한다.
+ */
+export function canWriteWeeklyShare(role: AppRole | null | undefined): boolean {
+  return role === "PM" || role === "PART_LEADER";
+}

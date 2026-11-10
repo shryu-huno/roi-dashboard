@@ -15,7 +15,10 @@ import {
   paymentRequestUpdatePmSchema,
   paymentRequestBulkUpdateSchema,
   paymentRequestNoticeSchema,
+  weeklySubmitSchema,
+  bidSchema,
 } from "@/lib/validation/schemas";
+import { addWeeks, currentWeek } from "@/lib/week";
 
 describe("performanceBatchSchema", () => {
   it("accepts a valid batch", () => {
@@ -470,5 +473,96 @@ describe("paymentRequestNoticeSchema", () => {
     const r = paymentRequestNoticeSchema.safeParse({ content: "   " });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.content).toBe("");
+  });
+});
+
+describe("weeklySubmitSchema", () => {
+  const base = {
+    weekStart: "2026-11-01",
+    entries: [{ clientId: "c1", thisWeek: "이번주", nextWeek: "다음주", note: "", noSpecial: false, version: null }],
+    other: null,
+  };
+
+  it("정상 입력은 통과한다(기록이 없던 카드는 version null)", () => {
+    expect(weeklySubmitSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("기존 기록이 있던 카드는 version(1 이상 정수)을 받는다", () => {
+    const ok = { ...base, entries: [{ ...base.entries[0], version: 3 }] };
+    expect(weeklySubmitSchema.safeParse(ok).success).toBe(true);
+    const bad = { ...base, entries: [{ ...base.entries[0], version: 0 }] };
+    expect(weeklySubmitSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("주 키는 실제 존재하는 일요일 날짜여야 한다", () => {
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: "2026-11-02" }).success).toBe(false); // 월요일
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: "2026-02-30" }).success).toBe(false);
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: "" }).success).toBe(false);
+  });
+
+  it("아직 오지 않은 주는 거부한다(이번 주까지)", () => {
+    const cur = currentWeek();
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: cur }).success).toBe(true);
+    expect(weeklySubmitSchema.safeParse({ ...base, weekStart: addWeeks(cur, 1) }).success).toBe(false);
+  });
+
+  it("같은 고객사 카드가 두 번 들어오면 거부한다", () => {
+    const dup = { ...base, entries: [base.entries[0], { ...base.entries[0], thisWeek: "또" }] };
+    expect(weeklySubmitSchema.safeParse(dup).success).toBe(false);
+  });
+
+  it("기타 업무: 정해진 구분만 허용하고 중복은 거부한다", () => {
+    const other = { tags: ["TF", "내부 업무"], thisWeek: "회의", nextWeek: "", note: "" };
+    expect(weeklySubmitSchema.safeParse({ ...base, other }).success).toBe(true);
+    expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["없는구분"] } }).success).toBe(false);
+    expect(weeklySubmitSchema.safeParse({ ...base, other: { ...other, tags: ["TF", "TF"] } }).success).toBe(false);
+  });
+});
+
+describe("bidSchema", () => {
+  const ok = {
+    orgName: "세움도시공사", title: "2027년 EAP 운영 용역", kind: "NEW", amount: "186,000,000",
+    dueDate: "2026-11-12", announceDate: "2026-11-26", status: "PREPARING", note: "",
+  };
+  it("정상 입력은 통과하고 금액의 천단위 콤마를 처리한다", () => {
+    const r = bidSchema.safeParse(ok);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.amount).toBe(186_000_000);
+  });
+  it("입찰 금액은 21억원을 넘어도 받고, 자바스크립트가 정확히 다루는 범위를 넘으면 거부한다", () => {
+    const big = bidSchema.safeParse({ ...ok, amount: "5,000,000,000" });
+    expect(big.success && big.data.amount).toBe(5_000_000_000);
+    const huge = bidSchema.safeParse({ ...ok, amount: "9007199254740992" });
+    expect(huge.success).toBe(false);
+    if (!huge.success) expect(huge.error.issues[0].path).toEqual(["amount"]);
+  });
+  it("발주처·사업명은 필수(공백만이면 거부)이고 앞뒤 공백은 지운다", () => {
+    expect(bidSchema.safeParse({ ...ok, orgName: "   " }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, title: "" }).success).toBe(false);
+    const r = bidSchema.safeParse({ ...ok, orgName: "  세움  ", note: "  메모  " });
+    expect(r.success && r.data.orgName).toBe("세움");
+    expect(r.success && r.data.note).toBe("메모");
+  });
+  it("입찰 금액은 1원 이상의 정수", () => {
+    expect(bidSchema.safeParse({ ...ok, amount: "0" }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, amount: "" }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, amount: "1.5" }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, amount: -100 }).success).toBe(false);
+  });
+  it("제출 마감일은 실제 존재하는 날짜여야 한다", () => {
+    expect(bidSchema.safeParse({ ...ok, dueDate: "" }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, dueDate: "2026-02-30" }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, dueDate: "2026/11/12" }).success).toBe(false);
+  });
+  it("결과 발표일이 비어 있으면 제출 마감일과 같게, 마감일보다 빠르면 거부", () => {
+    const blank = bidSchema.safeParse({ ...ok, announceDate: "" });
+    expect(blank.success && blank.data.announceDate).toBe("2026-11-12");
+    expect(bidSchema.safeParse({ ...ok, announceDate: "2026-11-01" }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, announceDate: "2026-11-12" }).success).toBe(true); // 같은 날은 허용
+  });
+  it("구분·상태는 정해진 값만", () => {
+    expect(bidSchema.safeParse({ ...ok, kind: "OTHER" }).success).toBe(false);
+    expect(bidSchema.safeParse({ ...ok, status: "준비중" }).success).toBe(false);
+    for (const status of ["PREPARING", "REVIEWING", "WON", "LOST", "FAILED"]) expect(bidSchema.safeParse({ ...ok, status }).success).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import { listTasks } from "@/lib/data/tasks";
 import { listPerformance, listPerformanceTotals } from "@/lib/data/performance";
 import { PerformanceGrid } from "./PerformanceGrid";
 import { PerformanceManualButton } from "./PerformanceManualButton";
-import { ClientCombobox } from "@/components/ClientCombobox";
+import { PerformanceFilter } from "./PerformanceFilter";
 
 export default async function PerformancePage({
   searchParams,
@@ -49,21 +49,12 @@ export default async function PerformancePage({
         <PerformanceManualButton />
       </div>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          고객사
-          <ClientCombobox clients={clients.map((c) => ({ id: c.id, name: c.name }))} defaultClientId={sp.clientId} className="w-48" />
-        </label>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          연도
-          <input type="number" name="year" defaultValue={year} className="mt-1 w-28 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-        </label>
-        <label className="flex flex-col text-xs text-[var(--color-muted)]">
-          월
-          <input type="number" name="month" min="1" max="12" defaultValue={month} className="mt-1 w-24 rounded border border-[var(--color-border)] px-3 py-2 text-sm" />
-        </label>
-        <button type="submit" className="rounded bg-[var(--color-primary)] px-4 py-2 text-sm text-white">조회</button>
-      </form>
+      <PerformanceFilter
+        clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+        clientId={sp.clientId || undefined}
+        year={year}
+        month={month}
+      />
 
       {!clientId ? (
         <p className="text-[var(--color-muted)]">고객사를 조회하세요.</p>
