@@ -135,6 +135,7 @@ export async function PartStatusView({
   const tableView = mode === "quarter" ? "q" : tv;
   const table = periodTable(input, { groupId, view: tableView, month, quarter, lastMonth });
   const dir = directory(input, groupId);
+  const hasPerfClient = dir.groups.some((g) => g.pms.some((p) => p.clients.some((c) => c.performanceContract)));
 
   return (
     <div className="flex flex-col gap-4">
@@ -312,6 +313,18 @@ export async function PartStatusView({
       <section className={`${card} p-5`}>
         <div className="mb-1 flex flex-wrap items-baseline gap-3">
           <h2 className="text-base font-semibold">파트별 PM 담당 고객사</h2>
+          {hasPerfClient && (
+            <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-muted)]">
+              <span className="inline-flex items-center gap-1.5">
+                <i className="inline-block h-3 w-5 rounded-full border border-[var(--color-border)]" />
+                일반 계약
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <i className="inline-block h-3 w-5 rounded-full border border-emerald-200 bg-emerald-50" />
+                실적 계약 — 계약금이 아닌 실적 발생분으로 정산하는 고객사 (계약 금액이 0으로 보일 수 있습니다)
+              </span>
+            </span>
+          )}
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[720px] table-fixed text-sm">
@@ -355,11 +368,15 @@ export async function PartStatusView({
                             p.clients.map((c) => (
                               <span
                                 key={c.id}
-                                title={`계약금 ${num(c.contract)}원`}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] px-2.5 py-1 text-xs"
+                                title={`${c.performanceContract ? "실적 계약 · " : ""}계약금 ${num(c.contract)}원`}
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                                  c.performanceContract
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    : "border-[var(--color-border)]"
+                                }`}
                               >
                                 {c.name}
-                                <small className="tabular-nums text-[var(--color-muted)]">{formatWonCompact(c.contract)}</small>
+                                <small className={`tabular-nums ${c.performanceContract ? "text-emerald-600" : "text-[var(--color-muted)]"}`}>{formatWonCompact(c.contract)}</small>
                               </span>
                             ))
                           )}

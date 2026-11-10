@@ -12,7 +12,8 @@ const fact = (
   perfTaxable: Record<number, number>, perfExempt: Record<number, number> = {},
   contractTaxable = 0, contractExempt = 0,
   fullTaxable = contractTaxable, fullExempt = contractExempt, // 계약 기간 전체 금액(기본은 올해 귀속분과 같다)
-): ClientFacts => ({ id, name, contractTaxable, contractExempt, fullTaxable, fullExempt, perfTaxable: months(perfTaxable), perfExempt: months(perfExempt) });
+  performanceContract = false,
+): ClientFacts => ({ id, name, contractTaxable, contractExempt, fullTaxable, fullExempt, performanceContract, perfTaxable: months(perfTaxable), perfExempt: months(perfExempt) });
 
 // 1파트: PM 김(A, B) · PM 이(B 공동, C) / 2파트: PM 박(D)
 const base = (includeVat: boolean): PartStatusInput => ({
@@ -160,6 +161,23 @@ describe("directory — 계약 금액은 연 단위로 나누지 않은 전체 �
     const input = { ...withLong(), includeVat: true };
     input.clients.E = fact("E", "E사", {}, {}, 0, 0, 100_000_000, 50_000_000);
     expect(directory(input, "all").total.contract).toBe(110_000_000 + 50_000_000);
+  });
+});
+
+describe("directory — 실적 계약 고객사 표시용 플래그", () => {
+  it("고객사마다 실적 계약 여부를 그대로 전달한다", () => {
+    const input: PartStatusInput = {
+      groups: [{ id: "g1", name: "1파트" }],
+      pms: [{ id: "kim", name: "김", groupId: "g1" }],
+      clientsByPm: { kim: ["P", "N"] },
+      clients: {
+        P: fact("P", "가사(실적계약)", {}, {}, 0, 0, 0, 0, true),
+        N: fact("N", "나사(일반)", {}, {}, 100, 0),
+      },
+      includeVat: false,
+    };
+    const clients = directory(input, "all").groups[0].pms[0].clients;
+    expect(clients.map((c) => [c.name, c.performanceContract])).toEqual([["가사(실적계약)", true], ["나사(일반)", false]]);
   });
 });
 

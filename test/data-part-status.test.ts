@@ -93,6 +93,23 @@ describe("loadPartStatusFacts — 파트 현황 원자료", () => {
     expect(f.clients[cY].contractTaxable).toBeCloseTo(600);
   });
 
+  it("실적 계약 여부는 고객사의 가장 최근 프로젝트(계약 시작일 최신) 기준", async () => {
+    const flag = (clientId: string, performanceContract: boolean) =>
+      withRLS(ROOT, async (tx) => {
+        const proj = await tx.project.findFirstOrThrow({ where: { clientId } });
+        await tx.project.update({ where: { id: proj.id }, data: { performanceContract } });
+      });
+    await flag(cX, true); // X: 프로젝트 1개, 실적 계약
+    // Y: 오래된 프로젝트(실적 계약) + 더 최근 프로젝트(일반) → 일반
+    await flag(cY, true);
+    await withRLS(ROOT, (tx) =>
+      tx.project.create({ data: { clientId: cY, name: "후속", contractStart: new Date(2027, 0, 1), contractEnd: new Date(2027, 11, 31), performanceContract: false } }),
+    );
+    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmC], year: YEAR });
+    expect(f.clients[cX].performanceContract).toBe(true);
+    expect(f.clients[cY].performanceContract).toBe(false);
+  });
+
   it("includeUnassigned: 담당 PM이 없거나 목록 밖(비활성 등)인 고객사를 따로 모은다. 보관된 고객사는 제외", async () => {
     const inactive = await prisma.user.create({ data: { email: "off@huno.kr", name: "off", role: "PM", status: "INACTIVE" } });
     const cW = (await mkClient(ROOT, { name: "W사(담당없음)", pmIds: [], contractStart: new Date(2026, 0, 1), contractEnd: new Date(2026, 11, 31) })).id;
