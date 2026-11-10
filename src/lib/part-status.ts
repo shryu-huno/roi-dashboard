@@ -211,5 +211,6 @@ export function directory(input: PartStatusInput, groupId: string) {
   });
   const shownPms = input.pms.filter((p) => groups.some((g) => g.pms.some((r) => r.id === p.id)));
   const total = totalsFor(input, clientsOfPms(input, shownPms));
-  return { groups, total: { pmCount: realCount(shownPms), clientCount: total.clientCount, contract: fullContractFor(input, clientsOfPms(input, shownPms)) } };
+  // contract: 계약 전체 금액. attributed: 올해 귀속분(카드 "전체"의 계약·달성률 분모와 같은 값).
+  return { groups, total: { pmCount: realCount(shownPms), clientCount: total.clientCount, contract: fullContractFor(input, clientsOfPms(input, shownPms)), attributed: total.contract } };
 }

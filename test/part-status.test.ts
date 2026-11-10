@@ -195,6 +195,13 @@ describe("directory — 계약 금액은 연 단위로 나누지 않은 전체 �
   it("카드의 계약금(달성률 분모)은 올해 귀속분 그대로", () => {
     expect(totalsFor(withLong(), ["E"]).contract).toBe(50_000_000);
   });
+  it("표 합계에는 카드와 맞는 올해 귀속 계약금(attributed)도 함께 준다", () => {
+    const d = directory(withLong(), "all");
+    expect(d.total.contract).toBe(100_000_000); // 계약 전체 금액
+    expect(d.total.attributed).toBe(50_000_000); // 올해 귀속분 = 카드 "전체"의 계약
+    const all = partCards(withLong(), null)[0];
+    expect(d.total.attributed).toBe(all.contract);
+  });
   it("부가세 포함이면 과세분에만 부가세를 얹는다", () => {
     const input = { ...withLong(), includeVat: true };
     input.clients.E = fact("E", "E사", {}, {}, 0, 0, 100_000_000, 50_000_000);

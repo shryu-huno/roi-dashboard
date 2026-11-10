@@ -181,7 +181,7 @@ export async function PartStatusView({
               </div>
               <div className="flex flex-col gap-1.5">
                 <div className="flex justify-between gap-2 text-xs text-[var(--color-muted)]">
-                  <span>계약 {num(c.contract)}원 대비</span>
+                  <span>{year}년 귀속 계약 {num(c.contract)}원 대비</span>
                   <b className="tabular-nums text-[var(--color-fg)]">{formatPercent(c.rate)}</b>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full" style={{ background: METER.track }} role="img" aria-label={`달성률 ${formatPercent(c.rate)}`}>
@@ -279,7 +279,7 @@ export async function PartStatusView({
                     <th key={c} className={`${th} ${i === table.currentIndex ? "bg-[var(--color-hover)] text-[var(--color-primary)]" : ""}`}>{c}</th>
                   ))}
                   <th className={th}>{year}년 누적</th>
-                  <th className={th}>계약금</th>
+                  <th className={th}>{year}년 귀속 계약금</th>
                   <th className={th}>달성률</th>
                 </tr>
               </thead>
@@ -338,8 +338,8 @@ export async function PartStatusView({
               <tr className="border-b border-[var(--color-border)]">
                 <th className={th}>PM</th>
                 <th className={th}>고객사 수</th>
-                <th className={th}>담당 고객사 · 계약 금액</th>
-                <th className={th}>계약 금액 합계</th>
+                <th className={th}>담당 고객사 · 계약 전체 금액</th>
+                <th className={th}>계약 전체 금액 합계</th>
               </tr>
             </thead>
             <tbody>
@@ -352,7 +352,7 @@ export async function PartStatusView({
                         {g.name}
                       </span>
                       <span className="ml-3 font-medium text-[var(--color-muted)]">
-                        {g.pmCount > 0 ? `담당자 ${g.pmCount}명 · ` : ""}고객사 {g.clientCount}곳 · 계약 금액 {num(g.contract)}원
+                        {g.pmCount > 0 ? `담당자 ${g.pmCount}명 · ` : ""}고객사 {g.clientCount}곳 · 계약 전체 금액 {num(g.contract)}원
                       </span>
                     </td>
                   </tr>
@@ -371,7 +371,7 @@ export async function PartStatusView({
                             p.clients.map((c) => (
                               <span
                                 key={c.id}
-                                title={`${c.performanceContract ? "실적 계약 · " : ""}계약금 ${num(c.contract)}원`}
+                                title={`${c.performanceContract ? "실적 계약 · " : ""}계약 전체 금액 ${num(c.contract)}원`}
                                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
                                   c.performanceContract
                                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -396,7 +396,10 @@ export async function PartStatusView({
                 <td className={td}>합계 <span className="text-xs font-normal text-[var(--color-muted)]">담당자 {dir.total.pmCount}명</span></td>
                 <td className={td}>{dir.total.clientCount}곳</td>
                 <td />
-                <td className={td}>{num(dir.total.contract)}원</td>
+                <td className={td}>
+                  {num(dir.total.contract)}원
+                  <div className="mt-0.5 text-xs font-normal text-[var(--color-muted)]">{year}년 귀속 {num(dir.total.attributed)}원</div>
+                </td>
               </tr>
             </tfoot>
           </table>
