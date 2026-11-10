@@ -176,7 +176,7 @@ export default async function ClientDetailPage({
           </thead>
           <tbody>
             {detail.monthly.map((m) => {
-              const unpaid = m.billing - m.deposit;
+              const unpaid = m.unpaid;
               const isUnpaid = unpaid > 0;
               return (
                 <tr key={m.month} className="border-b border-[var(--color-border)]">

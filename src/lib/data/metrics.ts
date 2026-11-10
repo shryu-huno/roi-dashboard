@@ -531,6 +531,9 @@ export type MonthlyRow = {
   performance: number;
   billing: number;
   deposit: number;
+  // 그 달 청구건 중 아직 입금되지 않은(paidDate=null) 금액. billing−deposit이 아닌 건별 미입금 합이라,
+  // 입금이 다음 달에 들어와도 원래 청구월의 미수가 정확히 0으로 떨어진다.
+  unpaid: number;
   expense: number;
 };
 
@@ -636,13 +639,15 @@ export function getClientDetail(
     const yearStart = new Date(Date.UTC(year, 0, 1));
     const yearEndExcl = new Date(Date.UTC(year + 1, 0, 1));
     const b = new Map<number, number>();
+    const u = new Map<number, number>(); // 발행월별 미입금(paidDate=null) 합
     const invBill = await tx.invoice.findMany({
       where: { clientId: id, issueDate: { gte: yearStart, lt: yearEndExcl } },
-      select: { issueDate: true, amount: true },
+      select: { issueDate: true, amount: true, paidDate: true },
     });
     for (const r of invBill) {
       const m = r.issueDate.getUTCMonth() + 1;
       b.set(m, (b.get(m) ?? 0) + r.amount);
+      if (r.paidDate === null) u.set(m, (u.get(m) ?? 0) + r.amount);
     }
     const d = new Map<number, number>();
     const invDep = await tx.invoice.findMany({
@@ -697,6 +702,7 @@ export function getClientDetail(
         performance: withVatSplit(pTax.get(month) ?? 0, pEx.get(month) ?? 0, includeVat),
         billing: inWindow ? fromGross(b.get(month) ?? 0, includeVat) : 0,
         deposit: inWindow ? fromGross(d.get(month) ?? 0, includeVat) : 0,
+        unpaid: inWindow ? fromGross(u.get(month) ?? 0, includeVat) : 0,
         // 지출은 부가세 미포함(원장 원값).
         expense: inWindow ? (e.get(month) ?? 0) + (ce.get(month) ?? 0) + (cc.get(month) ?? 0) : 0,
       };
