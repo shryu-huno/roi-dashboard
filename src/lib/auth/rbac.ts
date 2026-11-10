@@ -58,9 +58,15 @@ export function canEditSettlement(role: AppRole | null | undefined): boolean {
 }
 
 /**
- * 주간 공유를 쓸 수 있는 역할(PM·파트장). 최고관리자·팀 관리자·정산담당은 조회만 한다.
- * 실제 쓰기 범위(그 고객사의 담당 PM)는 DB RLS(app_can_write_weekly_share)가 강제한다.
+ * 주간 공유를 쓸 수 있는 역할(PM·파트장·팀 관리자·최고관리자). 정산담당은 메뉴가 없다.
+ * 실제 쓰기 범위는 본인이 담당자로 배정된 고객사뿐이고(담당 고객사가 없는 관리자는 기타 업무만),
+ * DB RLS(app_can_write_weekly_share 등)가 강제한다.
  */
 export function canWriteWeeklyShare(role: AppRole | null | undefined): boolean {
-  return role === "PM" || role === "PART_LEADER";
+  return role === "PM" || role === "PART_LEADER" || role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
+/** 히스토리·파트 현황에서 파트·담당자를 골라 다른 사람의 기록을 보는 역할(작성 권한과 별개). */
+export function canViewWeeklyMembers(role: AppRole | null | undefined): boolean {
+  return role === "SUPER_ADMIN" || role === "ADMIN" || role === "PART_LEADER";
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { RlsContext } from "@/lib/rls";
+import { withRLS, type RlsContext } from "@/lib/rls";
+import { getRlsContext } from "@/lib/context";
 import type { SessionUser } from "@/lib/auth/session";
 import { addMonths, parseYm, type Ym } from "@/lib/month-range";
 import { currentWeek, kstToday, weekMonth, type WeekKey } from "@/lib/week";
@@ -66,12 +67,20 @@ export async function loadAdminLists(user: SessionUser): Promise<AdminLists> {
   const teamScope = user.role === "ADMIN" ? { teamId: user.teamId ?? "__none__" } : {};
   const [parts, pms] = await Promise.all([
     prisma.part.findMany({ where: teamScope, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true } }),
-    prisma.user.findMany({
-      // PM과 파트장(파트장도 담당 고객사가 있어 자기 기록이 있다). 팀 관리자는 자기 팀 범위.
-      where: { role: { in: ["PM", "PART_LEADER"] }, status: "ACTIVE", ...teamScope },
+    // 담당 고객사·기타 업무는 RLS 테이블이라 보는 사람의 권한 컨텍스트로 조회해야 한다(컨텍스트 없이는 비어 보인다).
+    withRLS(getRlsContext(user), (tx) => tx.user.findMany({
+      // PM·파트장, 그리고 담당 고객사가 있거나 기타 업무를 쓴 관리자(자기 기록이 있는 사람). 팀 관리자는 자기 팀 범위.
+      where: {
+        status: "ACTIVE",
+        ...teamScope,
+        OR: [
+          { role: { in: ["PM", "PART_LEADER"] } },
+          { role: { in: ["ADMIN", "SUPER_ADMIN"] }, OR: [{ managedClients: { some: {} } }, { weeklyOtherWorks: { some: {} } }] },
+        ],
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true, partId: true },
-    }),
+    })),
   ]);
   return { parts, pms: pms.map((p) => ({ id: p.id, name: p.name ?? p.email, partId: p.partId })) };
 }

@@ -42,12 +42,11 @@ const inputCls =
 const ghostBtn = "rounded px-2 py-1 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-hover)] disabled:opacity-50";
 
 export function WeeklyBatch({
-  weekStart, year, month, readOnly, clients, other,
+  weekStart, year, month, clients, other,
 }: {
   weekStart: string;
   year: number;
   month: number;
-  readOnly: boolean;
   clients: WeeklyBatchClient[];
   other: OtherWorkView | null;
 }) {
@@ -171,7 +170,7 @@ export function WeeklyBatch({
         </p>
       )}
 
-      {!readOnly && clients.some((c) => c.prevNextWeek) && (
+      {clients.some((c) => c.prevNextWeek) && (
         <div className="flex justify-end">
           <button type="button" onClick={pullAllPrevious} className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm font-medium">
             지난주 계획 전부 가져오기
@@ -181,13 +180,13 @@ export function WeeklyBatch({
 
       {clients.length === 0 && (
         <p className="rounded-[14px] border border-dashed border-[var(--color-border)] p-8 text-center text-[var(--color-muted)]">
-          담당 고객사가 없습니다.
+          담당 고객사가 없습니다. 아래 기타 업무만 작성할 수 있어요.
         </p>
       )}
 
       {clients.map((c) => {
         const card = cards[c.id];
-        const off = readOnly || card.draft.noSpecial;
+        const off = card.draft.noSpecial;
         return (
           <section key={c.id} className={`rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] ${card.draft.noSpecial ? "opacity-90" : ""}`}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-5 py-3">
@@ -227,7 +226,7 @@ export function WeeklyBatch({
                       <textarea
                         value={card.draft[field]}
                         disabled={off}
-                        placeholder={readOnly ? "" : placeholder}
+                        placeholder={placeholder}
                         onChange={(e) => setDraft(c.id, { [field]: e.target.value, ...(e.target.value.trim() ? { noSpecial: false } : {}) })}
                         className={`${inputCls} min-h-[104px] resize-y font-normal`}
                       />
@@ -237,7 +236,6 @@ export function WeeklyBatch({
                         <input
                           type="checkbox"
                           checked={card.draft.noSpecial}
-                          disabled={readOnly}
                           onChange={(e) => setDraft(c.id, { noSpecial: e.target.checked })}
                         />
                         이번 주 특이사항 없음
@@ -291,7 +289,7 @@ export function WeeklyBatch({
               )}
               {card.message && <p className="text-sm text-[var(--color-danger)]">{card.message}</p>}
 
-              {!readOnly && c.prevNextWeek && (
+              {c.prevNextWeek && (
                 <div className="flex flex-wrap items-center gap-1">
                   <button type="button" className={ghostBtn} onClick={() => pullPrevious(c)}>
                     지난주 계획 가져오기
@@ -331,7 +329,6 @@ export function WeeklyBatch({
                   key={t}
                   type="button"
                   aria-pressed={on}
-                  disabled={readOnly}
                   onClick={() => setOtherDraft((d) => ({ ...d, tags: on ? d.tags.filter((x) => x !== t) : [...d.tags, t] }))}
                   className={`h-8 rounded-full border px-3 text-sm disabled:opacity-60 ${
                     on ? "border-[var(--color-primary)] bg-[var(--color-hover)] font-semibold text-[var(--color-primary)]" : "border-[var(--color-border)] text-[var(--color-muted)]"
@@ -354,8 +351,7 @@ export function WeeklyBatch({
                 {label}
                 <textarea
                   value={otherDraft[field]}
-                  disabled={readOnly}
-                  placeholder={readOnly ? "" : placeholder}
+                  placeholder={placeholder}
                   onChange={(e) => setOtherDraft((d) => ({ ...d, [field]: e.target.value }))}
                   className={`${inputCls} min-h-[104px] resize-y font-normal`}
                 />
@@ -366,27 +362,31 @@ export function WeeklyBatch({
         </div>
       </section>
 
-      {!readOnly && (
-        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3 shadow-[0_-4px_16px_rgba(20,24,40,0.08)]">
-          <div className="flex items-center gap-3 text-sm text-[var(--color-muted)]">
-            <div className="h-1.5 w-36 overflow-hidden rounded-full bg-[var(--color-bg)]">
-              <div className="h-full rounded-full bg-[var(--color-primary)] transition-[width]" style={{ width: `${clients.length ? Math.round((written / clients.length) * 100) : 0}%` }} />
-            </div>
-            <span>
-              고객사 {clients.length}곳 중 <b className="text-[var(--color-fg)]">{written}곳</b> 작성{otherHasText ? " · 기타 업무 작성됨" : ""}
-              {written < clients.length ? " · 빈 고객사는 저장되지 않아요" : ""}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={pending}
-            className="rounded bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            {pending ? "제출 중…" : "제출"}
-          </button>
+      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3 shadow-[0_-4px_16px_rgba(20,24,40,0.08)]">
+        <div className="flex items-center gap-3 text-sm text-[var(--color-muted)]">
+          {clients.length > 0 ? (
+            <>
+              <div className="h-1.5 w-36 overflow-hidden rounded-full bg-[var(--color-bg)]">
+                <div className="h-full rounded-full bg-[var(--color-primary)] transition-[width]" style={{ width: `${Math.round((written / clients.length) * 100)}%` }} />
+              </div>
+              <span>
+                고객사 {clients.length}곳 중 <b className="text-[var(--color-fg)]">{written}곳</b> 작성{otherHasText ? " · 기타 업무 작성됨" : ""}
+                {written < clients.length ? " · 빈 고객사는 저장되지 않아요" : ""}
+              </span>
+            </>
+          ) : (
+            <span>기타 업무 {otherHasText ? "작성됨" : "미작성"}</span>
+          )}
         </div>
-      )}
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending}
+          className="rounded bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {pending ? "제출 중…" : "제출"}
+        </button>
+      </div>
     </div>
   );
 }

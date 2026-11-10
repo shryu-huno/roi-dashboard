@@ -159,7 +159,7 @@ describe("submitWeekly — 쓰기 권한", () => {
     expect(await rowOf(c1)).toBeNull();
   });
 
-  it("관리자(최고관리자·팀 관리자)는 저장할 수 없다", async () => {
+  it("담당이 아닌 관리자(최고관리자·팀 관리자)는 그 고객사에 저장할 수 없다", async () => {
     for (const ctx of [ctxSuper, ctxAdminT1]) {
       const res = await submitWeekly(ctx, { weekStart: WEEK, entries: [entry(c1)], other: null });
       expect(res.rejected).toEqual([{ clientId: c1, reason: "NOT_ASSIGNED" }]);
@@ -167,15 +167,27 @@ describe("submitWeekly — 쓰기 권한", () => {
     expect(await rowOf(c1)).toBeNull();
   });
 
-  it("담당으로 배정된 최고관리자라도 DB(RLS)가 직접 쓰기를 막는다", async () => {
+  it("담당 고객사를 맡은 최고관리자·팀 관리자는 PM처럼 본인 고객사에 저장할 수 있다", async () => {
+    await withRLS(ROOT, async (tx) => {
+      await tx.clientManager.create({ data: { clientId: c1, userId: superId } });
+      await tx.clientManager.create({ data: { clientId: c3, userId: adminT1 } });
+    });
+    const a = await submitWeekly(ctxSuper, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "최고관리자 일지" })], other: null });
+    expect(a.rejected).toEqual([]);
+    expect(a.saved).toEqual([c1]);
+    expect((await rowOf(c1))!.createdById).toBe(superId);
+    const b = await submitWeekly(ctxAdminT1, { weekStart: WEEK, entries: [entry(c3, { thisWeek: "팀 관리자 일지" })], other: null });
+    expect(b.saved).toEqual([c3]);
+    expect((await rowOf(c3))!.thisWeek).toBe("팀 관리자 일지");
+  });
+
+  it("관리자도 담당이 아닌 고객사에는 DB(RLS)가 직접 쓰기를 막는다", async () => {
     await withRLS(ROOT, (tx) => tx.clientManager.create({ data: { clientId: c1, userId: superId } }));
     await expect(
       withRLS(ctxSuper, (tx) =>
-        tx.weeklyShare.create({ data: { weekStart: new Date(WEEK), clientId: c1, createdById: superId, updatedById: superId } }),
+        tx.weeklyShare.create({ data: { weekStart: new Date(WEEK), clientId: c2, createdById: superId, updatedById: superId } }),
       ),
-    ).rejects.toThrow();
-    const res = await submitWeekly(ctxSuper, { weekStart: WEEK, entries: [entry(c1)], other: null });
-    expect(res.rejected[0].reason).toBe("NOT_ASSIGNED"); // 앱 계층도 관리자 역할은 거부
+    ).rejects.toThrow(); // c2는 담당이 아님
   });
 
   it("관리자는 기존 기록을 DB(RLS)에서도 수정할 수 없다", async () => {
@@ -264,9 +276,20 @@ describe("submitWeekly — 기타 업무", () => {
     expect((await otherRow(pmA))!.thisWeek).toBe("TF 회의");
   });
 
-  it("관리자는 기타 업무를 저장할 수 없다", async () => {
-    expect((await submitWeekly(ctxSuper, { weekStart: WEEK, entries: [], other: other() })).other).toBe("rejected");
-    expect(await withRLS(ROOT, (tx) => tx.weeklyOtherWork.count())).toBe(0);
+  it("관리자도 담당 고객사가 없어도 자기 기타 업무를 저장·수정할 수 있다", async () => {
+    for (const [ctx, id] of [[ctxSuper, superId], [ctxAdminT1, adminT1]] as const) {
+      expect((await submitWeekly(ctx, { weekStart: WEEK, entries: [], other: other() })).other).toBe("saved");
+      expect((await otherRow(id))!.thisWeek).toBe("TF 회의");
+      expect((await submitWeekly(ctx, { weekStart: WEEK, entries: [], other: other({ thisWeek: "수정" }) })).other).toBe("saved");
+      expect((await otherRow(id))!.thisWeek).toBe("수정");
+    }
+  });
+
+  it("관리자라도 다른 사람의 기타 업무는 DB(RLS)에서 수정할 수 없다", async () => {
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [], other: other() });
+    const { count } = await withRLS(ctxSuper, (tx) => tx.weeklyOtherWork.updateMany({ where: { authorId: pmA }, data: { thisWeek: "남이 수정" } }));
+    expect(count).toBe(0);
+    expect((await otherRow(pmA))!.thisWeek).toBe("TF 회의");
   });
 
   it("다른 PM의 기타 업무는 DB(RLS)에서도 수정할 수 없다", async () => {
