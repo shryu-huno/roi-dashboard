@@ -53,8 +53,16 @@ export async function applyStatus(input: {
   userId: string;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<{ ok: boolean; error?: string }> {
-  const current = await prisma.user.findUnique({ where: { id: input.userId }, select: { partId: true } });
+  const current = await prisma.user.findUnique({ where: { id: input.userId }, select: { partId: true, role: true } });
   if (!current) return { ok: false, error: "사용자를 찾을 수 없습니다." };
+  // 비활성 파트장을 되살릴 때도 "한 파트에 파트장 1명" 규칙을 지킨다(두 명이면 PM의 소속 파트장이 임의로 정해진다).
+  if (input.status === "ACTIVE" && current.role === "PART_LEADER" && current.partId) {
+    const other = await prisma.user.findFirst({
+      where: { partId: current.partId, role: "PART_LEADER", status: "ACTIVE", id: { not: input.userId } },
+      select: { id: true },
+    });
+    if (other) return { ok: false, error: "이 파트에는 이미 파트장이 있습니다." };
+  }
   await prisma.$transaction(async (tx) => {
     await tx.user.update({ where: { id: input.userId }, data: { status: input.status } });
     // 파트장이 활성/비활성이 되면 그 파트 PM의 소속 파트장도 따라가야 한다.
