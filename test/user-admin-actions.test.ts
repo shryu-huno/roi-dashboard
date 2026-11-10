@@ -143,6 +143,22 @@ describe("applyStatus", () => {
     expect(after?.status).toBe("INACTIVE");
   });
 
+  it("비활성 파트장을 다시 활성화할 때 그 파트에 이미 다른 파트장이 있으면 거부한다", async () => {
+    const SUPER: RlsContext = { userId: "super", role: "SUPER_ADMIN" };
+    await withRLS(SUPER, (tx) => tx.team.deleteMany());
+    const teamId = (await withRLS(SUPER, (tx) => tx.team.create({ data: { name: "T" } }))).id;
+    const partId = (await withRLS(SUPER, (tx) => tx.part.create({ data: { teamId, name: "1파트" } }))).id;
+    const a = await prisma.user.create({ data: { email: "a@huno.kr" } });
+    const b = await prisma.user.create({ data: { email: "b@huno.kr" } });
+    await applyApproval({ userId: a.id, role: "PART_LEADER", teamId, partId });
+    await applyStatus({ userId: a.id, status: "INACTIVE" });
+    await applyApproval({ userId: b.id, role: "PART_LEADER", teamId, partId });
+    const res = await applyStatus({ userId: a.id, status: "ACTIVE" });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("파트장");
+    expect((await prisma.user.findUnique({ where: { id: a.id } }))?.status).toBe("INACTIVE");
+  });
+
   it("파트장을 비활성화하면 그 파트 PM의 소속 파트장이 해제된다", async () => {
     const SUPER: RlsContext = { userId: "super", role: "SUPER_ADMIN" };
     await withRLS(SUPER, (tx) => tx.team.deleteMany());
