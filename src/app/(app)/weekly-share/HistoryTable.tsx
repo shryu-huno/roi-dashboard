@@ -15,7 +15,9 @@ type Draft = { thisWeek: string; nextWeek: string; note: string; noSpecial: bool
 // 가운데 정렬. 열 폭은 colgroup으로 고정(table-fixed)해서 월별 표마다 같은 열이 같은 위치에 오게 한다.
 const thCls = "px-3 py-3 text-center text-sm font-bold text-[var(--color-muted)]";
 const tdCls = "px-3 py-3 text-center align-middle break-words";
-const txtCls = `${tdCls} whitespace-pre-line leading-relaxed`;
+// 이번주·다음주·비고 내용 칸은 왼쪽 정렬(여러 줄 글이라 가운데 정렬은 읽기 어렵다).
+const txtCls = "px-3 py-3 text-left align-middle break-words whitespace-pre-line leading-relaxed";
+const thTxtCls = "px-3 py-3 text-left text-sm font-bold text-[var(--color-muted)]";
 const areaCls =
   "min-h-[84px] w-full min-w-0 resize-y rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm leading-relaxed outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-bg)]";
 
@@ -124,7 +126,7 @@ export function HistoryTable({
     });
   }
 
-  const text = historyText(view, { scope, rangeLabel, grouped, single, section: section ?? undefined });
+  const text = historyText(view, { scope, rangeLabel, grouped, single });
   const copyable = view.some((r) => r.kind === "other" || r.share);
 
   async function copy() {
@@ -191,9 +193,9 @@ export function HistoryTable({
                       {grouped && <th className={thCls}>PM</th>}
                       {!single && <th className={thCls}>고객사</th>}
                       <th className={thCls}>주차</th>
-                      <th className={thCls}>이번주</th>
-                      <th className={thCls}>다음주</th>
-                      <th className={thCls}>비고</th>
+                      <th className={thTxtCls}>이번주</th>
+                      <th className={thTxtCls}>다음주</th>
+                      <th className={thTxtCls}>비고</th>
                       <th className={thCls}>작성</th>
                     </tr>
                   </thead>
