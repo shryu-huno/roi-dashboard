@@ -41,7 +41,7 @@ export type AdminLists = {
 };
 
 /**
- * 고를 수 있는 파트·PM 목록. 최고관리자는 전체, 팀 관리자는 자기 팀 범위.
+ * 고를 수 있는 파트·담당자(PM·파트장) 목록. 최고관리자는 전체, 팀 관리자는 자기 팀 범위.
  * 파트장은 본인 파트 하나와 그 파트의 PM + 본인(구성원)만 — 파트원의 기록을 보고 파트 현황에서 본인 파트를 보기 위한 범위다
  * (실제 데이터 범위는 DB가 파트장 기준으로 따로 제한한다). 소속 파트가 없으면 파트는 비고 본인만 남는다.
  */
@@ -67,7 +67,8 @@ export async function loadAdminLists(user: SessionUser): Promise<AdminLists> {
   const [parts, pms] = await Promise.all([
     prisma.part.findMany({ where: teamScope, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true } }),
     prisma.user.findMany({
-      where: { role: "PM", status: "ACTIVE", ...teamScope },
+      // PM과 파트장(파트장도 담당 고객사가 있어 자기 기록이 있다). 팀 관리자는 자기 팀 범위.
+      where: { role: { in: ["PM", "PART_LEADER"] }, status: "ACTIVE", ...teamScope },
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true, partId: true },
     }),

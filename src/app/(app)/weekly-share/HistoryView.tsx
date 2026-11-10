@@ -102,10 +102,10 @@ export async function HistoryView({
   const scope = single
     ? clientOptions.find((c) => c.id === clientFilter)?.label.split(" · ")[0] ?? ""
     : clientFilter === "other"
-      ? `기타 업무 · PM ${data.pms.length}명`
+      ? `기타 업무 · 담당자 ${data.pms.length}명`
       : !showMembers
         ? `내 고객사 ${byClient.size}곳`
-        : `PM ${data.pms.length}명 · 고객사 ${byClient.size}곳`;
+        : `담당자 ${data.pms.length}명 · 고객사 ${byClient.size}곳`;
 
   return (
     <div className="flex flex-col gap-4">

@@ -29,6 +29,8 @@ beforeEach(async () => {
   await mk("pmC", "PM", { teamId: team1, partId: p2 });
   await mk("pmD", "PM", { teamId: team1 }); // 파트 미지정
   await mk("pmE", "PM", { teamId: team2 }); // 다른 팀
+  await mk("leaderT2", "PART_LEADER", { teamId: team2 }); // 다른 팀의 파트장
+  await mk("leaderOff", "PART_LEADER", { teamId: team1, partId: p1, status: "INACTIVE" }); // 비활성 파트장
   await mk("leaderNoPart", "PART_LEADER", { teamId: team1 });
   await mk("admin1", "ADMIN", { teamId: team1 });
   await mk("super", "SUPER_ADMIN");
@@ -54,5 +56,16 @@ describe("loadAdminLists — 역할별로 고를 수 있는 파트·PM", () => {
     expect(team.pms.map((p) => p.name)).not.toContain("pmE");
     const all = await loadAdminLists(await user("super"));
     expect(all.pms.map((p) => p.name)).toContain("pmE");
+  });
+  it("팀 관리자·최고관리자의 목록에는 파트장도 들어 있다(활성만, 팀 관리자는 자기 팀 범위)", async () => {
+    const team = await loadAdminLists(await user("admin1"));
+    expect(team.pms.map((p) => p.name)).toEqual(expect.arrayContaining(["leader1", "leaderNoPart"]));
+    expect(team.pms.map((p) => p.name)).not.toContain("leaderT2"); // 다른 팀
+    expect(team.pms.map((p) => p.name)).not.toContain("leaderOff"); // 비활성
+    expect(team.pms.find((p) => p.name === "leader1")?.partId).toBe(p1);
+    const all = await loadAdminLists(await user("super"));
+    expect(all.pms.map((p) => p.name)).toEqual(expect.arrayContaining(["leader1", "leaderNoPart", "leaderT2"]));
+    expect(all.pms.map((p) => p.name)).not.toContain("leaderOff");
+    expect(all.pms.map((p) => p.name)).not.toContain("admin1"); // 관리자 본인은 목록 대상이 아니다
   });
 });

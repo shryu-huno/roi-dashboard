@@ -85,7 +85,7 @@ export function HistoryFilter({
               </label>
             )}
             <label className={FIELD}>
-              PM
+              담당자
               <select className={`mt-1.5 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pm: e.target.value, client: "" })}>
                 <option value="">전체</option>
                 {visiblePms.map((p) => (

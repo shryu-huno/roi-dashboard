@@ -400,6 +400,22 @@ describe("loadWeeklyHistory — 히스토리용 조회", () => {
     expect(narrow.others).toHaveLength(0);
   });
 
+  it("파트장 본인의 고객사·기록·기타 업무도 최고관리자와 같은 팀 관리자는 보고, 다른 팀 관리자는 못 본다", async () => {
+    const c4 = (await mkClient(ROOT, { name: "C4", pmIds: [leaderL] })).id;
+    await submitWeekly(ctxLeader, { weekStart: WEEK, entries: [entry(c4, { thisWeek: "파트장 일지" })], other: { tags: [], thisWeek: "파트장 기타", nextWeek: "", note: "" } });
+    for (const ctx of [ctxSuper, ctxAdminT1]) {
+      const data = await loadWeeklyHistory(ctx, { pmIds: [leaderL], weeks });
+      expect(data.pms.map((p) => p.id)).toEqual([leaderL]);
+      expect(data.clientsByPm[leaderL].map((c) => c.name)).toEqual(["C4"]);
+      expect(data.shares.map((x) => x.thisWeek)).toEqual(["파트장 일지"]);
+      expect(data.others.map((o) => o.thisWeek)).toEqual(["파트장 기타"]);
+    }
+    const otherTeam = await loadWeeklyHistory(ctxAdminT2, { pmIds: [leaderL], weeks });
+    expect(otherTeam.clientsByPm[leaderL] ?? []).toEqual([]);
+    expect(otherTeam.shares).toEqual([]);
+    expect(otherTeam.others).toEqual([]);
+  });
+
   it("PM은 자기 범위만 보인다(다른 PM의 고객사·기록은 RLS로 숨겨진다)", async () => {
     const data = await loadWeeklyHistory(ctxA, { pmIds: [pmA, pmC], weeks });
     expect(data.clientsByPm[pmC] ?? []).toEqual([]);

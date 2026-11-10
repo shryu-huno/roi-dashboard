@@ -88,7 +88,7 @@ export function WeeklyFilter({
               </select>
             </label>
             <label className={FIELD}>
-              PM
+              담당자
               <select className={`mt-1.5 w-36 ${selectCls}`} value={admin.pmId} onChange={(e) => go({ pmId: e.target.value })}>
                 {visiblePms.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
