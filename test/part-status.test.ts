@@ -120,16 +120,54 @@ describe("periodTable — 분기별 / 최근 3개월", () => {
 });
 
 describe("directory — 파트별 PM 담당 고객사·계약 금액", () => {
-  it("파트 > PM > 고객사(계약금) 순, 파트 합계는 고객사 중복 제거", () => {
+  it("파트 > PM > 고객사(계약금) 순. 같은 파트 PM이 공동 담당하는 고객사는 '공동 담당' 행에만 한 번 나온다", () => {
     const d = directory(base(false), "all");
     const g1 = d.groups.find((g) => g.name === "1파트")!;
-    expect(g1.pms.map((p) => p.name)).toEqual(["김", "이"]);
-    expect(g1.pms[0].clients.map((c) => c.name)).toEqual(["A사", "B사"]); // 이름순
-    expect(g1.pms[0].contract).toBe(4000 + 6000 + 1000);
-    expect(g1.pms[1].clientCount).toBe(2);
-    expect(g1.clientCount).toBe(3); // B는 한 번
+    expect(g1.pms.map((p) => p.name)).toEqual(["김", "이", "공동 담당"]);
+    expect(g1.pms[0].clients.map((c) => c.name)).toEqual(["A사"]); // B는 김·이 공동 담당이라 PM 행에서 빠진다
+    expect(g1.pms[0].contract).toBe(4000);
+    expect(g1.pms[1].clients.map((c) => c.name)).toEqual(["C사"]);
+    expect(g1.pms[1].contract).toBe(3000);
+    const joint = g1.pms[2];
+    expect(joint.jointOf).toEqual(["김", "이"]);
+    expect(joint.clients.map((c) => c.name)).toEqual(["B사"]);
+    expect(joint.clientCount).toBe(1);
+    expect(joint.contract).toBe(6000 + 1000);
+    // 행을 더하면 파트 합계와 정확히 같다(중복 없음).
+    expect(g1.pms.reduce((s, p) => s + p.clientCount, 0)).toBe(g1.clientCount);
+    expect(g1.pms.reduce((s, p) => s + p.contract, 0)).toBe(g1.contract);
+    expect(g1.clientCount).toBe(3);
     expect(g1.contract).toBe(4000 + 7000 + 3000);
-    expect(d.total).toMatchObject({ pmCount: 3, clientCount: 4, contract: 4000 + 7000 + 3000 + 10000 });
+    expect(d.total).toMatchObject({ pmCount: 3, clientCount: 4, contract: 4000 + 7000 + 3000 + 10000 }); // 공동 담당 행은 인원 수에 안 센다
+  });
+  it("공동 담당자 조합이 다르면 행도 따로, 단독 담당 고객사는 PM 행에 그대로", () => {
+    const input: PartStatusInput = {
+      groups: [{ id: "g", name: "파트" }],
+      pms: [{ id: "a", name: "가", groupId: "g" }, { id: "b", name: "나", groupId: "g" }, { id: "c", name: "다", groupId: "g" }],
+      clientsByPm: { a: ["X", "Y", "S"], b: ["X"], c: ["Y"] },
+      clients: { X: fact("X", "X사", {}, {}, 10), Y: fact("Y", "Y사", {}, {}, 20), S: fact("S", "S사", {}, {}, 30) },
+      includeVat: false,
+    };
+    const rows = directory(input, "all").groups[0].pms;
+    expect(rows.map((r) => r.name)).toEqual(["가", "나", "다", "공동 담당", "공동 담당"]);
+    expect(rows[0].clients.map((c) => c.name)).toEqual(["S사"]);
+    expect(rows[1].clientCount).toBe(0); // 나는 공동 담당만 있다
+    expect(rows.filter((r) => r.jointOf).map((r) => [r.jointOf, r.clients.map((c) => c.name)])).toEqual([
+      [["가", "나"], ["X사"]],
+      [["가", "다"], ["Y사"]],
+    ]);
+  });
+  it("다른 파트 PM과 공동 담당이면 각 파트에서는 그 파트 PM 한 명만 맡은 것으로 보인다", () => {
+    const input: PartStatusInput = {
+      groups: [{ id: "g1", name: "1파트" }, { id: "g2", name: "2파트" }],
+      pms: [{ id: "a", name: "가", groupId: "g1" }, { id: "b", name: "나", groupId: "g2" }],
+      clientsByPm: { a: ["X"], b: ["X"] },
+      clients: { X: fact("X", "X사", {}, {}, 10) },
+      includeVat: false,
+    };
+    const d = directory(input, "all");
+    expect(d.groups.map((g) => g.pms.map((p) => p.name))).toEqual([["가"], ["나"]]);
+    expect(d.total.clientCount).toBe(1); // 전체에서는 한 번
   });
   it("파트를 고르면 그 파트만", () => {
     const d = directory(base(false), "g2");
@@ -156,6 +194,13 @@ describe("directory — 계약 금액은 연 단위로 나누지 않은 전체 �
   });
   it("카드의 계약금(달성률 분모)은 올해 귀속분 그대로", () => {
     expect(totalsFor(withLong(), ["E"]).contract).toBe(50_000_000);
+  });
+  it("표 합계에는 카드와 맞는 올해 귀속 계약금(attributed)도 함께 준다", () => {
+    const d = directory(withLong(), "all");
+    expect(d.total.contract).toBe(100_000_000); // 계약 전체 금액
+    expect(d.total.attributed).toBe(50_000_000); // 올해 귀속분 = 카드 "전체"의 계약
+    const all = partCards(withLong(), null)[0];
+    expect(d.total.attributed).toBe(all.contract);
   });
   it("부가세 포함이면 과세분에만 부가세를 얹는다", () => {
     const input = { ...withLong(), includeVat: true };
