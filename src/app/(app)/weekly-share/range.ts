@@ -74,3 +74,23 @@ export async function loadAdminLists(user: SessionUser): Promise<AdminLists> {
   ]);
   return { parts, pms: pms.map((p) => ({ id: p.id, name: p.name ?? p.email, partId: p.partId })) };
 }
+
+/**
+ * 파트 현황에서 고객사를 묶을 담당자 목록. 역할과 무관하게 활성 사용자 중
+ * PM·파트장이거나, 파트가 지정돼 있거나(최고관리자·팀 관리자 포함), 담당 고객사가 있는 사람이다.
+ * 파트가 없는 사람은 화면에서 "파트 미지정"으로 묶인다. 팀 관리자는 자기 팀 범위, 파트장은 본인 파트(adminLists와 동일).
+ */
+export async function loadStatusMembers(user: SessionUser, adminLists: AdminLists): Promise<AdminLists["pms"]> {
+  if (user.role === "PART_LEADER") return adminLists.pms;
+  const teamScope = user.role === "ADMIN" ? { teamId: user.teamId ?? "__none__" } : {};
+  const users = await prisma.user.findMany({
+    where: {
+      status: "ACTIVE",
+      ...teamScope,
+      OR: [{ role: { in: ["PM", "PART_LEADER"] } }, { partId: { not: null } }, { managedClients: { some: {} } }],
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, email: true, partId: true },
+  });
+  return users.map((u) => ({ id: u.id, name: u.name ?? u.email, partId: u.partId }));
+}

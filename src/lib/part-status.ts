@@ -9,13 +9,16 @@ import { attainment } from "@/lib/metrics/formulas";
 import { withVatSplit } from "@/lib/vat";
 
 export type PartGroup = { id: string; name: string }; // 파트(소속 파트가 없는 PM은 "파트 미지정" 그룹)
-export type StatusPm = { id: string; name: string; groupId: string };
+// virtual: 사람이 아닌 가상 담당자("담당 없음"). 고객사를 담을 뿐이라 담당자 수에는 세지 않는다.
+export type StatusPm = { id: string; name: string; groupId: string; virtual?: boolean };
 
 export type ClientFacts = {
   id: string;
   name: string;
   contractTaxable: number; // 올해에 귀속되는 계약금(기간 비례) — 과세 과업
   contractExempt: number; // 면세 과업
+  fullTaxable: number; // 올해와 겹치는 계약의 기간 전체 금액(연 단위로 나누지 않음) — 과세 과업. 담당 고객사 표에 쓴다.
+  fullExempt: number; // 면세 과업
   perfTaxable: number[]; // 1~12월 실적(과세), 길이 12
   perfExempt: number[]; // 1~12월 실적(면세), 길이 12
 };
@@ -45,6 +48,18 @@ function pmsOf(input: PartStatusInput, groupId: string): StatusPm[] {
 }
 function clientsOfPms(input: PartStatusInput, pms: StatusPm[]): string[] {
   return uniq(pms.flatMap((p) => input.clientsByPm[p.id] ?? []));
+}
+
+const realCount = (pms: StatusPm[]) => pms.filter((p) => !p.virtual).length;
+
+/** 고객사 집합의 계약 전체 금액(연 귀속으로 나누지 않음). 부가세는 과세분에만 한 번 적용. */
+function fullContractFor(input: PartStatusInput, clientIds: string[]): number {
+  const ids = uniq(clientIds).filter((id) => input.clients[id]);
+  return withVatSplit(
+    ids.reduce((s, id) => s + input.clients[id].fullTaxable, 0),
+    ids.reduce((s, id) => s + input.clients[id].fullExempt, 0),
+    input.includeVat,
+  );
 }
 
 /** 고객사 집합의 합계. 같은 고객사가 여러 번 들어와도 한 번만 센다. */
@@ -80,7 +95,7 @@ export function partCards(input: PartStatusInput, month: number | null, quarter:
   const card = (id: string, name: string): Card => {
     const pms = pmsOf(input, id);
     const t = totalsFor(input, clientsOfPms(input, pms));
-    return { id, name, pmCount: pms.length, clientCount: t.clientCount, cumulative: t.cumulative, contract: t.contract, rate: t.rate, monthAmount: month === null ? null : t.months[month - 1],
+    return { id, name, pmCount: realCount(pms), clientCount: t.clientCount, cumulative: t.cumulative, contract: t.contract, rate: t.rate, monthAmount: month === null ? null : t.months[month - 1],
       quarterAmount: quarter === null ? null : QUARTERS[quarter - 1].reduce((sum, m) => sum + t.months[m - 1], 0) };
   };
   return [card(ALL, "전체"), ...input.groups.map((g) => card(g.id, g.name))];
@@ -148,7 +163,7 @@ export type DirectoryPm = {
 };
 export type DirectoryGroup = { id: string; name: string; pmCount: number; clientCount: number; contract: number; pms: DirectoryPm[] };
 
-/** 파트별 PM 담당 고객사 수와 계약 금액(올해 귀속분). 파트 합계는 고객사를 한 번만 센다. */
+/** 파트별 PM 담당 고객사 수와 계약 금액(계약 기간 전체 금액). 파트 합계는 고객사를 한 번만 센다. */
 export function directory(input: PartStatusInput, groupId: string) {
   const groups: DirectoryGroup[] = (groupId === ALL ? input.groups : input.groups.filter((g) => g.id === groupId)).map((g) => {
     const pms = pmsOf(input, g.id);
@@ -156,9 +171,9 @@ export function directory(input: PartStatusInput, groupId: string) {
     return {
       id: g.id,
       name: g.name,
-      pmCount: pms.length,
+      pmCount: realCount(pms),
       clientCount: t.clientCount,
-      contract: t.contract,
+      contract: fullContractFor(input, clientsOfPms(input, pms)),
       pms: pms.map((p) => {
         const ids = uniq(input.clientsByPm[p.id] ?? []).filter((id) => input.clients[id]);
         const pt = totalsFor(input, ids);
@@ -166,9 +181,9 @@ export function directory(input: PartStatusInput, groupId: string) {
           id: p.id,
           name: p.name,
           clientCount: pt.clientCount,
-          contract: pt.contract,
+          contract: fullContractFor(input, ids),
           clients: ids
-            .map((id) => ({ id, name: input.clients[id].name, contract: withVatSplit(input.clients[id].contractTaxable, input.clients[id].contractExempt, input.includeVat) }))
+            .map((id) => ({ id, name: input.clients[id].name, contract: fullContractFor(input, [id]) }))
             .sort((a, b) => a.name.localeCompare(b.name, "ko")),
         };
       }),
@@ -176,5 +191,6 @@ export function directory(input: PartStatusInput, groupId: string) {
   });
   const shown = groups.flatMap((g) => g.pms.map((p) => p.id));
   const total = totalsFor(input, clientsOfPms(input, input.pms.filter((p) => shown.includes(p.id))));
-  return { groups, total: { pmCount: shown.length, clientCount: total.clientCount, contract: total.contract } };
+  const shownPms = input.pms.filter((p) => shown.includes(p.id));
+  return { groups, total: { pmCount: realCount(shownPms), clientCount: total.clientCount, contract: fullContractFor(input, clientsOfPms(input, shownPms)) } };
 }
