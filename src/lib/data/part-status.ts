@@ -43,7 +43,9 @@ export function loadPartStatusFacts(
       tx.client.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
       tx.project.findMany({
         where: { deletedAt: null, clientId: { in: ids } },
-        select: { clientId: true, contractStart: true, contractEnd: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
+        // 고객사별 첫 행 = 가장 최근 프로젝트(고객사 목록·전체 현황과 같은 기준). 실적 계약 표시에 쓴다.
+        orderBy: [{ contractStart: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+        select: { clientId: true, performanceContract: true, contractStart: true, contractEnd: true, tasks: { select: { contractAmount: true, vatExempt: true } } },
       }),
       tx.monthlyPerformance.findMany({
         where: { year: p.year, task: { clientId: { in: ids } } },
@@ -53,9 +55,14 @@ export function loadPartStatusFacts(
 
     const clients: Record<string, ClientFacts> = {};
     for (const c of clientRows) {
-      clients[c.id] = { id: c.id, name: c.name, contractTaxable: 0, contractExempt: 0, fullTaxable: 0, fullExempt: 0, perfTaxable: zeros(), perfExempt: zeros() };
+      clients[c.id] = { id: c.id, name: c.name, contractTaxable: 0, contractExempt: 0, fullTaxable: 0, fullExempt: 0, performanceContract: false, perfTaxable: zeros(), perfExempt: zeros() };
     }
+    const flagged = new Set<string>();
     for (const pr of projects) {
+      if (!flagged.has(pr.clientId) && clients[pr.clientId]) {
+        flagged.add(pr.clientId);
+        clients[pr.clientId].performanceContract = pr.performanceContract;
+      }
       const ratio = overlapRatio(p.year, "all", pr.contractStart, pr.contractEnd);
       if (ratio === 0 || !clients[pr.clientId]) continue;
       const c = clients[pr.clientId];

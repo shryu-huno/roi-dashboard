@@ -19,6 +19,7 @@ export type ClientFacts = {
   contractExempt: number; // 면세 과업
   fullTaxable: number; // 올해와 겹치는 계약의 기간 전체 금액(연 단위로 나누지 않음) — 과세 과업. 담당 고객사 표에 쓴다.
   fullExempt: number; // 면세 과업
+  performanceContract: boolean; // 실적 계약 고객사(가장 최근 프로젝트 기준, 고객사 목록과 같은 판정) — 표에서 색으로 구분한다.
   perfTaxable: number[]; // 1~12월 실적(과세), 길이 12
   perfExempt: number[]; // 1~12월 실적(면세), 길이 12
 };
@@ -159,7 +160,7 @@ export type DirectoryPm = {
   name: string;
   clientCount: number;
   contract: number;
-  clients: { id: string; name: string; contract: number }[];
+  clients: { id: string; name: string; contract: number; performanceContract: boolean }[];
 };
 export type DirectoryGroup = { id: string; name: string; pmCount: number; clientCount: number; contract: number; pms: DirectoryPm[] };
 
@@ -183,7 +184,7 @@ export function directory(input: PartStatusInput, groupId: string) {
           clientCount: pt.clientCount,
           contract: fullContractFor(input, ids),
           clients: ids
-            .map((id) => ({ id, name: input.clients[id].name, contract: fullContractFor(input, [id]) }))
+            .map((id) => ({ id, name: input.clients[id].name, contract: fullContractFor(input, [id]), performanceContract: input.clients[id].performanceContract }))
             .sort((a, b) => a.name.localeCompare(b.name, "ko")),
         };
       }),
