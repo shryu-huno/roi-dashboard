@@ -5,10 +5,11 @@ import { getIncludeVat } from "@/lib/vat";
 import { YEAR_MIN, type Ym } from "@/lib/month-range";
 import { formatPercent, formatWon, formatWonCompact } from "@/lib/format";
 import { colorAt, METER } from "@/lib/chart-colors";
+import type { SessionUser } from "@/lib/auth/session";
 import { resolveStatusPeriod, type StatusMode } from "@/lib/part-status-period";
 import { loadPartStatusFacts } from "@/lib/data/part-status";
-import { directory, partCards, periodTable, trendSeries, type PartGroup, type PartStatusInput } from "@/lib/part-status";
-import type { AdminLists, WeeklyRange } from "./range";
+import { directory, partCards, periodTable, trendSeries, type PartGroup, type PartStatusInput, type StatusPm } from "@/lib/part-status";
+import { loadStatusMembers, type AdminLists, type WeeklyRange } from "./range";
 import { PartStatusFilter } from "./PartStatusFilter";
 import { PartTrendChart, type ChartColumn } from "./PartTrendChart";
 
@@ -39,10 +40,13 @@ function RateBar({ rate }: { rate: number | null }) {
   );
 }
 
+const UNASSIGNED = "unassigned"; // 담당자가 없는 고객사를 모으는 가상 그룹·담당자 id
+
 export async function PartStatusView({
-  ctx, range, sp, adminLists, partFixed,
+  ctx, user, range, sp, adminLists, partFixed,
 }: {
   ctx: RlsContext;
+  user: SessionUser;
   range: WeeklyRange;
   sp: StatusParams;
   adminLists: AdminLists;
@@ -55,37 +59,44 @@ export async function PartStatusView({
   const tv = sp.tv === "r3" ? "r3" : "q";
   const lastMonth = year < maxYm.year ? 12 : maxYm.month; // 지금 달(올해가 아니면 12월)
 
-  // 파트가 없는 PM은 "파트 미지정" 그룹으로 모아 합계가 어긋나지 않게 한다.
+  // 담당자는 역할과 무관하게 묶는다(PM·파트장·파트가 지정된 관리자). 파트가 없는 사람은 "파트 미지정" 그룹으로 모아 합계가 어긋나지 않게 한다.
   const known = new Set(adminLists.parts.map((p) => p.id));
-  const pms = adminLists.pms.map((p) => ({ id: p.id, name: p.name, groupId: p.partId && known.has(p.partId) ? p.partId : "none" }));
-  const groups: PartGroup[] = [
+  const members = await loadStatusMembers(user, adminLists);
+  const pms: StatusPm[] = members.map((p) => ({ id: p.id, name: p.name, groupId: p.partId && known.has(p.partId) ? p.partId : "none" }));
+  const baseGroups: PartGroup[] = [
     ...adminLists.parts.map((p) => ({ id: p.id, name: p.name })),
     ...(pms.some((p) => p.groupId === "none") ? [{ id: "none", name: "파트 미지정" }] : []),
   ];
-  const partId = partFixed ? groups[0]?.id ?? "" : groups.some((g) => g.id === sp.part) ? (sp.part as string) : "";
-  const groupId = partId || "all";
 
-  if (groups.length === 0 || pms.length === 0) {
+  if (baseGroups.length === 0 || pms.length === 0) {
     return (
       <p className={`${card} border-dashed p-8 text-center text-[var(--color-muted)]`}>
-        {groups.length === 0
+        {baseGroups.length === 0
           ? partFixed
             ? "소속 파트가 없습니다. 관리자에게 파트 배정을 요청해 주세요."
             : "파트가 아직 없습니다. 팀 관리에서 파트를 만들어 주세요."
-          : "조회할 수 있는 PM이 없습니다."}
+          : "조회할 수 있는 담당자가 없습니다."}
       </p>
     );
   }
 
+  // 파트장은 본인 파트만 보므로 "담당 없음"을 따로 읽지 않는다. 그 밖에는 담당자 목록에 아무도 없는 고객사를 "담당 없음"으로 모아
+  // "전체"가 전체 현황(보관 제외 전 고객사)과 같아지게 한다.
+  const facts = await loadPartStatusFacts(ctx, { pmIds: pms.map((p) => p.id), year, includeUnassigned: !partFixed });
+  const hasUnassigned = facts.unassignedClientIds.length > 0;
+  const groups: PartGroup[] = [...baseGroups, ...(hasUnassigned ? [{ id: UNASSIGNED, name: "담당 없음" }] : [])];
+  const allPms: StatusPm[] = hasUnassigned ? [...pms, { id: UNASSIGNED, name: "담당 없음", groupId: UNASSIGNED, virtual: true }] : pms;
+  const clientsByPm = hasUnassigned ? { ...facts.clientsByPm, [UNASSIGNED]: facts.unassignedClientIds } : facts.clientsByPm;
+  const input: PartStatusInput = { groups, pms: allPms, clientsByPm, clients: facts.clients, includeVat };
+
+  const partId = partFixed ? groups[0]?.id ?? "" : groups.some((g) => g.id === sp.part) ? (sp.part as string) : "";
+  const groupId = partId || "all";
   const filter = (
     <PartStatusFilter
       groups={groups} partId={partId} partFixed={partFixed} mode={mode} year={year} month={month} quarter={quarter}
       minYm={minYm} maxYm={maxYm} tv={tv}
     />
   );
-
-  const facts = await loadPartStatusFacts(ctx, { pmIds: pms.map((p) => p.id), year });
-  const input: PartStatusInput = { groups, pms, clientsByPm: facts.clientsByPm, clients: facts.clients, includeVat };
 
   const cards = partCards(input, month, quarter);
   const selected = cards.find((c) => c.id === groupId) ?? cards[0];
@@ -131,7 +142,7 @@ export async function PartStatusView({
 
       <div className={`${card} flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 text-sm text-[var(--color-muted)]`}>
         <span>
-          <b className="text-[var(--color-fg)]">{partName || "전체"}</b> · {periodText} · PM {selected.pmCount}명 · 고객사 {selected.clientCount}곳
+          <b className="text-[var(--color-fg)]">{partName || "전체"}</b> · {periodText} · 담당자 {selected.pmCount}명 · 고객사 {selected.clientCount}곳
         </span>
         <span>{year}년 누적 <b className="text-[var(--color-fg)]">{formatWon(selected.cumulative)}</b></span>
         {month !== null && <span>{month}월 실적 <b className="text-[var(--color-fg)]">{formatWon(selected.monthAmount ?? 0)}</b></span>}
@@ -158,7 +169,7 @@ export async function PartStatusView({
                   {c.id !== "all" && <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: colorOf(c.id) }} />}
                   {c.name}
                 </h3>
-                <span className="text-xs text-[var(--color-muted)]">PM {c.pmCount}명 · 고객사 {c.clientCount}곳</span>
+                <span className="text-xs text-[var(--color-muted)]">담당자 {c.pmCount}명 · 고객사 {c.clientCount}곳</span>
               </div>
               <div>
                 <div className="text-xs text-[var(--color-muted)]">{cumulativeLabel}</div>
@@ -328,7 +339,7 @@ export async function PartStatusView({
                         {g.name}
                       </span>
                       <span className="ml-3 font-medium text-[var(--color-muted)]">
-                        PM {g.pmCount}명 · 고객사 {g.clientCount}곳 · 계약 금액 {num(g.contract)}원
+                        {g.pmCount > 0 ? `담당자 ${g.pmCount}명 · ` : ""}고객사 {g.clientCount}곳 · 계약 금액 {num(g.contract)}원
                       </span>
                     </td>
                   </tr>
@@ -362,7 +373,7 @@ export async function PartStatusView({
             </tbody>
             <tfoot>
               <tr className="border-t border-[var(--color-border)] font-bold">
-                <td className={td}>합계 <span className="text-xs font-normal text-[var(--color-muted)]">PM {dir.total.pmCount}명</span></td>
+                <td className={td}>합계 <span className="text-xs font-normal text-[var(--color-muted)]">담당자 {dir.total.pmCount}명</span></td>
                 <td className={td}>{dir.total.clientCount}곳</td>
                 <td />
                 <td className={td}>{num(dir.total.contract)}원</td>

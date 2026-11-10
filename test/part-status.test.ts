@@ -11,7 +11,8 @@ const fact = (
   id: string, name: string,
   perfTaxable: Record<number, number>, perfExempt: Record<number, number> = {},
   contractTaxable = 0, contractExempt = 0,
-): ClientFacts => ({ id, name, contractTaxable, contractExempt, perfTaxable: months(perfTaxable), perfExempt: months(perfExempt) });
+  fullTaxable = contractTaxable, fullExempt = contractExempt, // 계약 기간 전체 금액(기본은 올해 귀속분과 같다)
+): ClientFacts => ({ id, name, contractTaxable, contractExempt, fullTaxable, fullExempt, perfTaxable: months(perfTaxable), perfExempt: months(perfExempt) });
 
 // 1파트: PM 김(A, B) · PM 이(B 공동, C) / 2파트: PM 박(D)
 const base = (includeVat: boolean): PartStatusInput => ({
@@ -133,6 +134,54 @@ describe("directory — 파트별 PM 담당 고객사·계약 금액", () => {
     const d = directory(base(false), "g2");
     expect(d.groups.map((g) => g.name)).toEqual(["2파트"]);
     expect(d.total).toMatchObject({ pmCount: 1, clientCount: 1, contract: 10000 });
+  });
+});
+
+describe("directory — 계약 금액은 연 단위로 나누지 않은 전체 금액", () => {
+  // E사: 2년 계약(전체 1억, 올해 귀속 5천만). 표는 전체 1억, 카드(totalsFor)는 올해 귀속분 5천만.
+  const withLong = (): PartStatusInput => ({
+    groups: [{ id: "g1", name: "1파트" }],
+    pms: [{ id: "kim", name: "김", groupId: "g1" }],
+    clientsByPm: { kim: ["E"] },
+    clients: { E: fact("E", "E사", { 1: 1000 }, {}, 50_000_000, 0, 100_000_000, 0) },
+    includeVat: false,
+  });
+  it("고객사·PM·파트·합계 모두 전체 금액", () => {
+    const d = directory(withLong(), "all");
+    expect(d.groups[0].pms[0].clients[0].contract).toBe(100_000_000);
+    expect(d.groups[0].pms[0].contract).toBe(100_000_000);
+    expect(d.groups[0].contract).toBe(100_000_000);
+    expect(d.total.contract).toBe(100_000_000);
+  });
+  it("카드의 계약금(달성률 분모)은 올해 귀속분 그대로", () => {
+    expect(totalsFor(withLong(), ["E"]).contract).toBe(50_000_000);
+  });
+  it("부가세 포함이면 과세분에만 부가세를 얹는다", () => {
+    const input = { ...withLong(), includeVat: true };
+    input.clients.E = fact("E", "E사", {}, {}, 0, 0, 100_000_000, 50_000_000);
+    expect(directory(input, "all").total.contract).toBe(110_000_000 + 50_000_000);
+  });
+});
+
+describe("담당 없음(가상 담당자) — 인원 수에는 세지 않는다", () => {
+  const input = (): PartStatusInput => ({
+    groups: [{ id: "g1", name: "1파트" }, { id: "unassigned", name: "담당 없음" }],
+    pms: [
+      { id: "kim", name: "김", groupId: "g1" },
+      { id: "__unassigned", name: "담당 없음", groupId: "unassigned", virtual: true },
+    ],
+    clientsByPm: { kim: ["A"], __unassigned: ["B"] },
+    clients: { A: fact("A", "A사", { 1: 100 }, {}, 1000), B: fact("B", "B사", { 1: 50 }, {}, 500) },
+    includeVat: false,
+  });
+  it("전체 카드는 담당 없음 고객사까지 포함하고 담당자 수는 실제 인원만", () => {
+    const [all, g1, none] = partCards(input(), null);
+    expect(all).toMatchObject({ cumulative: 150, contract: 1500, clientCount: 2, pmCount: 1 });
+    expect(g1).toMatchObject({ cumulative: 100, pmCount: 1 });
+    expect(none).toMatchObject({ cumulative: 50, clientCount: 1, pmCount: 0 });
+  });
+  it("PM별 표의 합계 인원도 실제 인원만", () => {
+    expect(directory(input(), "all").total).toMatchObject({ pmCount: 1, clientCount: 2 });
   });
 });
 

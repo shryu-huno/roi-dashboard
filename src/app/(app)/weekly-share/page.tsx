@@ -63,7 +63,7 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
     return (
       <div>
         {header}
-        <PartStatusView ctx={ctx} range={range} sp={sp} adminLists={adminLists} partFixed={isLeader} />
+        <PartStatusView ctx={ctx} user={user} range={range} sp={sp} adminLists={adminLists} partFixed={isLeader} />
       </div>
     );
   }

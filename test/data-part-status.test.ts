@@ -86,6 +86,32 @@ describe("loadPartStatusFacts — 파트 현황 원자료", () => {
     expect(next.clients[cY].contractTaxable).toBeCloseTo(600); // 내년 6개월
   });
 
+  it("계약 기간 전체 금액(연으로 나누지 않음)도 함께 담는다", async () => {
+    const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmC], year: YEAR });
+    expect(f.clients[cX]).toMatchObject({ fullTaxable: 1200, fullExempt: 600 });
+    expect(f.clients[cY].fullTaxable).toBe(1200); // 올해 귀속분은 600, 전체는 1200
+    expect(f.clients[cY].contractTaxable).toBeCloseTo(600);
+  });
+
+  it("includeUnassigned: 담당 PM이 없거나 목록 밖(비활성 등)인 고객사를 따로 모은다. 보관된 고객사는 제외", async () => {
+    const inactive = await prisma.user.create({ data: { email: "off@huno.kr", name: "off", role: "PM", status: "INACTIVE" } });
+    const cW = (await mkClient(ROOT, { name: "W사(담당없음)", pmIds: [], contractStart: new Date(2026, 0, 1), contractEnd: new Date(2026, 11, 31) })).id;
+    const cV = (await mkClient(ROOT, { name: "V사(비활성 담당)", pmIds: [inactive.id], contractStart: new Date(2026, 0, 1), contractEnd: new Date(2026, 11, 31) })).id;
+    const tw = await mkTask(ROOT, { clientId: cW, name: "과세", unitPrice: 1, contractAmount: 900 });
+    await perf(tw.id, YEAR, 5, 70);
+
+    const off = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmB, pmC], year: YEAR });
+    expect(off.unassignedClientIds).toEqual([]);
+    expect(off.clients[cW]).toBeUndefined();
+
+    const on = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmB, pmC], year: YEAR, includeUnassigned: true });
+    expect([...on.unassignedClientIds].sort()).toEqual([cW, cV].sort());
+    expect(on.clients[cW]).toMatchObject({ name: "W사(담당없음)", contractTaxable: 900 });
+    expect(on.clients[cW].perfTaxable[4]).toBe(70);
+    expect(on.clients[cZ]).toBeUndefined(); // 보관된 고객사
+    expect(on.clients[cX]).toBeDefined(); // 담당 PM이 있는 고객사는 그대로
+  });
+
   it("권한 범위: 팀 관리자는 자기 팀 PM의 고객사만, PM은 본인 담당만 읽힌다", async () => {
     const team = await loadPartStatusFacts(ctxAdminT1, { pmIds: [pmA, pmB, pmC], year: YEAR });
     expect(Object.keys(team.clients)).toEqual([cX]);
@@ -100,6 +126,28 @@ describe("loadPartStatusFacts — 파트 현황 원자료", () => {
 });
 
 // 약속: 파트 현황의 "전체" 숫자는 전체 현황(전사 대시보드)의 계산식과 같다. 같은 데이터로 두 쪽을 직접 비교한다.
+describe("전체 현황과의 일치 — 담당 없음 고객사까지 포함하면 정확히 같다", () => {
+  it("담당 PM이 없거나 비활성 담당자뿐인 고객사를 더하면 누적 실적·계약금이 전체 현황과 같다", async () => {
+    const inactive = await prisma.user.create({ data: { email: "off2@huno.kr", name: "off2", role: "PM", status: "INACTIVE" } });
+    const cs = { contractStart: new Date(2026, 0, 1), contractEnd: new Date(2026, 11, 31) };
+    const cW = (await mkClient(ROOT, { name: "W사", pmIds: [], ...cs })).id;
+    const cV = (await mkClient(ROOT, { name: "V사", pmIds: [inactive.id], ...cs })).id;
+    await perf((await mkTask(ROOT, { clientId: cW, name: "과세", unitPrice: 1, contractAmount: 900 })).id, YEAR, 5, 70);
+    await perf((await mkTask(ROOT, { clientId: cV, name: "면세", unitPrice: 1, contractAmount: 300, vatExempt: true })).id, YEAR, 6, 40);
+    for (const includeVat of [false, true]) {
+      const f = await loadPartStatusFacts(ctxSuper, { pmIds: [pmA, pmB, pmC], year: YEAR, includeUnassigned: true });
+      const input: PartStatusInput = {
+        groups: [{ id: "g", name: "전체" }],
+        pms: [pmA, pmB, pmC].map((id) => ({ id, name: id, groupId: "g" })),
+        clientsByPm: f.clientsByPm, clients: f.clients, includeVat,
+      };
+      const mine = totalsFor(input, Object.keys(f.clients));
+      expect(mine.cumulative).toBe((await getPeriodTotals(ctxSuper, YEAR, "all", includeVat)).performance);
+      expect(mine.contract).toBe(await getContractTotal(ctxSuper, YEAR, "all", includeVat));
+    }
+  });
+});
+
 describe("전체 현황과의 일치", () => {
   for (const includeVat of [false, true]) {
     it(`부가세 ${includeVat ? "포함" : "미포함"}: 누적 실적·계약금·월별 실적이 전체 현황과 같다`, async () => {
