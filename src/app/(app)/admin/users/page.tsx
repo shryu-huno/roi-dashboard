@@ -3,17 +3,23 @@ import { requireRole } from "@/lib/auth/session";
 import { roleLabel, statusLabel } from "@/lib/labels";
 import { approveUser, changeStatus } from "./actions";
 import { DeleteUserButton } from "./DeleteUserButton";
+import { TeamPartFields } from "./TeamPartFields";
 
 export default async function AdminUsersPage() {
   await requireRole("SUPER_ADMIN");
-  const [users, teams] = await Promise.all([
+  const [users, teams, parts] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.team.findMany({ orderBy: { name: "asc" } }),
+    prisma.part.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
   const teamName = new Map(teams.map((t) => [t.id, t.name]));
-  // 파트장 지정 후보: 활성 파트장. PM 행의 소속 파트장 드롭다운에 노출한다.
-  const partLeaders = users.filter((u) => u.status === "ACTIVE" && u.role === "PART_LEADER");
-  const partLeaderName = new Map(partLeaders.map((p) => [p.id, p.name ?? p.email]));
+  const partName = new Map(parts.map((p) => [p.id, p.name]));
+  // 파트장 = 파트 소속 활성 PART_LEADER. 목록의 "파트" 열에 파트 이름과 함께 보여 준다.
+  const leaderOfPart = new Map(
+    users
+      .filter((u) => u.status === "ACTIVE" && u.role === "PART_LEADER" && u.partId)
+      .map((u) => [u.partId as string, u.name ?? u.email]),
+  );
 
   return (
     <div>
@@ -25,7 +31,7 @@ export default async function AdminUsersPage() {
             <th>이름</th>
             <th>역할</th>
             <th>팀</th>
-            <th>소속 파트장</th>
+            <th>파트</th>
             <th>상태</th>
             <th>작업</th>
           </tr>
@@ -37,7 +43,16 @@ export default async function AdminUsersPage() {
               <td>{u.name ?? "-"}</td>
               <td>{roleLabel(u.role)}</td>
               <td>{u.teamId ? teamName.get(u.teamId) ?? "(삭제된 팀)" : "-"}</td>
-              <td>{u.partLeaderId ? partLeaderName.get(u.partLeaderId) ?? "(삭제된 파트장)" : "-"}</td>
+              <td>
+                {u.partId ? (
+                  <>
+                    {partName.get(u.partId) ?? "(삭제된 파트)"}
+                    {u.role === "PM" && leaderOfPart.get(u.partId) ? (
+                      <span className="text-[var(--color-muted)]"> · 파트장 {leaderOfPart.get(u.partId)}</span>
+                    ) : null}
+                  </>
+                ) : "-"}
+              </td>
               <td>{statusLabel(u.status)}</td>
               <td className="flex gap-2 py-2">
                 <form action={approveUser} className="flex gap-1">
@@ -49,20 +64,12 @@ export default async function AdminUsersPage() {
                     <option value="SETTLEMENT">정산담당자</option>
                     <option value="PM">PM</option>
                   </select>
-                  {/* 팀은 팀 관리자·PM·파트장에게 의미가 있다(최고관리자·정산담당자는 전체 접근이라 무시됨). */}
-                  <select name="teamId" defaultValue={u.teamId ?? ""} className="border border-[var(--color-border)] rounded px-1">
-                    <option value="">팀 없음</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                  {/* 소속 파트장: PM이 어느 파트장에게 속하는지 지정. 파트장은 자기 소속 PM의 고객사를 열람·관리한다. */}
-                  <select name="partLeaderId" defaultValue={u.partLeaderId ?? ""} className="border border-[var(--color-border)] rounded px-1">
-                    <option value="">파트장 없음</option>
-                    {partLeaders.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name ?? p.email}</option>
-                    ))}
-                  </select>
+                  <TeamPartFields
+                    teams={teams.map((t) => ({ id: t.id, name: t.name }))}
+                    parts={parts.map((p) => ({ id: p.id, name: p.name, teamId: p.teamId }))}
+                    defaultTeamId={u.teamId ?? ""}
+                    defaultPartId={u.partId ?? ""}
+                  />
                   <button type="submit" className="rounded bg-[var(--color-primary)] px-2 py-1 text-white">
                     {u.status === "ACTIVE" ? "저장" : "활성화"}
                   </button>
