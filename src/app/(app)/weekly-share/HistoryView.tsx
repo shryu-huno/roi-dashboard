@@ -23,11 +23,12 @@ export type HistoryParams = {
 const dateOnly = (s?: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s ?? "") ? (s as string) : "");
 
 export async function HistoryView({
-  ctx, user, writer, isLeader, range, sp, adminLists,
+  ctx, user, writer, viewsMembers, isLeader, range, sp, adminLists,
 }: {
   ctx: RlsContext;
   user: SessionUser;
-  writer: boolean;
+  writer: boolean; // 본인 고객사 기록을 수정할 수 있는가
+  viewsMembers: boolean; // 최고관리자·팀 관리자·파트장: 파트·담당자를 골라 여러 사람의 기록을 본다
   isLeader: boolean; // 파트장: 본인 고객사(수정 가능) + 같은 파트 PM의 기록(읽기 전용)을 본다
   range: WeeklyRange;
   sp: HistoryParams;
@@ -42,7 +43,7 @@ export async function HistoryView({
 
   // ---- 누구의 기록을 보는가: PM은 본인(담당 고객사), 관리자는 파트·PM을 골라 본다.
   // 파트장은 본인 파트(하나)의 구성원(본인 + 파트원)을 PM 선택으로 고른다 — 수정은 본인 고객사만 가능하다. ----
-  const showMembers = !writer || isLeader; // PM 단위로 묶어 보여 주는 보기
+  const showMembers = viewsMembers; // 담당자 단위로 묶어 보여 주는 보기(PM은 본인 것만)
   let pmIds: string[] = [user.id];
   let admin: { parts: AdminLists["parts"]; pms: AdminLists["pms"]; partId: string; pmId: string } | null = null;
   if (showMembers && adminLists) {
@@ -102,10 +103,10 @@ export async function HistoryView({
   const scope = single
     ? clientOptions.find((c) => c.id === clientFilter)?.label.split(" · ")[0] ?? ""
     : clientFilter === "other"
-      ? `기타 업무 · PM ${data.pms.length}명`
+      ? `기타 업무 · 담당자 ${data.pms.length}명`
       : !showMembers
         ? `내 고객사 ${byClient.size}곳`
-        : `PM ${data.pms.length}명 · 고객사 ${byClient.size}곳`;
+        : `담당자 ${data.pms.length}명 · 고객사 ${byClient.size}곳`;
 
   return (
     <div className="flex flex-col gap-4">

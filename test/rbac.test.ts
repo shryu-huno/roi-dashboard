@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasAtLeast, canManageUsers, canManageTeams, canEditSettlement, isAllAccess, isTeamAdmin, isPartLeader, isTeamScoped } from "@/lib/auth/rbac";
+import { hasAtLeast, canManageUsers, canManageTeams, canEditSettlement, isAllAccess, isTeamAdmin, isPartLeader, isTeamScoped, canWriteWeeklyShare, canViewWeeklyMembers } from "@/lib/auth/rbac";
 
 describe("hasAtLeast (hierarchy SUPER_ADMIN > ADMIN > PART_LEADER > SETTLEMENT > PM)", () => {
   it("SUPER_ADMIN satisfies every requirement", () => {
@@ -66,5 +66,19 @@ describe("permission predicates", () => {
     expect(canEditSettlement("SETTLEMENT")).toBe(true);
     expect(canEditSettlement("ADMIN")).toBe(false);
     expect(canEditSettlement("PM")).toBe(false);
+  });
+});
+
+describe("주간 공유 권한: 작성(본인 고객사·기타 업무)과 여러 사람 조회는 별개", () => {
+  it("PM·파트장·팀 관리자·최고관리자는 작성할 수 있고 정산담당·무역할은 못 한다", () => {
+    for (const r of ["PM", "PART_LEADER", "ADMIN", "SUPER_ADMIN"] as const) expect(canWriteWeeklyShare(r)).toBe(true);
+    expect(canWriteWeeklyShare("SETTLEMENT")).toBe(false);
+    expect(canWriteWeeklyShare(null)).toBe(false);
+  });
+  it("파트·담당자를 골라 여러 사람의 기록을 보는 것은 최고관리자·팀 관리자·파트장만(PM은 본인 것만)", () => {
+    for (const r of ["PART_LEADER", "ADMIN", "SUPER_ADMIN"] as const) expect(canViewWeeklyMembers(r)).toBe(true);
+    expect(canViewWeeklyMembers("PM")).toBe(false);
+    expect(canViewWeeklyMembers("SETTLEMENT")).toBe(false);
+    expect(canViewWeeklyMembers(null)).toBe(false);
   });
 });

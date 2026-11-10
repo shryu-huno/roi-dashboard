@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { RlsContext } from "@/lib/rls";
+import { withRLS, type RlsContext } from "@/lib/rls";
+import { getRlsContext } from "@/lib/context";
 import type { SessionUser } from "@/lib/auth/session";
 import { addMonths, parseYm, type Ym } from "@/lib/month-range";
 import { currentWeek, kstToday, weekMonth, type WeekKey } from "@/lib/week";
@@ -41,7 +42,7 @@ export type AdminLists = {
 };
 
 /**
- * 고를 수 있는 파트·PM 목록. 최고관리자는 전체, 팀 관리자는 자기 팀 범위.
+ * 고를 수 있는 파트·담당자(PM·파트장) 목록. 최고관리자는 전체, 팀 관리자는 자기 팀 범위.
  * 파트장은 본인 파트 하나와 그 파트의 PM + 본인(구성원)만 — 파트원의 기록을 보고 파트 현황에서 본인 파트를 보기 위한 범위다
  * (실제 데이터 범위는 DB가 파트장 기준으로 따로 제한한다). 소속 파트가 없으면 파트는 비고 본인만 남는다.
  */
@@ -66,11 +67,20 @@ export async function loadAdminLists(user: SessionUser): Promise<AdminLists> {
   const teamScope = user.role === "ADMIN" ? { teamId: user.teamId ?? "__none__" } : {};
   const [parts, pms] = await Promise.all([
     prisma.part.findMany({ where: teamScope, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true } }),
-    prisma.user.findMany({
-      where: { role: "PM", status: "ACTIVE", ...teamScope },
+    // 담당 고객사·기타 업무는 RLS 테이블이라 보는 사람의 권한 컨텍스트로 조회해야 한다(컨텍스트 없이는 비어 보인다).
+    withRLS(getRlsContext(user), (tx) => tx.user.findMany({
+      // PM·파트장, 그리고 담당 고객사가 있거나 기타 업무를 쓴 관리자(자기 기록이 있는 사람). 팀 관리자는 자기 팀 범위.
+      where: {
+        status: "ACTIVE",
+        ...teamScope,
+        OR: [
+          { role: { in: ["PM", "PART_LEADER"] } },
+          { role: { in: ["ADMIN", "SUPER_ADMIN"] }, OR: [{ managedClients: { some: {} } }, { weeklyOtherWorks: { some: {} } }] },
+        ],
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true, partId: true },
-    }),
+    })),
   ]);
   return { parts, pms: pms.map((p) => ({ id: p.id, name: p.name ?? p.email, partId: p.partId })) };
 }

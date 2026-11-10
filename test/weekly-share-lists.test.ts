@@ -13,6 +13,8 @@ const ids: Record<string, string> = {};
 
 beforeEach(async () => {
   await withRLS(ROOT, async (tx) => {
+    await tx.$executeRawUnsafe('TRUNCATE TABLE "WeeklyShare", "WeeklyOtherWork"');
+    await tx.client.deleteMany();
     await tx.team.deleteMany(); // Part는 팀 삭제로 함께 정리
   });
   await prisma.user.deleteMany();
@@ -29,6 +31,8 @@ beforeEach(async () => {
   await mk("pmC", "PM", { teamId: team1, partId: p2 });
   await mk("pmD", "PM", { teamId: team1 }); // 파트 미지정
   await mk("pmE", "PM", { teamId: team2 }); // 다른 팀
+  await mk("leaderT2", "PART_LEADER", { teamId: team2 }); // 다른 팀의 파트장
+  await mk("leaderOff", "PART_LEADER", { teamId: team1, partId: p1, status: "INACTIVE" }); // 비활성 파트장
   await mk("leaderNoPart", "PART_LEADER", { teamId: team1 });
   await mk("admin1", "ADMIN", { teamId: team1 });
   await mk("super", "SUPER_ADMIN");
@@ -54,5 +58,29 @@ describe("loadAdminLists — 역할별로 고를 수 있는 파트·PM", () => {
     expect(team.pms.map((p) => p.name)).not.toContain("pmE");
     const all = await loadAdminLists(await user("super"));
     expect(all.pms.map((p) => p.name)).toContain("pmE");
+  });
+  it("팀 관리자·최고관리자의 목록에는 파트장도 들어 있다(활성만, 팀 관리자는 자기 팀 범위)", async () => {
+    const team = await loadAdminLists(await user("admin1"));
+    expect(team.pms.map((p) => p.name)).toEqual(expect.arrayContaining(["leader1", "leaderNoPart"]));
+    expect(team.pms.map((p) => p.name)).not.toContain("leaderT2"); // 다른 팀
+    expect(team.pms.map((p) => p.name)).not.toContain("leaderOff"); // 비활성
+    expect(team.pms.find((p) => p.name === "leader1")?.partId).toBe(p1);
+    const all = await loadAdminLists(await user("super"));
+    expect(all.pms.map((p) => p.name)).toEqual(expect.arrayContaining(["leader1", "leaderNoPart", "leaderT2"]));
+    expect(all.pms.map((p) => p.name)).not.toContain("leaderOff");
+    expect(all.pms.map((p) => p.name)).not.toContain("admin1"); // 담당 고객사·기록이 없는 관리자는 대상이 아니다
+  });
+  it("담당 고객사가 있거나 기타 업무를 쓴 관리자는 목록에 들어간다(그 기록을 조회하려면 필요)", async () => {
+    const client = await withRLS(ROOT, (tx) => tx.client.create({ data: { name: "고객사" } }));
+    await withRLS(ROOT, (tx) => tx.clientManager.create({ data: { clientId: client.id, userId: ids.admin1 } }));
+    await withRLS({ userId: ids.super, role: "SUPER_ADMIN" }, (tx) =>
+      tx.weeklyOtherWork.create({ data: { weekStart: new Date("2026-11-01"), authorId: ids.super, thisWeek: "기타", nextWeek: "", note: "", tags: [] } }),
+    );
+    const team = await loadAdminLists(await user("admin1"));
+    expect(team.pms.map((p) => p.name)).toContain("admin1"); // 본인도 포함(담당 고객사 있음)
+    const all = await loadAdminLists(await user("super"));
+    expect(all.pms.map((p) => p.name)).toEqual(expect.arrayContaining(["admin1", "super"]));
+    const leader = await loadAdminLists(await user("leader1"));
+    expect(leader.pms.map((p) => p.name)).not.toContain("admin1"); // 파트장 목록은 본인 파트 범위 그대로
   });
 });
