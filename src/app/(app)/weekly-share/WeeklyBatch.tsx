@@ -145,7 +145,7 @@ export function WeeklyBatch({
     if (r.unchanged.length) parts.push(`${r.unchanged.length}곳 변경 없음`);
     if (r.skipped.length) parts.push(`빈 고객사 ${r.skipped.length}곳은 저장하지 않았어요`);
     if (r.other === "saved") parts.push("기타 업무 저장");
-    if (r.conflicts.length) parts.push(`${r.conflicts.length}곳은 다른 PM이 먼저 수정해서 저장하지 않았어요`);
+    if (r.conflicts.length) parts.push(`${r.conflicts.length}곳은 다른 화면에서 먼저 수정해서 저장하지 않았어요`);
     if (r.rejected.length) parts.push(`${r.rejected.length}곳은 저장할 수 없어요`);
     setBanner({ kind: r.ok ? "ok" : "warn", text: parts.join(" · ") });
   }
@@ -245,10 +245,41 @@ export function WeeklyBatch({
                 ))}
               </div>
 
+              {c.coShares.length > 0 && (
+                <div className="rounded-[10px] border border-dashed border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-sm">
+                  <p className="mb-2 text-xs font-semibold text-[var(--color-muted)]">공동 담당자가 작성한 일지 · 읽기 전용</p>
+                  <div className="flex flex-col gap-3">
+                    {c.coShares.map((s) => (
+                      <div key={`${s.createdByName}|${s.createdAt}`}>
+                        <p className="mb-1 text-xs text-[var(--color-muted)]">{describeShareStamp(s)}</p>
+                        {s.noSpecial ? (
+                          <p className="text-[var(--color-muted)]">이번 주 특이사항 없음</p>
+                        ) : (
+                          <div className="grid gap-2 md:grid-cols-[1fr_1fr_0.8fr]">
+                            {(
+                              [
+                                ["이번주", s.thisWeek],
+                                ["다음주", s.nextWeek],
+                                ["비고", s.note],
+                              ] as const
+                            ).map(([l, txt]) => (
+                              <div key={l}>
+                                <div className="text-xs font-semibold text-[var(--color-muted)]">{l}</div>
+                                <div className="whitespace-pre-line">{txt || "—"}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {card.conflict && (
                 <div className="rounded-[10px] border border-amber-400 bg-amber-50 p-3 text-sm text-amber-800">
                   <p className="font-medium">
-                    {card.conflict.updatedByName ?? "다른 PM"}이(가) 방금 이 카드를 수정해서 저장하지 않았어요. 아래 저장된 내용을 확인해 주세요.
+                    다른 화면에서 방금 이 카드를 수정해서 저장하지 않았어요. 아래 저장된 내용을 확인해 주세요.
                   </p>
                   <div className="mt-2 grid gap-2 rounded bg-white p-2 text-[var(--color-fg)] md:grid-cols-3">
                     {card.conflict.current.noSpecial ? (

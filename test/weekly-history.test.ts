@@ -49,8 +49,9 @@ const view = (over: Partial<WeeklyShareView> = {}): WeeklyShareView => ({
   createdByName: "김서연", updatedByName: "김서연",
   createdAt: "2026-11-03T01:34:00Z", updatedAt: "2026-11-03T01:34:00Z", editedAt: null, ...over,
 });
-const share = (clientId: string, weekStart: string, over: Partial<WeeklyShareView> = {}): HistoryShare => ({
-  ...view(over), clientId, weekStart,
+// 기록은 작성자별 1건. authorId 기본값은 p1(김서연).
+const share = (clientId: string, weekStart: string, over: Partial<WeeklyShareView> = {}, authorId = "p1"): HistoryShare => ({
+  ...view(over), clientId, weekStart, authorId,
 });
 const other = (authorId: string, weekStart: string, text = "TF 회의"): HistoryOther => ({
   tags: ["TF"], thisWeek: text, nextWeek: "", note: "", createdAt: "2026-11-03T01:34:00Z", updatedAt: "2026-11-03T01:34:00Z", editedAt: null,
@@ -76,11 +77,14 @@ describe("buildHistoryRows — 파트 > PM > 고객사 > 주차(최신순)", () 
   it("PM 순서, 고객사 이름순, 주차 최신순으로 정렬한다", () => {
     const rows = buildHistoryRows({
       ...base,
-      shares: [share("cA", "2026-10-25"), share("cA", "2026-11-01"), share("cB", "2026-11-01"), share("cC", "2026-11-01")],
+      shares: [
+        share("cA", "2026-10-25"), share("cA", "2026-11-01"), share("cB", "2026-11-01"),
+        share("cB", "2026-11-01", { createdByName: "이승준" }, "p2"), share("cC", "2026-11-01", {}, "p3"),
+      ],
     });
     expect(rows.map((r) => (r.kind === "client" ? `${r.pmId}/${r.clientName}/${r.weekStart}` : "other"))).toEqual([
       "p1/A사/2026-11-01", "p1/A사/2026-10-25", "p1/B사/2026-11-01",
-      "p2/B사/2026-11-01", // 공동 담당 고객사는 담당 PM 각자 아래에 모두 표시
+      "p2/B사/2026-11-01", // 공동 담당 고객사: 각자 쓴 기록이 각자 아래에 나온다
       "p3/C사/2026-11-01",
     ]);
   });
@@ -99,16 +103,44 @@ describe("buildHistoryRows — 파트 > PM > 고객사 > 주차(최신순)", () 
     expect(missing).toHaveLength(7);
   });
 
+  it("PM 아래에는 그 PM이 쓴 기록만 나온다(공동 담당자가 쓴 기록은 나오지 않는다)", () => {
+    const rows = buildHistoryRows({ ...base, shares: [share("cB", "2026-11-01", { thisWeek: "p1의 일지" })] });
+    expect(rows.map((r) => (r.kind === "client" ? `${r.pmId}/${r.clientName}` : "other"))).toEqual(["p1/B사"]);
+    const row = rows[0];
+    expect(row.kind === "client" && row.authorId).toBe("p1");
+  });
+
+  it("공동 담당자 한 명이라도 썼으면 안 쓴 담당자 아래에 미작성 행을 만들지 않는다", () => {
+    const rows = buildHistoryRows({
+      ...base, weeks: ["2026-11-01"], showMissing: true,
+      shares: [share("cA", "2026-11-01"), share("cB", "2026-11-01"), share("cC", "2026-11-01", {}, "p3")], // B사는 p1만 씀
+    });
+    expect(rows.filter((r) => r.kind === "client" && !r.share)).toHaveLength(0); // p2의 B사 행도 미작성이 아니다
+    expect(rows.filter((r) => r.kind === "client" && r.clientId === "cB").map((r) => r.pmId)).toEqual(["p1"]);
+  });
+
   it("검색어가 있으면 내용·고객사·구분이 맞는 기록만 남고 미작성 행은 숨긴다", () => {
     const rows = buildHistoryRows({
       ...base, showMissing: true, query: "보고서",
-      shares: [share("cA", "2026-11-01", { thisWeek: "분기 보고서 정리" }), share("cC", "2026-11-01", { thisWeek: "미팅" })],
+      shares: [share("cA", "2026-11-01", { thisWeek: "분기 보고서 정리" }), share("cC", "2026-11-01", { thisWeek: "미팅" }, "p3")],
     });
     expect(rows.map((r) => (r.kind === "client" ? r.clientName : ""))).toEqual(["A사"]);
-    const byName = buildHistoryRows({ ...base, query: "c사", shares: [share("cC", "2026-11-01")] });
+    const byName = buildHistoryRows({ ...base, query: "c사", shares: [share("cC", "2026-11-01", {}, "p3")] });
     expect(byName).toHaveLength(1);
     const byTag = buildHistoryRows({ ...base, query: "tf", others: [other("p1", "2026-11-01")] });
     expect(byTag).toHaveLength(1);
+  });
+
+  it("고객사 하나를 고르면 같은 주의 공동 담당자 기록이 작성자 이름순으로 나란히 보인다", () => {
+    const rows = buildHistoryRows({
+      ...base, clientFilter: "cB",
+      shares: [
+        share("cB", "2026-11-01", { createdByName: "이승준", thisWeek: "p2 내용" }, "p2"),
+        share("cB", "2026-11-01", { createdByName: "김서연", thisWeek: "p1 내용" }, "p1"),
+      ],
+    });
+    const got = rows.map((r) => (r.kind === "client" ? `${r.weekStart}/${r.share?.createdByName ?? "미작성"}/${r.authorId}` : ""));
+    expect(got).toEqual(["2026-11-01/김서연/p1", "2026-11-01/이승준/p2", "2026-10-25/미작성/null"]);
   });
 
   it("고객사 하나를 고르면 PM 구분 없이 그 고객사의 주차만(미작성 주차 포함) 최신순으로 보인다", () => {
@@ -174,6 +206,18 @@ describe("historyText — 복사용 텍스트", () => {
     expect(text.slice(iNew, iOld)).toContain("이번주 일");
     expect(text.slice(iOld)).toContain("지난주 일");
     expect(text.slice(iOld)).toContain("[1파트]"); // 구역마다 파트가 다시 나온다
+  });
+  it("고객사 하나만 볼 때 같은 주에 작성자가 여러 명이면 작성자별로 줄을 나눈다", () => {
+    const rows = buildHistoryRows({
+      ...base, clientFilter: "cB", weeks: ["2026-11-01"],
+      shares: [
+        share("cB", "2026-11-01", { createdByName: "김서연", thisWeek: "p1 내용" }, "p1"),
+        share("cB", "2026-11-01", { createdByName: "이승준", thisWeek: "p2 내용" }, "p2"),
+      ],
+    });
+    const text = historyText(rows, { scope: "B사", rangeLabel: "2026년 11월", grouped: false, single: true });
+    expect(text).toContain("▸ 김서연\n    - 이번주: p1 내용");
+    expect(text).toContain("▸ 이승준\n    - 이번주: p2 내용");
   });
   it("고객사 하나만 볼 때는 고객사 줄 없이 주차 구역 아래 바로 내용", () => {
     const rows = buildHistoryRows({ ...base, clientFilter: "cA", weeks: ["2026-11-01"], shares: [share("cA", "2026-11-01", { thisWeek: "내용" })] });

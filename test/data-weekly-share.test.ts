@@ -16,8 +16,11 @@ let ctxA: RlsContext, ctxB: RlsContext, ctxC: RlsContext, ctxSuper: RlsContext, 
 const entry = (clientId: string, over: Partial<WeeklyEntryInput> = {}): WeeklyEntryInput => ({
   clientId, thisWeek: "이번주 내용", nextWeek: "다음주 계획", note: "", noSpecial: false, version: null, ...over,
 });
-const rowOf = (clientId: string, weekStart = WEEK) =>
-  withRLS(ROOT, (tx) => tx.weeklyShare.findUnique({ where: { weekStart_clientId: { weekStart: new Date(weekStart), clientId } } }));
+// 기록은 (주, 고객사, 작성자)당 1건이다. authorId를 생략하면 그 고객사·주에 기록이 하나뿐이라고 보고 그 행을 돌려준다.
+const rowOf = (clientId: string, weekStart = WEEK, authorId?: string) =>
+  withRLS(ROOT, (tx) =>
+    tx.weeklyShare.findFirst({ where: { weekStart: new Date(weekStart), clientId, ...(authorId ? { createdById: authorId } : {}) } }),
+  );
 
 beforeEach(async () => {
   await withRLS(ROOT, async (tx) => {
@@ -97,50 +100,59 @@ describe("submitWeekly — 고객사 카드 저장", () => {
   });
 });
 
-describe("submitWeekly — 공동 담당 PM 수정과 충돌 방지", () => {
+describe("submitWeekly — 공동 담당 PM은 각자 자기 기록을 남긴다", () => {
   beforeEach(async () => {
-    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null }); // version 1, 작성자 A
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null }); // 작성자 A, version 1
   });
 
-  it("같은 고객사의 다른 담당 PM도 수정할 수 있고, 작성자는 유지되며 수정자·수정 표시가 갱신된다", async () => {
-    const res = await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B가 고침", version: 1 })], other: null });
+  it("같은 고객사·주라도 다른 담당 PM이 제출하면 A의 기록을 고치지 않고 B의 기록이 따로 생긴다", async () => {
+    const res = await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B의 일지" })], other: null });
+    expect(res.saved).toEqual([c1]);
+    expect(res.conflicts).toEqual([]);
+    const a = (await rowOf(c1, WEEK, pmA))!;
+    const b = (await rowOf(c1, WEEK, pmB))!;
+    expect(a.thisWeek).toBe("이번주 내용");
+    expect(a.version).toBe(1);
+    expect(a.editedAt).toBeNull();
+    expect(b.thisWeek).toBe("B의 일지");
+    expect([b.createdById, b.updatedById, b.version]).toEqual([pmB, pmB, 1]);
+    expect(await withRLS(ROOT, (tx) => tx.weeklyShare.count({ where: { clientId: c1 } }))).toBe(2);
+  });
+
+  it("내가 쓴 기록을 다시 제출하면 내 기록만 수정되고 작성자는 그대로, 수정 표시와 version이 갱신된다", async () => {
+    const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "A가 고침", version: 1 })], other: null });
     expect(res.saved).toEqual([c1]);
     const row = (await rowOf(c1))!;
-    expect(row.thisWeek).toBe("B가 고침");
-    expect(row.createdById).toBe(pmA);
-    expect(row.updatedById).toBe(pmB);
-    expect(row.version).toBe(2);
+    expect([row.thisWeek, row.createdById, row.updatedById, row.version]).toEqual(["A가 고침", pmA, pmA, 2]);
     expect(row.editedAt).not.toBeNull();
   });
 
-  it("내용이 같으면 저장하지 않아 시각·수정자·version이 그대로다", async () => {
+  it("내용이 같으면 저장하지 않아 시각·version이 그대로다", async () => {
     const before = (await rowOf(c1))!;
-    const res = await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { version: 1 })], other: null });
+    const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { version: 1 })], other: null });
     expect(res.unchanged).toEqual([c1]);
     const after = (await rowOf(c1))!;
     expect(after.version).toBe(1);
     expect(after.editedAt).toBeNull();
-    expect(after.updatedById).toBe(pmA);
     expect(after.updatedAt.getTime()).toBe(before.updatedAt.getTime());
   });
 
-  it("그 사이 다른 PM이 저장했으면 그 카드만 저장하지 않고 충돌로 알린다(다른 카드는 정상 저장)", async () => {
-    // B가 먼저 고쳐 v2가 된 뒤, 낡은 화면(v1)을 가진 A가 C1과 C3를 함께 제출한다.
-    await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B가 고침", version: 1 })], other: null });
+  it("같은 사람이 낡은 화면(version)으로 제출하면 그 카드만 충돌이다(다른 카드는 정상 저장)", async () => {
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "다른 탭에서 고침", version: 1 })], other: null }); // v2
     const res = await submitWeekly(ctxA, {
       weekStart: WEEK,
-      entries: [entry(c1, { thisWeek: "A의 낡은 화면에서 제출", version: 1 }), entry(c3)],
+      entries: [entry(c1, { thisWeek: "낡은 탭에서 제출", version: 1 }), entry(c3)],
       other: null,
     });
     expect(res.ok).toBe(false);
     expect(res.conflicts).toHaveLength(1);
-    expect(res.conflicts[0]).toMatchObject({ clientId: c1, updatedByName: "pmb" });
+    expect(res.conflicts[0]).toMatchObject({ clientId: c1, updatedByName: "pma" });
     expect(res.saved).toEqual([c3]);
-    expect((await rowOf(c1))!.thisWeek).toBe("B가 고침");
+    expect((await rowOf(c1))!.thisWeek).toBe("다른 탭에서 고침");
   });
 
-  it("기록이 없다고 보고 제출했는데 그 사이 누가 만들었으면 충돌이다", async () => {
-    const res = await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "덮어쓰기 시도", version: null })], other: null });
+  it("기록이 없다고 보고 제출했는데 같은 사람이 그 사이 만들었으면 충돌이다", async () => {
+    const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "덮어쓰기 시도", version: null })], other: null });
     expect(res.conflicts.map((c) => c.clientId)).toEqual([c1]);
     expect((await rowOf(c1))!.thisWeek).toBe("이번주 내용");
   });
@@ -149,6 +161,11 @@ describe("submitWeekly — 공동 담당 PM 수정과 충돌 방지", () => {
     const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "", nextWeek: "", version: 1 })], other: null });
     expect(res.rejected).toEqual([{ clientId: c1, reason: "EMPTY_EXISTING" }]);
     expect((await rowOf(c1))!.thisWeek).toBe("이번주 내용");
+  });
+
+  it("담당자가 안 써도 한 명이 쓰면 그 고객사·주 기록이 존재한다(B는 쓰지 않음)", async () => {
+    expect(await rowOf(c1, WEEK, pmB)).toBeNull();
+    expect(await rowOf(c1, WEEK, pmA)).not.toBeNull();
   });
 });
 
@@ -199,10 +216,25 @@ describe("submitWeekly — 쓰기 권한", () => {
     expect((await rowOf(c1))!.thisWeek).toBe("이번주 내용");
   });
 
-  it("(주, 고객사)는 DB에서도 1건만 존재한다", async () => {
-    const data = { weekStart: new Date(WEEK), clientId: c3, createdById: pmA, updatedById: pmA };
+  it("공동 담당 PM이라도 다른 담당자가 쓴 기록은 DB(RLS)에서 수정할 수 없고 본인 기록은 수정할 수 있다", async () => {
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null });
+    const theirs = await withRLS(ctxB, (tx) =>
+      tx.weeklyShare.updateMany({ where: { clientId: c1, createdById: pmA }, data: { thisWeek: "B가 A의 기록 수정", updatedById: pmB } }),
+    );
+    expect(theirs.count).toBe(0);
+    expect((await rowOf(c1))!.thisWeek).toBe("이번주 내용");
+    const mine = await withRLS(ctxA, (tx) =>
+      tx.weeklyShare.updateMany({ where: { clientId: c1, createdById: pmA }, data: { thisWeek: "A가 수정", updatedById: pmA } }),
+    );
+    expect(mine.count).toBe(1);
+  });
+
+  it("(주, 고객사, 작성자)는 DB에서도 1건만 존재하고, 같은 (주, 고객사)에 다른 작성자의 기록은 따로 둘 수 있다", async () => {
+    const data = { weekStart: new Date(WEEK), clientId: c1, createdById: pmA, updatedById: pmA };
     await withRLS(ctxA, (tx) => tx.weeklyShare.create({ data }));
     await expect(withRLS(ctxA, (tx) => tx.weeklyShare.create({ data }))).rejects.toThrow();
+    await withRLS(ctxB, (tx) => tx.weeklyShare.create({ data: { ...data, createdById: pmB, updatedById: pmB } }));
+    expect(await withRLS(ROOT, (tx) => tx.weeklyShare.count({ where: { clientId: c1 } }))).toBe(2);
   });
 });
 
@@ -327,17 +359,23 @@ describe("submitWeekly — 최신 상태 반환", () => {
     expect(res.current[c1]).toMatchObject({
       version: 1, thisWeek: "이번주 내용", noSpecial: false, createdByName: "pma", updatedByName: "pma", editedAt: null,
     });
-    const res2 = await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B가 고침", version: 1 })], other: null });
-    expect(res2.current[c1]).toMatchObject({ version: 2, createdByName: "pma", updatedByName: "pmb" });
+    const res2 = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "A가 고침", version: 1 })], other: null });
+    expect(res2.current[c1]).toMatchObject({ version: 2, createdByName: "pma", updatedByName: "pma" });
     expect(res2.current[c1]!.editedAt).not.toBeNull();
   });
 
-  it("충돌한 카드는 다른 PM이 저장한 최신 내용을 돌려준다(내 입력은 저장하지 않음)", async () => {
+  it("공동 담당 PM의 기록과 섞이지 않고 내 기록만 돌려준다", async () => {
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "A의 일지" })], other: null });
+    const res = await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B의 일지" })], other: null });
+    expect(res.current[c1]).toMatchObject({ thisWeek: "B의 일지", createdByName: "pmb", version: 1 });
+  });
+
+  it("충돌한 카드는 먼저 저장된 내 기록의 최신 내용을 돌려준다(내 입력은 저장하지 않음)", async () => {
     await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1)], other: null });
-    await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B가 고침", version: 1 })], other: null });
-    const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "A의 낡은 입력", version: 1 })], other: null });
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "다른 탭에서 고침", version: 1 })], other: null });
+    const res = await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "낡은 입력", version: 1 })], other: null });
     expect(res.conflicts).toHaveLength(1);
-    expect(res.current[c1]).toMatchObject({ version: 2, thisWeek: "B가 고침", updatedByName: "pmb" });
+    expect(res.current[c1]).toMatchObject({ version: 2, thisWeek: "다른 탭에서 고침", updatedByName: "pma" });
   });
 });
 
@@ -363,6 +401,27 @@ describe("loadWeeklyBatch — 주간 공유 화면용 조회", () => {
     await submitWeekly(ctxA, { weekStart: "2026-10-25", entries: [entry(c1)], other: null });
     const data = await loadWeeklyBatch(ctxA, params(pmA));
     expect(data.weekStatus).toEqual({ [WEEK]: 2, "2026-10-25": 1 });
+  });
+
+  it("공동 담당자의 기록은 내 기록(share)이 아니라 읽기 전용 coShares로 돌려준다", async () => {
+    await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B의 일지" })], other: null });
+    const noMine = await loadWeeklyBatch(ctxA, params(pmA));
+    const c = noMine.clients.find((x) => x.name === "C1")!;
+    expect(c.share).toBeNull(); // A는 아직 안 씀
+    expect(c.coShares.map((s) => [s.createdByName, s.thisWeek])).toEqual([["pmb", "B의 일지"]]);
+    await submitWeekly(ctxA, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "A의 일지" })], other: null });
+    const both = (await loadWeeklyBatch(ctxA, params(pmA))).clients.find((x) => x.name === "C1")!;
+    expect(both.share).toMatchObject({ thisWeek: "A의 일지", createdByName: "pma" });
+    expect(both.coShares.map((s) => s.createdByName)).toEqual(["pmb"]);
+  });
+
+  it("지난주 계획은 내 기록에서만 가져오고, 주차 칩은 한 명이라도 쓴 고객사를 한 번씩만 센다", async () => {
+    await submitWeekly(ctxB, { weekStart: "2026-10-25", entries: [entry(c1, { nextWeek: "B의 계획" })], other: null });
+    await submitWeekly(ctxA, { weekStart: "2026-10-25", entries: [entry(c1, { nextWeek: "A의 계획" })], other: null });
+    await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1)], other: null }); // A는 이번 주에 안 씀
+    const data = await loadWeeklyBatch(ctxA, params(pmA));
+    expect(data.clients.find((x) => x.name === "C1")!.prevNextWeek).toBe("A의 계획");
+    expect(data.weekStatus).toEqual({ [WEEK]: 1, "2026-10-25": 1 }); // 10/25의 C1은 둘이 썼어도 1곳
   });
 
   it("기타 업무를 함께 돌려준다", async () => {
@@ -421,6 +480,13 @@ describe("loadWeeklyHistory — 히스토리용 조회", () => {
     const narrow = await loadWeeklyHistory(ctxSuper, { pmIds: [pmA, pmC], weeks: ["2026-10-25"] });
     expect(narrow.shares).toHaveLength(1);
     expect(narrow.others).toHaveLength(0);
+  });
+
+  it("공동 담당 고객사의 같은 주 기록은 작성자별로 따로 돌려준다(authorId 포함)", async () => {
+    await submitWeekly(ctxB, { weekStart: WEEK, entries: [entry(c1, { thisWeek: "B의 일지" })], other: null });
+    const data = await loadWeeklyHistory(ctxSuper, { pmIds: [pmA, pmB], weeks });
+    const c1Shares = data.shares.filter((s) => s.clientId === c1 && s.weekStart === WEEK);
+    expect(c1Shares.map((s) => [s.authorId, s.thisWeek]).sort()).toEqual([[pmA, "이번주 내용"], [pmB, "B의 일지"]].sort());
   });
 
   it("파트장 본인의 고객사·기록·기타 업무도 최고관리자와 같은 팀 관리자는 보고, 다른 팀 관리자는 못 본다", async () => {

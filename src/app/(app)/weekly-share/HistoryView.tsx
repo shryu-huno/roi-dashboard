@@ -85,15 +85,14 @@ export async function HistoryView({
     query: sp.q ?? "",
   });
 
-  // 수정은 그 고객사의 담당 PM 본인만(관리자는 보기만). 기타 업무는 작성자 본인만.
+  // 수정은 그 기록을 쓴 본인만(공동 담당자·관리자는 보기만). 기타 업무도 작성자 본인만.
   const mine = new Set((data.clientsByPm[user.id] ?? []).map((c) => c.id));
   const editableKeys = !writer
     ? []
-    : rows.filter((r) => (r.kind === "client" ? !!r.share && mine.has(r.clientId) : r.pmId === user.id)).map((r) => r.key);
+    : rows.filter((r) => (r.kind === "client" ? !!r.share && r.authorId === user.id && mine.has(r.clientId) : r.pmId === user.id)).map((r) => r.key);
 
-  const dedupe = new Set(rows.filter((r) => r.kind === "client" && r.share).map((r) => (r.kind === "client" ? `${r.clientId}|${r.weekStart}` : "")));
   const counts = {
-    shares: dedupe.size, // 공동 담당 고객사는 한 번만 센다
+    shares: rows.filter((r) => r.kind === "client" && r.share).length, // 작성자별 기록 건수
     others: rows.filter((r) => r.kind === "other").length,
     missing: rows.filter((r) => r.kind === "client" && !r.share).length,
   };
