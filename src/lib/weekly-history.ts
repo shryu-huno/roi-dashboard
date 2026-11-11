@@ -6,7 +6,7 @@ import { addWeeks, weekLabel, weekMonth, weekStartOf, weeksOverlappingMonth, typ
 
 export type HistoryMode = "month" | "all" | "range";
 
-export type HistoryShare = WeeklyShareView & { clientId: string; weekStart: string };
+export type HistoryShare = WeeklyShareView & { clientId: string; weekStart: string; authorId: string | null };
 export type HistoryOther = OtherWorkView & { authorId: string | null; weekStart: string };
 
 export type HistoryRow =
@@ -19,7 +19,8 @@ export type HistoryRow =
       partName: string | null;
       clientId: string;
       clientName: string;
-      share: WeeklyShareView | null; // null = 그 주 미작성
+      authorId: string | null; // share의 작성자(수정 권한 판단용). 미작성 행은 null
+      share: WeeklyShareView | null; // null = 그 주 미작성(담당자 누구도 쓰지 않음)
     }
   | {
       kind: "other";
@@ -86,8 +87,11 @@ function matchesOther(q: string, o: OtherWorkView): boolean {
 
 /**
  * 히스토리 표의 행. 순서: PM(파트 순서대로 미리 정렬된 pms 순) → 고객사 이름순 → 주차 최신순, PM마다 기타 업무가 뒤에 붙는다.
- * 공동 담당 고객사는 담당 PM 각자 아래에 모두 나온다. 검색어가 있으면 맞는 기록만 남기고 미작성 행은 숨긴다.
- * 고객사 하나를 고르면 PM 구분 없이 그 고객사의 주차만(미작성 주차 포함) 최신순으로 보여 준다.
+ * 기록은 작성자별 1건이라, PM 아래에는 그 PM이 쓴 기록만 나온다(공동 담당 고객사도 각자 자기 것만).
+ * 미작성 행은 그 고객사·주에 담당자 누구도 쓰지 않았을 때만 나온다(한 명이라도 쓰면 작성된 것).
+ * 검색어가 있으면 맞는 기록만 남기고 미작성 행은 숨긴다.
+ * 고객사 하나를 고르면 PM 구분 없이 그 고객사의 주차를 최신순으로, 같은 주에는 작성자별 기록을 나란히(작성자 이름순)
+ * 보여 주고 아무도 안 쓴 주차는 미작성 행으로 보여 준다.
  */
 export function buildHistoryRows(o: {
   pms: PmInfo[];
@@ -101,7 +105,12 @@ export function buildHistoryRows(o: {
 }): HistoryRow[] {
   const q = lc(o.query.trim());
   const weeksDesc = [...o.weeks].sort().reverse();
-  const shareMap = new Map(o.shares.map((s) => [`${s.clientId}|${s.weekStart}`, s]));
+  const shareMap = new Map(o.shares.map((s) => [`${s.authorId}|${s.clientId}|${s.weekStart}`, s]));
+  const byClientWeek = new Map<string, HistoryShare[]>(); // 고객사·주 → 그 주의 기록들(작성자 이름순)
+  for (const s of [...o.shares].sort((a, b) => (a.createdByName ?? "").localeCompare(b.createdByName ?? "", "ko"))) {
+    const k = `${s.clientId}|${s.weekStart}`;
+    byClientWeek.set(k, [...(byClientWeek.get(k) ?? []), s]);
+  }
   const otherMap = new Map(o.others.map((x) => [`${x.authorId}|${x.weekStart}`, x]));
   const rows: HistoryRow[] = [];
 
@@ -110,12 +119,22 @@ export function buildHistoryRows(o: {
     const client = Object.values(o.clientsByPm).flat().find((c) => c.id === o.clientFilter);
     if (!client) return [];
     for (const w of weeksDesc) {
-      const share = shareMap.get(`${client.id}|${w}`) ?? null;
-      if (share ? q && !matchesShare(q, client.name, share) : !!q) continue;
-      rows.push({
-        kind: "client", key: `-|client|${client.id}|${w}`, weekStart: w, pmId: null, pmName: null, partName: null,
-        clientId: client.id, clientName: client.name, share: share ? stripKeys(share) : null,
-      });
+      const written = byClientWeek.get(`${client.id}|${w}`) ?? [];
+      if (written.length === 0) {
+        if (q) continue;
+        rows.push({
+          kind: "client", key: `-|client|${client.id}|${w}`, weekStart: w, pmId: null, pmName: null, partName: null,
+          clientId: client.id, clientName: client.name, authorId: null, share: null,
+        });
+        continue;
+      }
+      for (const s of written) {
+        if (q && !matchesShare(q, client.name, s)) continue;
+        rows.push({
+          kind: "client", key: `-|client|${client.id}|${w}|${s.authorId}`, weekStart: w, pmId: null, pmName: null, partName: null,
+          clientId: client.id, clientName: client.name, authorId: s.authorId, share: stripKeys(s),
+        });
+      }
     }
     return rows;
   }
@@ -125,15 +144,15 @@ export function buildHistoryRows(o: {
       const clients = [...(o.clientsByPm[pm.id] ?? [])].sort((a, b) => a.name.localeCompare(b.name, "ko"));
       for (const c of clients) {
         for (const w of weeksDesc) {
-          const share = shareMap.get(`${c.id}|${w}`);
+          const share = shareMap.get(`${pm.id}|${c.id}|${w}`);
           if (share) {
             if (q && !matchesShare(q, c.name, share)) continue;
-          } else if (!o.showMissing || q) {
-            continue;
+          } else if (byClientWeek.has(`${c.id}|${w}`) || !o.showMissing || q) {
+            continue; // 이 PM은 안 썼어도 공동 담당자가 썼으면 그 주는 작성된 것 → 미작성 행을 만들지 않는다
           }
           rows.push({
             kind: "client", key: `${pm.id}|client|${c.id}|${w}`, weekStart: w, pmId: pm.id, pmName: pm.name, partName: pm.partName,
-            clientId: c.id, clientName: c.name, share: share ? stripKeys(share) : null,
+            clientId: c.id, clientName: c.name, authorId: share ? pm.id : null, share: share ? stripKeys(share) : null,
           });
         }
       }
@@ -150,8 +169,8 @@ export function buildHistoryRows(o: {
   return rows;
 }
 
-function stripKeys({ clientId: _c, weekStart: _w, ...view }: HistoryShare): WeeklyShareView {
-  void _c; void _w;
+function stripKeys({ clientId: _c, weekStart: _w, authorId: _a, ...view }: HistoryShare): WeeklyShareView {
+  void _c; void _w; void _a;
   return view;
 }
 function stripOtherKeys({ authorId: _a, weekStart: _w, ...view }: HistoryOther): OtherWorkView {
@@ -184,7 +203,11 @@ export function historyText(
     let lastPm: string | null = null;
     let lastGroup = "";
 
-    for (const r of items.filter((x) => x.weekStart === week)) {
+    const weekItems = items.filter((x) => x.weekStart === week);
+    // 고객사 하나를 볼 때 같은 주에 작성자가 여러 명이면 누가 쓴 내용인지 줄을 나눈다.
+    const multiAuthor = !!opt.single && weekItems.length > 1;
+    let lastAuthor = "";
+    for (const r of weekItems) {
       if (opt.grouped && r.pmId) {
         const part = r.partName ?? "파트 미지정";
         if (part !== lastPart) {
@@ -200,6 +223,15 @@ export function historyText(
         }
       }
       let ind = "";
+      if (multiAuthor && r.kind === "client") {
+        const author = r.share!.createdByName ?? "(삭제된 사용자)";
+        if (author !== lastAuthor) {
+          lastAuthor = author;
+          t += `  ▸ ${author}
+`;
+        }
+        ind = "    ";
+      }
       if (!opt.single) {
         const group = `${r.pmId ?? "-"}/${r.kind === "client" ? r.clientId : "other"}`;
         if (group !== lastGroup) {

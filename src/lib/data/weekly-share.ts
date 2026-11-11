@@ -11,7 +11,7 @@ export type WeeklyEntryInput = {
   nextWeek: string;
   note: string;
   noSpecial: boolean; // "이번 주 특이사항 없음" — 내용 없이 작성 완료
-  // 화면이 기록을 불러왔을 때의 version. 기록이 없었으면 null. 그 사이 다른 PM이 저장했으면 충돌로 처리한다.
+  // 화면이 내 기록을 불러왔을 때의 version. 기록이 없었으면 null. 그 사이 같은 사람이 다른 화면에서 저장했으면 충돌로 처리한다.
   version: number | null;
 };
 
@@ -54,7 +54,7 @@ export type OtherWorkView = {
 
 export type WeeklyConflict = {
   clientId: string;
-  updatedByName: string | null; // 먼저 저장한 PM
+  updatedByName: string | null; // 먼저 저장한 사람(내가 다른 화면에서 저장한 경우 본인)
   updatedAt: Date;
 };
 
@@ -63,10 +63,10 @@ export type WeeklySubmitResult = {
   saved: string[]; // 새로 만들었거나 고친 고객사
   unchanged: string[]; // 내용이 같아 건드리지 않은 고객사(시각·수정 표시 유지)
   skipped: string[]; // 비어 있는 새 카드(저장하지 않음)
-  conflicts: WeeklyConflict[]; // 그 사이 다른 PM이 저장해 저장하지 않은 카드
+  conflicts: WeeklyConflict[]; // 그 사이 같은 사람이 다른 화면에서 저장해 저장하지 않은 카드
   rejected: { clientId: string; reason: "NOT_ASSIGNED" | "EMPTY_EXISTING" }[];
   other: "none" | "saved" | "unchanged" | "skipped" | "rejected";
-  // 제출 후 각 카드의 최신 저장 상태(충돌한 카드는 다른 PM이 저장한 내용). 화면이 새로고침 없이 상태를 맞추는 데 쓴다.
+  // 제출 후 각 카드의 내 최신 저장 상태(충돌한 카드는 먼저 저장된 내용). 화면이 새로고침 없이 상태를 맞추는 데 쓴다.
   current: Record<string, WeeklyShareView | null>;
   otherCurrent: OtherWorkView | null;
 };
@@ -131,7 +131,8 @@ const sameText = (
 /**
  * 주간 공유 제출 한 번으로 고객사 카드들과 기타 업무를 저장한다(임시저장 없음).
  *  - 쓰기는 PM/파트장이면서 그 고객사의 담당 PM인 경우만. 관리자·비담당 PM은 거부(DB RLS도 막는다).
- *  - 담당 PM 전원이 같은 건을 고칠 수 있으므로 version으로 동시 수정을 감지한다.
+ *  - 기록은 (주, 고객사, 작성자)당 1건이다. 공동 담당 고객사도 각자 자기 기록만 만들고 고치며, 다른 담당자의 기록은 건드리지 않는다.
+ *  - 같은 사람이 두 화면에서 동시에 고치는 경우를 version으로 감지한다.
  *    충돌한 카드만 저장하지 않고 알리며, 나머지 카드는 정상 저장한다.
  *  - 내용이 같으면 저장하지 않아 시각·수정자·수정 표시·version이 바뀌지 않는다.
  *  - 비어 있는 새 카드는 저장하지 않는다. 이미 있는 기록을 전부 비우는 제출은 막는다.
@@ -158,7 +159,7 @@ export function submitWeekly(ctx: RlsContext, input: WeeklySubmitInput): Promise
 
     const conflictOf = async (clientId: string) => {
       const cur = await tx.weeklyShare.findUnique({
-        where: { weekStart_clientId: { weekStart, clientId } },
+        where: { weekStart_clientId_createdById: { weekStart, clientId, createdById: ctx.userId } },
         include: { updatedBy: { select: { name: true, email: true } } },
       });
       result.conflicts.push({
@@ -175,7 +176,7 @@ export function submitWeekly(ctx: RlsContext, input: WeeklySubmitInput): Promise
       }
       const next = normalizeEntry(e);
       const existing = await tx.weeklyShare.findUnique({
-        where: { weekStart_clientId: { weekStart, clientId: e.clientId } },
+        where: { weekStart_clientId_createdById: { weekStart, clientId: e.clientId, createdById: ctx.userId } },
       });
 
       if (!existing) {
@@ -183,7 +184,7 @@ export function submitWeekly(ctx: RlsContext, input: WeeklySubmitInput): Promise
           result.skipped.push(e.clientId);
           continue;
         }
-        // 동시에 다른 PM이 먼저 만들었으면(유니크 충돌) 삽입이 건너뛰어져 count=0 → 충돌.
+        // 같은 사람이 다른 화면에서 먼저 만들었으면(유니크 충돌) 삽입이 건너뛰어져 count=0 → 충돌.
         const { count } = await tx.weeklyShare.createMany({
           data: [{ weekStart, clientId: e.clientId, ...next, createdById: ctx.userId, updatedById: ctx.userId }],
           skipDuplicates: true,
@@ -215,11 +216,11 @@ export function submitWeekly(ctx: RlsContext, input: WeeklySubmitInput): Promise
 
     if (input.other) result.other = await saveOtherWork(tx, ctx, weekStart, input.other, writer);
 
-    // 최신 상태 반환: 담당 카드는 저장 후 현재 값(충돌 카드는 다른 PM이 저장한 값), 기타 업무는 내 기록.
+    // 최신 상태 반환: 담당 카드는 내 기록의 저장 후 현재 값(충돌 카드는 먼저 저장된 값), 기타 업무는 내 기록.
     const assignedIds = input.entries.map((e) => e.clientId).filter((id) => assigned.has(id));
     if (assignedIds.length) {
       const rows = await tx.weeklyShare.findMany({
-        where: { weekStart, clientId: { in: assignedIds } },
+        where: { weekStart, clientId: { in: assignedIds }, createdById: ctx.userId },
         include: shareInclude,
       });
       const byClient = new Map(rows.map((r) => [r.clientId, r]));
@@ -280,19 +281,20 @@ async function saveOtherWork(
 export type WeeklyBatchClient = {
   id: string;
   name: string;
-  share: WeeklyShareView | null; // 이번 주 기록(없으면 미작성)
-  prevNextWeek: string; // 지난주 기록의 "다음주" 내용 — "지난주 계획 가져오기"용
+  share: WeeklyShareView | null; // 내 이번 주 기록(없으면 미작성)
+  prevNextWeek: string; // 내 지난주 기록의 "다음주" 내용 — "지난주 계획 가져오기"용
+  coShares: WeeklyShareView[]; // 공동 담당자들이 쓴 이번 주 기록(읽기 전용, 작성자 이름순)
 };
 
 export type WeeklyBatchData = {
   clients: WeeklyBatchClient[];
   other: OtherWorkView | null;
-  weekStatus: Record<string, number>; // 주(일요일) → 기록이 있는 고객사 수(주차 칩의 진행 점)
+  weekStatus: Record<string, number>; // 주(일요일) → 누군가 한 명이라도 쓴 고객사 수(주차 칩의 진행 점)
 };
 
 /**
- * 한 PM의 담당 고객사 전체와 그 주의 기록을 한 번에 읽는다. 조회 범위는 RLS가 정한다
- * (PM은 본인 담당만, 관리자는 자기 범위 안에서 다른 PM의 것을 읽기 전용으로 본다).
+ * 한 PM의 담당 고객사 전체와 그 주의 기록을 한 번에 읽는다. 조회 범위는 RLS가 정한다.
+ * 편집 대상(share)은 이 PM이 쓴 기록뿐이고, 같은 고객사를 함께 맡은 다른 담당자의 기록은 coShares로 읽기 전용 제공한다.
  */
 export function loadWeeklyBatch(
   ctx: RlsContext,
@@ -313,29 +315,41 @@ export function loadWeeklyBatch(
         where: { clientId: { in: ids }, weekStart: { in: [weekStart, prevWeekStart] } },
         include: shareInclude,
       }),
+      // 고객사·주 단위로 한 번씩만 센다(공동 담당자 중 누가 썼든 그 주는 작성된 것).
       tx.weeklyShare.groupBy({
-        by: ["weekStart"],
+        by: ["weekStart", "clientId"],
         where: { clientId: { in: ids }, weekStart: { in: p.weeks.map(toDate) } },
-        _count: { _all: true },
       }),
       tx.weeklyOtherWork.findUnique({ where: { weekStart_authorId: { weekStart, authorId: p.pmId } } }),
     ]);
     return {
       clients: clients.map((c) => {
-        const mine = shares.filter((r) => r.clientId === c.id);
+        const ofClient = shares.filter((r) => r.clientId === c.id);
+        const mine = ofClient.filter((r) => r.createdById === p.pmId);
         const cur = mine.find((r) => ymdOf(r.weekStart) === p.weekStart);
         const prev = mine.find((r) => ymdOf(r.weekStart) === p.prevWeekStart);
+        const co = ofClient
+          .filter((r) => r.createdById !== p.pmId && ymdOf(r.weekStart) === p.weekStart)
+          .map(toShareView)
+          .sort((a, b) => (a.createdByName ?? "").localeCompare(b.createdByName ?? "", "ko"));
         return {
           id: c.id,
           name: c.name,
           share: cur ? toShareView(cur) : null,
           prevNextWeek: prev?.nextWeek ?? "",
+          coShares: co,
         };
       }),
       other: other ? toOtherView(other) : null,
-      weekStatus: Object.fromEntries(grouped.map((g) => [ymdOf(g.weekStart), g._count._all])),
+      weekStatus: weekStatusOf(grouped),
     };
   });
+}
+
+function weekStatusOf(rows: { weekStart: Date }[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const r of rows) out[ymdOf(r.weekStart)] = (out[ymdOf(r.weekStart)] ?? 0) + 1;
+  return out;
 }
 
 /** 가장 이른 주간 공유 주(일요일). 월 선택 범위의 아래쪽 한계를 정하는 데 쓴다. 기록이 없으면 null. */
@@ -355,7 +369,7 @@ export function earliestWeekStart(ctx: RlsContext): Promise<string | null> {
 export type WeeklyHistoryData = {
   pms: { id: string; name: string; partName: string | null }[]; // 파트 순서 → 이름순
   clientsByPm: Record<string, { id: string; name: string }[]>; // 공동 담당 고객사는 담당 PM 모두에게 들어간다
-  shares: HistoryShare[];
+  shares: HistoryShare[]; // 담당자별 기록(공동 담당 고객사는 같은 주에 여러 건)
   others: HistoryOther[];
 };
 
@@ -391,7 +405,7 @@ export function loadWeeklyHistory(ctx: RlsContext, p: { pmIds: string[]; weeks: 
     return {
       pms,
       clientsByPm,
-      shares: shares.map((r) => ({ ...toShareView(r), clientId: r.clientId, weekStart: ymdOf(r.weekStart) })),
+      shares: shares.map((r) => ({ ...toShareView(r), clientId: r.clientId, weekStart: ymdOf(r.weekStart), authorId: r.createdById })),
       others: others.map((r) => ({ ...toOtherView(r), authorId: r.authorId, weekStart: ymdOf(r.weekStart) })),
     };
   });

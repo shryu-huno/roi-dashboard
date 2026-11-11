@@ -103,7 +103,7 @@ export function HistoryTable({
       if (r.kind === "client") {
         const conflict = res.conflicts.find((c) => c.clientId === r.clientId);
         if (conflict) {
-          setMsg(`${conflict.updatedByName ?? "다른 PM"}이(가) 방금 수정했어요. 최신 내용으로 바꿨으니 확인한 뒤 다시 수정해 주세요.`);
+          setMsg("다른 화면에서 방금 수정했어요. 최신 내용으로 바꿨으니 확인한 뒤 다시 수정해 주세요.");
           setEditing(null);
           router.refresh();
           return;
@@ -176,6 +176,7 @@ export function HistoryTable({
           let lastPart: string | null = null;
           let lastPm: string | null = null;
           let lastGroup = "";
+          let lastWeek = "";
           return (
             <section key={sec.title} className="overflow-hidden rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
               <div className="border-b border-[var(--color-border)] px-5 py-3">
@@ -216,6 +217,9 @@ export function HistoryTable({
                       const showGroup = !single && group !== lastGroup;
                       lastGroup = group;
 
+                      // 고객사 하나를 볼 때 같은 주에 작성자별 행이 이어지면 주차는 첫 행에만 적는다.
+                      const showWeek = !single || r.weekStart !== lastWeek;
+                      lastWeek = r.weekStart;
                       const isEditing = editing === r.key;
                       const src = r.kind === "client" ? r.share : r.other;
                       const missing = r.kind === "client" && !r.share;
@@ -243,8 +247,8 @@ export function HistoryTable({
                               </td>
                             )}
                             <td className={tdCls}>
-                              <b className="block font-semibold">{weekLabel(r.weekStart)}</b>
-                              <span className="text-xs text-[var(--color-muted)]">{weekRange(r.weekStart)}</span>
+                              {showWeek && <b className="block font-semibold">{weekLabel(r.weekStart)}</b>}
+                              {showWeek && <span className="text-xs text-[var(--color-muted)]">{weekRange(r.weekStart)}</span>}
                               {r.kind === "other" && r.other.tags.length > 0 && (
                                 <div className="mt-1 flex flex-wrap justify-center gap-1">
                                   {r.other.tags.map((t) => (
