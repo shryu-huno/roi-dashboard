@@ -26,9 +26,9 @@ type ClientItem = {
 };
 
 const SORTS: { value: SortMode; label: string }[] = [
+  { value: "name", label: "가나다순" },
   { value: "amount", label: "금액순" },
   { value: "recent", label: "최신순" },
-  { value: "name", label: "가나다순" },
   { value: "pm", label: "PM별" },
   { value: "industry", label: "업종별" },
 ];
