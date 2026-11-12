@@ -36,6 +36,24 @@ describe("sortClients", () => {
     sortClients(rows, "name");
     expect(rows.map((r) => r.name)).toEqual(before);
   });
+
+  it("sorts by contract amount descending, ties broken by name", () => {
+    const amt = [
+      { name: "하늘", pmLabel: "x", industry: null, contractAmount: 100 },
+      { name: "가람", pmLabel: "x", industry: null, contractAmount: 300 },
+      { name: "다래", pmLabel: "x", industry: null, contractAmount: 100 },
+    ];
+    expect(sortClients(amt, "amount").map((r) => r.name)).toEqual(["가람", "다래", "하늘"]);
+  });
+
+  it("sorts by contract start date, newest first, missing dates last", () => {
+    const recent = [
+      { name: "하늘", pmLabel: "x", industry: null, contractStart: "2026-01-01" },
+      { name: "가람", pmLabel: "x", industry: null, contractStart: null },
+      { name: "다래", pmLabel: "x", industry: null, contractStart: "2026-05-01" },
+    ];
+    expect(sortClients(recent, "recent").map((r) => r.name)).toEqual(["다래", "하늘", "가람"]);
+  });
 });
 
 describe("paginate", () => {

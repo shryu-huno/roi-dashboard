@@ -8,7 +8,7 @@ export type ClientRow = {
   contract: number;
 };
 
-export type SortMode = "name" | "pm" | "industry";
+export type SortMode = "amount" | "recent" | "name" | "pm" | "industry";
 
 export const PAGE_SIZE = 10;
 
@@ -53,7 +53,7 @@ function groupCmp(a: string | null, b: string | null, isUnassigned: (v: string |
   return av < bv ? -1 : av > bv ? 1 : 0;
 }
 
-export function sortClients<T extends { name: string; pmLabel: string; industry: string | null }>(
+export function sortClients<T extends { name: string; pmLabel: string; industry: string | null; contractAmount?: number; contractStart?: string | null }>(
   rows: T[],
   mode: SortMode,
 ): T[] {
@@ -64,6 +64,23 @@ export function sortClients<T extends { name: string; pmLabel: string; industry:
   }
   if (mode === "industry") {
     return copy.sort((a, b) => groupCmp(a.industry, b.industry, (v) => v === null || v.trim() === "") || byName(a, b));
+  }
+  if (mode === "amount") {
+    // 계약금액 큰 순. 동액이면 가나다순.
+    return copy.sort((a, b) => (b.contractAmount ?? 0) - (a.contractAmount ?? 0) || byName(a, b));
+  }
+  if (mode === "recent") {
+    // 계약 시작일 최신순(YYYY-MM-DD 문자열은 사전식=시간순). 시작일 없으면 뒤로, 같으면 가나다순.
+    return copy.sort((a, b) => {
+      const as = a.contractStart ?? "";
+      const bs = b.contractStart ?? "";
+      if (as !== bs) {
+        if (!as) return 1;
+        if (!bs) return -1;
+        return as < bs ? 1 : -1; // 최신(큰 날짜)이 앞으로
+      }
+      return byName(a, b);
+    });
   }
   return copy.sort(byName);
 }

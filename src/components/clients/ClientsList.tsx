@@ -5,7 +5,7 @@ import Link from "next/link";
 import { filterClients, sortClients, formatCycle, type SortMode } from "@/lib/clients/summary-view";
 import type { PeriodSpan } from "@/lib/clients/project-span";
 import { PeriodSpanBadge } from "@/components/clients/PeriodSpanBadge";
-import { formatPercent } from "@/lib/format";
+import { formatPercent, formatThousands } from "@/lib/format";
 
 type ClientItem = {
   id: string;
@@ -21,9 +21,13 @@ type ClientItem = {
   hyundaiEasywel: boolean;
   memoCount: number; // 특이사항 메모 건수(0이면 미표시).
   latestMemo: string | null; // 최신 메모(미리보기·툴팁용).
+  contractAmount: number; // 금액순 정렬용 계약금액(가장 최근 프로젝트 기준, 관리자는 올해 비례 합산).
+  contractStart: string | null; // 최신순 정렬용 가장 최근 프로젝트 계약 시작일(YYYY-MM-DD). 없으면 null.
 };
 
 const SORTS: { value: SortMode; label: string }[] = [
+  { value: "amount", label: "금액순" },
+  { value: "recent", label: "최신순" },
   { value: "name", label: "가나다순" },
   { value: "pm", label: "PM별" },
   { value: "industry", label: "업종별" },
@@ -91,6 +95,10 @@ export function ClientsList({ clients, showPm, isAdmin }: { clients: ClientItem[
                 <div className="flex min-w-0 items-center gap-1.5">
                   <div className="truncate text-base font-medium text-[var(--color-fg)]">{c.name}</div>
                   <PeriodSpanBadge span={c.span} />
+                  {c.contractAmount > 0 && (
+                    // 계약금액(단위: 천원). 원값을 1000으로 나눠 표시. 예) 23억원 → 2,300,000
+                    <span className="shrink-0 text-xs text-[var(--color-muted)]">{formatThousands(Math.round(c.contractAmount / 1000))}</span>
+                  )}
                 </div>
                 <div className={`shrink-0 text-sm font-semibold ${c.performanceContract ? "text-[var(--color-success)]" : "text-[var(--color-primary)]"}`}>
                   {c.performanceContract && c.progress === null ? "실적 계약" : formatPercent(c.progress)}

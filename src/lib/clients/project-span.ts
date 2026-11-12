@@ -19,16 +19,30 @@ export function yearSpan(start: Date | string | null, end: Date | string | null)
   return ys === ye ? "s" : "m";
 }
 
-// 고객사의 "가장 최근 프로젝트"(계약 시작일 최신, 없으면 등록일 최신 — metrics.ts 정렬 규칙과 동일)의 연도 스팬.
-export function latestProjectSpan(
-  projects: { contractStart: Date | null; contractEnd: Date | null; createdAt: Date }[],
-): PeriodSpan | null {
+// 고객사의 "가장 최근 프로젝트"(계약 시작일 최신, 없으면 등록일 최신 — metrics.ts 정렬 규칙과 동일)를 고른다.
+function pickLatestProject<T extends { contractStart: Date | null; createdAt: Date }>(projects: T[]): T | null {
   if (projects.length === 0) return null;
-  const latest = [...projects].sort((a, b) => {
+  return [...projects].sort((a, b) => {
     const as = a.contractStart ? a.contractStart.getTime() : -Infinity; // 시작일 없으면 뒤로(nulls last)
     const bs = b.contractStart ? b.contractStart.getTime() : -Infinity;
     if (as !== bs) return bs - as; // 시작일 최신순
     return b.createdAt.getTime() - a.createdAt.getTime(); // tiebreak: 등록일 최신순
   })[0];
+}
+
+// 고객사의 "가장 최근 프로젝트"의 연도 스팬.
+export function latestProjectSpan(
+  projects: { contractStart: Date | null; contractEnd: Date | null; createdAt: Date }[],
+): PeriodSpan | null {
+  const latest = pickLatestProject(projects);
+  if (!latest) return null;
   return yearSpan(latest.contractStart, latest.contractEnd);
+}
+
+// 고객사의 "가장 최근 프로젝트" 계약 시작일(YYYY-MM-DD). 목록의 "최신순" 정렬 기준. 없으면 null.
+export function latestProjectStart(
+  projects: { contractStart: Date | null; createdAt: Date }[],
+): string | null {
+  const latest = pickLatestProject(projects);
+  return latest?.contractStart ? latest.contractStart.toISOString().slice(0, 10) : null;
 }

@@ -4,7 +4,7 @@ import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { listClients } from "@/lib/data/clients";
 import { getClientMemoSummaries } from "@/lib/data/clientMemos";
 import { effectiveClientStatus } from "@/lib/clients/status";
-import { latestProjectSpan } from "@/lib/clients/project-span";
+import { latestProjectSpan, latestProjectStart } from "@/lib/clients/project-span";
 import { getClientLatestProjectProgress } from "@/lib/data/metrics";
 import { attainment } from "@/lib/metrics/formulas";
 import { prisma } from "@/lib/db";
@@ -56,6 +56,9 @@ export default async function ClientsPage() {
       hyundaiEasywel: c.hyundaiEasywel,
       memoCount: memoSummaries.get(c.id)?.count ?? 0,
       latestMemo: memoSummaries.get(c.id)?.latest ?? null,
+      // 금액순: 가장 최근 프로젝트 계약금액(관리자는 올해 비례 합산). 최신순: 가장 최근 프로젝트 계약 시작일.
+      contractAmount: latest.get(c.id)?.contract ?? 0,
+      contractStart: latestProjectStart(c.projects),
     };
   });
 
