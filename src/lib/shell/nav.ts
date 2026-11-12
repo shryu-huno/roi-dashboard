@@ -6,7 +6,6 @@ export function navItemsForRole(role: AppRole | null): NavItem[] {
   // 정산담당자는 지출·청구/입금 입력만 담당한다(그 외 메뉴는 숨김).
   if (role === "SETTLEMENT") {
     return [
-      { href: "/expenses", label: "지출 입력" },
       { href: "/billing", label: "청구·입금 입력" },
     ];
   }
@@ -19,7 +18,6 @@ export function navItemsForRole(role: AppRole | null): NavItem[] {
   if (role) items.push({ href: "/weekly-share", label: "주간 공유" });
   // 실적·지출·청구/입금 입력은 역할이 부여된 사용자 모두. RLS가 담당 고객사로 범위 제한.
   if (role) {
-    items.push({ href: "/expenses", label: "지출 입력" });
     items.push({ href: "/billing", label: "청구·입금 입력" });
   }
   // 고객사 설정: 정산담당자/관리자는 전체 고객사, PM은 배정받은 고객사만(RLS로 범위 제한).
