@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { InvoiceRow as InvoiceRowData } from "@/lib/data/invoices";
+import { PaymentRequestClientCombobox } from "@/components/PaymentRequestClientCombobox";
 import { InvoiceRow } from "./InvoiceRow";
 
 type SortKey = "clientName" | "businessType" | "pmLabel" | "amount" | "issueDate" | "paidDate";
@@ -93,16 +94,13 @@ export function InvoiceList({
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <label className={labelCls}>
           고객사
-          <select
-            value={filters.clientId}
-            onChange={(e) => setFilters((f) => ({ ...f, clientId: e.target.value }))}
-            className={selectCls}
-          >
-            <option value="">전체 고객사</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div className="mt-1 w-52">
+            <PaymentRequestClientCombobox
+              clients={clients}
+              selectedId={filters.clientId || null}
+              onSelect={(c) => setFilters((f) => ({ ...f, clientId: c?.id ?? "" }))}
+            />
+          </div>
         </label>
         <label className={labelCls}>
           발행일자(시작)
