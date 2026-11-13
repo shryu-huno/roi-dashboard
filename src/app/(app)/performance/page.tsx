@@ -63,6 +63,7 @@ export default async function PerformancePage({
       ) : (
         <>
           <PerformanceGrid
+            key={`${clientId}-${year}-${month}`}
             clientId={clientId}
             year={year}
             month={month}
