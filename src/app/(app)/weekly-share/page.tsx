@@ -4,16 +4,15 @@ import { getRlsContext } from "@/lib/context";
 import { canViewWeeklyMembers, canWriteWeeklyShare } from "@/lib/auth/rbac";
 import { prevWeek, weekLabel, weekRange, weeksOverlappingMonth } from "@/lib/week";
 import { loadWeeklyBatch } from "@/lib/data/weekly-share";
-import { canEditBids, canSeeBidsTab, canSeeStatusTab, visibleTabs } from "./tabs";
+import { canSeeStatusTab, visibleTabs } from "./tabs";
 import { WeeklyTabs } from "./WeeklyTabs";
 import { WeeklyFilter, type WeekChip } from "./WeeklyFilter";
 import { WeeklyBatch } from "./WeeklyBatch";
 import { HistoryView, type HistoryParams } from "./HistoryView";
 import { PartStatusView, type StatusParams } from "./PartStatusView";
-import { BidsView, type BidParams } from "./BidsView";
 import { loadAdminLists, weeklyRange } from "./range";
 
-type SearchParams = HistoryParams & StatusParams & BidParams & { tab?: string; week?: string };
+type SearchParams = HistoryParams & StatusParams & { tab?: string; week?: string };
 
 export default async function WeeklySharePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
@@ -22,16 +21,14 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
   if (!user.role || user.role === "SETTLEMENT") redirect("/");
   const ctx = getRlsContext(user);
   const writer = canWriteWeeklyShare(user.role);
-  // 파트 현황·입찰·수주는 최고관리자·팀 관리자·파트장만(파트장은 파트 현황에서 본인 파트만, 입찰은 보기만).
+  // 파트 현황은 최고관리자·팀 관리자·파트장만(파트장은 본인 파트만).
   // 그 외 역할이 주소로 들어오면 일지작성 탭으로 돌려보낸다.
   const tab =
     sp.tab === "history"
       ? "history"
       : sp.tab === "status" && canSeeStatusTab(user.role)
         ? "status"
-        : sp.tab === "bids" && canSeeBidsTab(user.role)
-          ? "bids"
-          : "batch";
+        : "batch";
   const isLeader = user.role === "PART_LEADER";
 
   const range = await weeklyRange(ctx, sp.ym);
@@ -47,15 +44,6 @@ export default async function WeeklySharePage({ searchParams }: { searchParams: 
       <WeeklyTabs tabs={visibleTabs(user.role)} current={tab} />
     </>
   );
-
-  if (tab === "bids") {
-    return (
-      <div>
-        {header}
-        <BidsView ctx={ctx} sp={sp} canEdit={canEditBids(user.role)} />
-      </div>
-    );
-  }
 
   if (tab === "status" && adminLists) {
     return (

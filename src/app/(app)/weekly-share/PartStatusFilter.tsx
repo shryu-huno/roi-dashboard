@@ -9,13 +9,13 @@ import { FIELD } from "./filter-style";
 const selectCls =
   "h-[38px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]";
 const MODES: { value: StatusMode; label: string }[] = [
+  { value: "all", label: "전체" },
   { value: "month", label: "월별" },
   { value: "quarter", label: "분기별" },
-  { value: "all", label: "전체" },
 ];
 const quarterOf = (month: number) => Math.floor((month - 1) / 3) + 1;
 
-// 파트 현황 필터: [파트] · [기간: 월별/분기별/전체] · 월별=연도+월, 분기별=연도+분기, 전체=연도(그 해 1~12월).
+// 파트 현황 필터: [파트] · [기간: 전체/월별/분기별] · 월별=연도+월, 분기별=연도+분기, 전체=연도(그 해 1~12월).
 // 세 가지 모두 한 해 안의 조회다. 바꾸면 [조회] 없이 바로 이동하고, 모든 조건은 URL에 담긴다.
 export function PartStatusFilter({
   groups, partId, partFixed, mode, year, month, quarter, minYm, maxYm, tv,
