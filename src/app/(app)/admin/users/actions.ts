@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import type { AppRole } from "@/lib/auth/rbac";
 import { syncPartLeaders } from "@/lib/data/parts";
+import { type ActionState, SAVED } from "@/lib/action-state";
 
 /**
  * DB 반영 코어 (테스트 대상, 세션 비의존).
@@ -83,8 +84,10 @@ export async function applyHardDelete(input: {
   return { ok: true };
 }
 
-/** 폼에서 호출하는 server action (최고관리자 전용). */
-export async function approveUser(formData: FormData): Promise<void> {
+/** 폼에서 호출하는 server action (최고관리자 전용).
+ *  편집 드로어는 useActionState로 성공/실패를 받아 성공 시 자동으로 닫히므로, 검증 실패는
+ *  오류 화면 대신 ActionState({ ok:false, error })로 돌려준다(성공은 SAVED). */
+export async function approveUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireRole("SUPER_ADMIN");
   const userId = String(formData.get("userId"));
   const role = String(formData.get("role")) as AppRole;
@@ -93,22 +96,26 @@ export async function approveUser(formData: FormData): Promise<void> {
   // 파트 미지정("")은 null. PM·파트장만 저장되고, 선택한 팀의 파트인지는 applyApproval이 검증한다.
   const partId = String(formData.get("partId") ?? "") || null;
   const result = await applyApproval({ userId, role, teamId, partId });
-  // form action은 반환값을 쓰지 않으므로 검증 실패는 오류 화면(error.tsx)으로 알린다.
-  if (!result.ok) throw new Error(result.error);
+  if (!result.ok) return { ok: false, error: result.error };
   revalidatePath("/admin/users");
+  return SAVED;
 }
 
-export async function changeStatus(formData: FormData): Promise<void> {
+export async function changeStatus(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireRole("SUPER_ADMIN");
   const userId = String(formData.get("userId"));
   const status = String(formData.get("status")) as "ACTIVE" | "INACTIVE";
-  await applyStatus({ userId, status });
+  const result = await applyStatus({ userId, status });
+  if (!result.ok) return { ok: false, error: result.error };
   revalidatePath("/admin/users");
+  return SAVED;
 }
 
-export async function hardDeleteUser(formData: FormData): Promise<void> {
+export async function hardDeleteUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireRole("SUPER_ADMIN");
   const userId = String(formData.get("userId"));
-  await applyHardDelete({ userId });
+  const result = await applyHardDelete({ userId });
+  if (!result.ok) return { ok: false, error: result.error };
   revalidatePath("/admin/users");
+  return SAVED;
 }

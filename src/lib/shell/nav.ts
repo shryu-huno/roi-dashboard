@@ -1,4 +1,4 @@
-import { canManageUsers, canManageTeams, type AppRole } from "@/lib/auth/rbac";
+import { canManageUsers, type AppRole } from "@/lib/auth/rbac";
 
 export type NavItem = { href: string; label: string };
 
@@ -24,7 +24,7 @@ export function navItemsForRole(role: AppRole | null): NavItem[] {
   if (role) {
     items.push({ href: "/settings/clients", label: "고객사 설정" });
   }
-  if (canManageTeams(role)) items.push({ href: "/admin/teams", label: "팀 관리" });
-  if (canManageUsers(role)) items.push({ href: "/admin/users", label: "사용자 관리" });
+  // 팀 관리·사용자 관리를 "유저 관리" 한 화면으로 통합(조직 트리 + 구성원 표). 둘 다 최고관리자 전용.
+  if (canManageUsers(role)) items.push({ href: "/admin/users", label: "유저 관리" });
   return items;
 }

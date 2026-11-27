@@ -16,8 +16,8 @@ describe("navItemsForRole", () => {
   it("PART_LEADER gets the same base items, no admin links", () => {
     expect(hrefs("PART_LEADER")).toEqual(["/dashboard", "/clients", "/performance", "/weekly-share", "/billing", "/settings/clients"]);
   });
-  it("SUPER_ADMIN adds team and user management", () => {
-    expect(hrefs("SUPER_ADMIN")).toEqual(["/dashboard", "/clients", "/performance", "/weekly-share", "/billing", "/settings/clients", "/admin/teams", "/admin/users"]);
+  it("SUPER_ADMIN adds unified user management (유저 관리)", () => {
+    expect(hrefs("SUPER_ADMIN")).toEqual(["/dashboard", "/clients", "/performance", "/weekly-share", "/billing", "/settings/clients", "/admin/users"]);
   });
   it("null role sees base items only (no dashboard)", () => {
     expect(hrefs(null)).toEqual(["/clients", "/performance"]);

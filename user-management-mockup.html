@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>유저 관리 목업 (A안) — 팀 관리 + 사용자 관리 통합</title>
+<!--
+  ─────────────────────────────────────────────────────────────
+  참고용 목업 (roi-dashboard / A안: 조직 트리 + 구성원 표)
+  ─────────────────────────────────────────────────────────────
+  · 클래스 이름은 레포의 Tailwind 관례(var(--color-*) 토큰, rounded-[14px] 카드 등)를
+    그대로 따라서, JSX로 옮길 때 class → className 정도만 바꾸면 되게 했습니다.
+  · 이 파일은 Tailwind Play CDN + 바닐라 JS로 동작합니다. 실제 구현에서는
+    서버 컴포넌트 + 쿼리 파라미터(?team= / ?part= / ?status=pending)로 대체하세요.
+
+  레포 반영 위치 제안
+  1) src/lib/shell/nav.ts
+       팀 관리·사용자 관리 두 항목 → { href: "/admin/users", label: "유저 관리" } 하나로
+  2) src/app/(app)/admin/users/page.tsx
+       이 목업의 <main> 영역. searchParams로 선택 그룹을 받아 prisma 쿼리 필터링
+  3) src/app/(app)/admin/teams/page.tsx
+       redirect("/admin/users") (또는 ?team=… 유지) — 기존 북마크 보호
+  4) 팀/파트 액션: admin/teams/actions.ts 재사용 (revalidatePath를 "/admin/users"로)
+  5) 편집 패널: admin/users/actions.ts 의 approveUser / changeStatus 재사용,
+       TeamPartFields 컴포넌트를 패널 안에 그대로 넣으면 됨
+  ─────────────────────────────────────────────────────────────
+-->
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+  /* src/app/globals.css 의 토큰과 동일 */
+  :root {
+    --color-bg: #F7F9FC;
+    --color-surface: #FFFFFF;
+    --color-primary: #2563EB;
+    --color-fg: #0F172A;
+    --color-muted: #64748B;
+    --color-border: #E8EDF4;
+    --color-hover: #E8EFFC;
+    --color-success: #10B981;
+    --color-danger: #F43F5E;
+    --color-sidebar: #0F172A;
+  }
+  body { background: var(--color-bg); color: var(--color-fg); margin: 0;
+         font-family: "Pretendard", "Noto Sans KR", system-ui, -apple-system, sans-serif; }
+  button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--color-primary); outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="flex min-h-screen flex-wrap">
+
+  <!-- ═══ 사이드바 (Sidebar.tsx) ═══ -->
+  <nav aria-label="주 메뉴" class="flex w-full flex-col gap-1 bg-[var(--color-sidebar)] px-3 py-5 text-slate-300 md:w-[220px]">
+    <div class="px-3 pb-5 text-base font-bold text-white">HUNO ROI</div>
+    <a href="#" class="rounded-lg px-3 py-2.5 hover:bg-slate-800">전체 현황</a>
+    <a href="#" class="rounded-lg px-3 py-2.5 hover:bg-slate-800">고객사 목록</a>
+    <a href="#" class="rounded-lg px-3 py-2.5 hover:bg-slate-800">실적 입력</a>
+    <a href="#" class="rounded-lg px-3 py-2.5 hover:bg-slate-800">주간 공유</a>
+    <a href="#" class="rounded-lg px-3 py-2.5 hover:bg-slate-800">청구·입금 입력</a>
+    <a href="#" class="rounded-lg px-3 py-2.5 hover:bg-slate-800">고객사 설정</a>
+    <!-- 변경: "팀 관리" + "사용자 관리" → "유저 관리" 하나 (승인 대기 배지는 선택 사항) -->
+    <a href="#" aria-current="page" class="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-2.5 font-semibold text-white">
+      <span>유저 관리</span>
+      <span data-bind="pendingCount" class="rounded-full bg-amber-400 px-2 text-[11px] font-bold text-slate-900"></span>
+    </a>
+  </nav>
+
+  <!-- ═══ 본문 (admin/users/page.tsx) ═══ -->
+  <main class="min-w-0 flex-1 p-8">
+    <div class="mb-5 flex flex-wrap items-baseline gap-3">
+      <h1 class="text-xl font-semibold">유저 관리</h1>
+      <span class="text-sm text-[var(--color-muted)]">
+        전체 <span data-bind="totalCount"></span>명 · 승인 대기 <span data-bind="pendingCount"></span>명 · 팀 <span data-bind="teamCount"></span>개
+      </span>
+    </div>
+
+    <div class="flex flex-col gap-5 lg:flex-row lg:items-start">
+
+      <!-- ─── 왼쪽: 조직 트리 (새 컴포넌트 OrgTree.tsx 제안) ─── -->
+      <section aria-label="조직" class="w-full shrink-0 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 lg:w-[260px]">
+        <div id="tree" class="flex flex-col gap-0.5"></div>
+        <!-- 팀 추가: createTeamAction 재사용 -->
+        <form class="mt-3 flex gap-2" onsubmit="event.preventDefault()">
+          <input type="text" placeholder="새 팀 이름" aria-label="새 팀 이름"
+                 class="min-w-0 flex-1 rounded-[10px] border border-[var(--color-border)] px-3 py-1.5 text-sm outline-none focus:border-[var(--color-primary)]">
+          <button type="submit" class="rounded border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-primary)]">팀 추가</button>
+        </form>
+      </section>
+
+      <!-- ─── 오른쪽: 선택 그룹 헤더 + 구성원 표 ─── -->
+      <section aria-label="구성원" class="flex min-w-0 flex-1 flex-col gap-4">
+        <div id="groupHeader"></div>
+
+        <div class="overflow-x-auto rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-[var(--color-border)]">
+                <th class="whitespace-nowrap px-4 py-4 text-left text-sm font-bold text-[var(--color-muted)]">이름</th>
+                <th class="whitespace-nowrap px-4 py-4 text-left text-sm font-bold text-[var(--color-muted)]">역할</th>
+                <th class="whitespace-nowrap px-4 py-4 text-left text-sm font-bold text-[var(--color-muted)]">팀 · 파트</th>
+                <th class="whitespace-nowrap px-4 py-4 text-left text-sm font-bold text-[var(--color-muted)]">상태</th>
+                <th class="w-[1%] whitespace-nowrap px-4 py-4 text-right text-sm font-bold text-[var(--color-muted)]">작업</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <p id="empty" class="hidden p-8 text-center text-[var(--color-muted)]">이 그룹에 속한 구성원이 없습니다.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ═══ 편집 패널 (새 컴포넌트 UserEditPanel.tsx 제안, "use client") ═══
+     기존 표의 행마다 있던 역할/팀/파트 select + 저장 버튼을 이 패널로 옮김.
+     폼 action = approveUser (기존 그대로). 팀·파트 select는 TeamPartFields 재사용. -->
+<div id="drawer" class="fixed inset-0 z-50 hidden justify-end bg-slate-900/35" role="dialog" aria-modal="true" aria-labelledby="edName">
+  <aside class="flex h-full w-full max-w-[400px] flex-col gap-5 bg-[var(--color-surface)] p-7 shadow-xl">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 id="edName" class="text-lg font-semibold"></h2>
+        <p id="edEmail" class="text-[13px] text-[var(--color-muted)]"></p>
+      </div>
+      <button type="button" id="closeBtn" aria-label="닫기" class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>
+      </button>
+    </div>
+    <span id="edStatus"></span>
+
+    <form id="editForm" class="flex flex-1 flex-col gap-4">
+      <label class="flex flex-col gap-1.5 text-[13px] text-[var(--color-muted)]">역할
+        <select name="role" id="fRole" class="min-h-[44px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]">
+          <option value="SUPER_ADMIN">최고관리자</option>
+          <option value="ADMIN">팀 관리자</option>
+          <option value="PART_LEADER">파트장</option>
+          <option value="SETTLEMENT">정산담당자</option>
+          <option value="PM">PM</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1.5 text-[13px] text-[var(--color-muted)]">팀
+        <select name="teamId" id="fTeam" class="min-h-[44px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)]"></select>
+      </label>
+      <label class="flex flex-col gap-1.5 text-[13px] text-[var(--color-muted)]">파트
+        <select name="partId" id="fPart" class="min-h-[44px] rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-primary)] disabled:opacity-50"></select>
+      </label>
+      <p class="text-xs leading-relaxed text-[var(--color-muted)]">
+        팀은 팀 관리자·파트장·PM에게만 적용됩니다. 최고관리자·정산담당자는 전체 접근이라 팀이 무시됩니다.
+      </p>
+
+      <div class="mt-auto flex flex-col gap-2.5">
+        <button type="submit" id="saveBtn" class="min-h-[44px] rounded-[10px] bg-[var(--color-primary)] font-semibold text-white"></button>
+        <!-- changeStatus(INACTIVE) -->
+        <button type="button" id="deactivateBtn" class="hidden min-h-[44px] rounded-[10px] border border-[var(--color-border)]">비활성화</button>
+        <!-- DeleteUserButton -->
+        <button type="button" id="deleteBtn" class="hidden min-h-[44px] rounded-[10px] border border-rose-200 text-rose-600">계정 삭제</button>
+      </div>
+    </form>
+  </aside>
+</div>
+
+<script>
+/* ─────────── 샘플 데이터 (실제로는 prisma.team / prisma.part / prisma.user) ─────────── */
+const teams = [
+  { id: "t1", name: "1팀", parts: [{ id: "p11", name: "1파트" }, { id: "p12", name: "2파트" }] },
+  { id: "t2", name: "2팀", parts: [{ id: "p21", name: "1파트" }] },
+  { id: "t3", name: "3팀", parts: [] },
+];
+const users = [
+  { id: "u1",  name: "관리자",       email: "admin@huno.kr",   role: "SUPER_ADMIN", teamId: "",   partId: "",    status: "ACTIVE" },
+  { id: "u2",  name: "정산 담당",    email: "finance@huno.kr", role: "SETTLEMENT",  teamId: "",   partId: "",    status: "ACTIVE" },
+  { id: "u3",  name: "1팀 팀장",     email: "lead1@huno.kr",   role: "ADMIN",       teamId: "t1", partId: "",    status: "ACTIVE" },
+  { id: "u4",  name: "1팀 1파트장",  email: "part11@huno.kr",  role: "PART_LEADER", teamId: "t1", partId: "p11", status: "ACTIVE" },
+  { id: "u5",  name: "PM A",         email: "pm.a@huno.kr",    role: "PM",          teamId: "t1", partId: "p11", status: "ACTIVE" },
+  { id: "u6",  name: "PM B",         email: "pm.b@huno.kr",    role: "PM",          teamId: "t1", partId: "p12", status: "ACTIVE" },
+  { id: "u7",  name: "2팀 팀장",     email: "lead2@huno.kr",   role: "ADMIN",       teamId: "t2", partId: "",    status: "ACTIVE" },
+  { id: "u8",  name: "PM C",         email: "pm.c@huno.kr",    role: "PM",          teamId: "t2", partId: "p21", status: "ACTIVE" },
+  { id: "u9",  name: "PM D",         email: "pm.d@huno.kr",    role: "PM",          teamId: "t3", partId: "",    status: "INACTIVE" },
+  { id: "u10", name: "신규 입사자 1", email: "new1@huno.kr",   role: null,          teamId: "",   partId: "",    status: "PENDING" },
+  { id: "u11", name: "신규 입사자 2", email: "new2@huno.kr",   role: null,          teamId: "",   partId: "",    status: "PENDING" },
+];
+
+/* lib/labels.ts 의 roleLabel / statusLabel 대응 */
+const roleLabel   = { SUPER_ADMIN: "최고관리자", ADMIN: "팀 관리자", PART_LEADER: "파트장", SETTLEMENT: "정산담당자", PM: "PM" };
+const statusLabel = { ACTIVE: "활성", PENDING: "승인 대기", INACTIVE: "비활성" };
+const statusStyle = { ACTIVE: "bg-emerald-50 text-emerald-700", PENDING: "bg-amber-50 text-amber-700", INACTIVE: "bg-slate-100 text-slate-500" };
+
+const teamById = Object.fromEntries(teams.map(t => [t.id, t]));
+const partById = {};
+teams.forEach(t => t.parts.forEach(p => { partById[p.id] = { ...p, teamId: t.id }; }));
+
+/* 선택 상태 — 실제 구현에서는 URL 쿼리 파라미터
+   all → /admin/users
+   pending → ?status=pending   unassigned → ?team=none
+   팀 → ?team=<id>              파트 → ?part=<id>            */
+let sel = "all";
+let editingId = null;
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const isActiveMember = u => u.status !== "PENDING";
+const countTeam = id => users.filter(u => u.teamId === id && isActiveMember(u)).length;
+const countPart = id => users.filter(u => u.partId === id && isActiveMember(u)).length;
+const leaderOf  = id => {
+  const l = users.find(u => u.partId === id && u.role === "PART_LEADER" && u.status === "ACTIVE");
+  return l ? l.name : "미지정";
+};
+const pill = st => `<span class="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyle[st]}">${statusLabel[st]}</span>`;
+
+/* ─────────── 트리 ─────────── */
+function treeBtn(key, label, right, indent = false) {
+  const active = sel === key;
+  const cls = [
+    "flex min-h-[40px] w-full items-center justify-between rounded-lg pr-2.5 text-left text-sm",
+    indent ? "pl-6" : "pl-2.5",
+    active ? "bg-[var(--color-hover)] font-semibold text-blue-700" : (indent ? "hover:bg-[var(--color-bg)]" : "font-medium hover:bg-[var(--color-bg)]"),
+  ].join(" ");
+  return `<button type="button" data-sel="${key}" class="${cls}" ${active ? 'aria-current="true"' : ""}>
+    <span>${label}</span>${right}</button>`;
+}
+function renderTree() {
+  const num = n => `<span class="font-normal text-[var(--color-muted)]">${n}</span>`;
+  const pending = users.filter(u => u.status === "PENDING").length;
+  const unassigned = users.filter(u => !u.teamId && isActiveMember(u)).length;
+  let html = "";
+  html += treeBtn("all", "전체 구성원", num(users.length));
+  html += treeBtn("pending", "승인 대기", `<span class="rounded-full bg-amber-50 px-2 text-xs font-semibold text-amber-700">${pending}</span>`);
+  html += `<div class="mx-1 my-2 h-px bg-[var(--color-border)]"></div>
+           <div class="px-2.5 py-1 text-xs font-bold text-[var(--color-muted)]">팀 · 파트</div>`;
+  teams.forEach(t => {
+    html += treeBtn(t.id, esc(t.name), num(countTeam(t.id)));
+    t.parts.forEach(p => { html += treeBtn(p.id, "└ " + esc(p.name), num(countPart(p.id)), true); });
+  });
+  html += treeBtn("unassigned", "팀 미배정", num(unassigned));
+  document.getElementById("tree").innerHTML = html;
+}
+
+/* ─────────── 그룹 헤더 (팀 관리 페이지의 기능이 여기로 이동) ─────────── */
+const lineBtn   = "rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs";
+const dangerBtn = "rounded border border-[var(--color-danger)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-rose-600";
+
+function renderHeader() {
+  const el = document.getElementById("groupHeader");
+  const pending = users.filter(u => u.status === "PENDING").length;
+
+  if (sel === "all") {
+    el.innerHTML = `
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-lg font-semibold">전체 구성원</h2>
+          <div class="flex flex-wrap gap-2">
+            <input type="search" placeholder="이름 또는 이메일 검색" aria-label="검색"
+              class="w-56 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]">
+            <select aria-label="역할 필터" class="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm">
+              <option>모든 역할</option>${Object.values(roleLabel).map(r => `<option>${r}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        ${pending ? `
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+          <span>승인을 기다리는 사용자가 ${pending}명 있어요. 역할과 팀을 정해 활성화해 주세요.</span>
+          <button type="button" data-sel="pending" class="rounded-lg bg-amber-700 px-3.5 py-2 text-[13px] text-white">대기 목록 보기</button>
+        </div>` : ""}
+      </div>`;
+    return;
+  }
+  if (sel === "pending") {
+    el.innerHTML = `<h2 class="text-lg font-semibold">승인 대기</h2>
+      <p class="mt-1 text-sm text-[var(--color-muted)]">Google 계정(@huno.kr)으로 처음 로그인한 사용자입니다. 승인하면서 역할과 팀·파트를 함께 지정합니다.</p>`;
+    return;
+  }
+  if (sel === "unassigned") {
+    el.innerHTML = `<h2 class="text-lg font-semibold">팀 미배정</h2>
+      <p class="mt-1 text-sm text-[var(--color-muted)]">최고관리자·정산담당자는 전체 접근이라 팀이 없어도 됩니다. PM·파트장은 팀을 배정해 주세요.</p>`;
+    return;
+  }
+  if (teamById[sel]) {
+    const t = teamById[sel];
+    // renameTeamAction / createPartAction / deleteTeamAction 재사용
+    el.innerHTML = `
+      <div class="flex flex-col gap-3.5 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-baseline gap-2.5">
+            <h2 class="text-lg font-semibold">${esc(t.name)}</h2>
+            <span class="text-sm text-[var(--color-muted)]">소속 ${countTeam(t.id)}명 · 파트 ${t.parts.length}개</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="${lineBtn}">이름 변경</button>
+            <button type="button" class="${lineBtn}">+ 파트 추가</button>
+            <button type="button" class="${dangerBtn}">팀 삭제</button>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          ${t.parts.length ? t.parts.map(p => `
+            <button type="button" data-sel="${p.id}" class="flex flex-col gap-0.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-left text-[13px] hover:border-[var(--color-primary)]">
+              <span class="font-semibold">${esc(p.name)} · ${countPart(p.id)}명</span>
+              <span class="text-[var(--color-muted)]">파트장 ${esc(leaderOf(p.id))}</span>
+            </button>`).join("")
+          : `<span class="text-sm text-[var(--color-muted)]">등록된 파트가 없습니다.</span>`}
+        </div>
+      </div>`;
+    return;
+  }
+  if (partById[sel]) {
+    const p = partById[sel];
+    const t = teamById[p.teamId];
+    // renamePartAction / deletePartAction 재사용
+    el.innerHTML = `
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+        <div>
+          <div class="flex items-baseline gap-1.5">
+            <button type="button" data-sel="${t.id}" class="text-sm text-[var(--color-primary)] hover:underline">${esc(t.name)}</button>
+            <span class="text-[var(--color-muted)]">›</span>
+            <h2 class="text-lg font-semibold">${esc(p.name)}</h2>
+          </div>
+          <p class="mt-1 text-sm text-[var(--color-muted)]">소속 ${countPart(p.id)}명 · 파트장 <strong class="font-semibold text-[var(--color-fg)]">${esc(leaderOf(p.id))}</strong></p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="${lineBtn}">이름 변경</button>
+          <button type="button" class="${dangerBtn}">파트 삭제</button>
+        </div>
+      </div>`;
+  }
+}
+
+/* ─────────── 구성원 표 ─────────── */
+function filteredUsers() {
+  if (sel === "pending")    return users.filter(u => u.status === "PENDING");
+  if (sel === "unassigned") return users.filter(u => !u.teamId && isActiveMember(u));
+  if (teamById[sel])        return users.filter(u => u.teamId === sel && isActiveMember(u));
+  if (partById[sel])        return users.filter(u => u.partId === sel && isActiveMember(u));
+  return users;
+}
+function renderRows() {
+  const list = filteredUsers();
+  document.getElementById("empty").classList.toggle("hidden", list.length > 0);
+  document.getElementById("rows").innerHTML = list.map(u => {
+    const teamPart = u.teamId
+      ? esc(teamById[u.teamId]?.name ?? "(삭제된 팀)") + (u.partId ? " · " + esc(partById[u.partId]?.name ?? "(삭제된 파트)") : "")
+      : "—";
+    const rowCls = [
+      "border-b border-[var(--color-border)] transition-colors last:border-b-0 hover:bg-[var(--color-bg)]",
+      u.status === "PENDING" ? "bg-amber-50/60" : "",
+      u.status === "INACTIVE" ? "text-[var(--color-muted)]" : "",
+    ].join(" ");
+    const action = u.status === "PENDING"
+      ? `<button type="button" data-edit="${u.id}" class="rounded bg-[var(--color-primary)] px-3 py-1.5 text-xs text-white">승인하기</button>`
+      : `<button type="button" data-edit="${u.id}" class="rounded border border-[var(--color-border)] px-3 py-1.5 text-xs">편집</button>`;
+    return `<tr class="${rowCls}">
+      <td class="whitespace-nowrap px-4 py-3"><div class="font-medium">${esc(u.name ?? "-")}</div><div class="text-xs text-[var(--color-muted)]">${esc(u.email)}</div></td>
+      <td class="whitespace-nowrap px-4 py-3">${u.role ? roleLabel[u.role] : "—"}</td>
+      <td class="whitespace-nowrap px-4 py-3">${teamPart}</td>
+      <td class="whitespace-nowrap px-4 py-3">${pill(u.status)}</td>
+      <td class="w-[1%] whitespace-nowrap px-4 py-3 text-right">${action}</td>
+    </tr>`;
+  }).join("");
+}
+
+/* ─────────── 편집 패널 ─────────── */
+const fRole = document.getElementById("fRole");
+const fTeam = document.getElementById("fTeam");
+const fPart = document.getElementById("fPart");
+
+function fillParts(teamId, partId) {
+  // TeamPartFields 와 동일: 선택한 팀의 파트만, 팀이 없으면 비활성
+  const parts = teamById[teamId]?.parts ?? [];
+  fPart.innerHTML = `<option value="">파트 없음</option>` + parts.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  fPart.value = partId || "";
+  fPart.disabled = !teamId;
+}
+function openEditor(id) {
+  const u = users.find(x => x.id === id);
+  editingId = id;
+  document.getElementById("edName").textContent = u.name ?? u.email;
+  document.getElementById("edEmail").textContent = u.email;
+  document.getElementById("edStatus").innerHTML = pill(u.status);
+  fRole.value = u.role ?? "PM";
+  fTeam.innerHTML = `<option value="">팀 없음</option>` + teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join("");
+  fTeam.value = u.teamId;
+  fillParts(u.teamId, u.partId);
+  document.getElementById("saveBtn").textContent = u.status === "ACTIVE" ? "저장" : "저장하고 활성화";
+  document.getElementById("deactivateBtn").classList.toggle("hidden", u.status !== "ACTIVE");
+  document.getElementById("deleteBtn").classList.toggle("hidden", u.status !== "INACTIVE");
+  const d = document.getElementById("drawer");
+  d.classList.remove("hidden"); d.classList.add("flex");
+  fRole.focus();
+}
+function closeEditor() {
+  editingId = null;
+  const d = document.getElementById("drawer");
+  d.classList.add("hidden"); d.classList.remove("flex");
+}
+fTeam.addEventListener("change", () => fillParts(fTeam.value, ""));
+document.getElementById("closeBtn").addEventListener("click", closeEditor);
+document.getElementById("drawer").addEventListener("click", e => { if (e.target.id === "drawer") closeEditor(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && editingId) closeEditor(); });
+
+document.getElementById("editForm").addEventListener("submit", e => {
+  e.preventDefault(); // 실제: <form action={approveUser}>
+  const u = users.find(x => x.id === editingId);
+  Object.assign(u, { role: fRole.value, teamId: fTeam.value, partId: fPart.value, status: "ACTIVE" });
+  closeEditor(); render();
+});
+document.getElementById("deactivateBtn").addEventListener("click", () => {
+  users.find(x => x.id === editingId).status = "INACTIVE"; // 실제: changeStatus
+  closeEditor(); render();
+});
+document.getElementById("deleteBtn").addEventListener("click", () => {
+  const i = users.findIndex(x => x.id === editingId);
+  if (confirm("이 계정을 삭제할까요?")) { users.splice(i, 1); closeEditor(); render(); } // 실제: DeleteUserButton
+});
+
+/* ─────────── 공통 ─────────── */
+document.addEventListener("click", e => {
+  const s = e.target.closest("[data-sel]");
+  if (s) { sel = s.dataset.sel; render(); return; }
+  const ed = e.target.closest("[data-edit]");
+  if (ed) openEditor(ed.dataset.edit);
+});
+function render() {
+  const pending = users.filter(u => u.status === "PENDING").length;
+  document.querySelectorAll('[data-bind="pendingCount"]').forEach(n => n.textContent = pending);
+  document.querySelectorAll('[data-bind="totalCount"]').forEach(n => n.textContent = users.length);
+  document.querySelectorAll('[data-bind="teamCount"]').forEach(n => n.textContent = teams.length);
+  renderTree(); renderHeader(); renderRows();
+}
+render();
+</script>
+</body>
+</html>
