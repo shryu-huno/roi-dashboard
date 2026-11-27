@@ -8,6 +8,8 @@ import { formatWon, formatPercent } from "@/lib/format";
 
 const SORTS: { value: SortMode; label: string }[] = [
   { value: "name", label: "가나다순" },
+  { value: "amount", label: "금액순" },
+  { value: "recent", label: "최신순" },
   { value: "pm", label: "PM별" },
   { value: "industry", label: "업종별" },
 ];
@@ -17,7 +19,9 @@ export function ClientSummaryTable({ clients }: { clients: ClientRow[] }) {
   const [sort, setSort] = useState<SortMode>("name");
   const [page, setPage] = useState(1);
 
-  const sorted = useMemo(() => sortClients(filterClients(clients, query), sort), [clients, query, sort]);
+  // 금액순 정렬은 기간 계약금(contract)을 기준으로 한다(고객사 목록의 "금액순"과 동일 개념).
+  const rows = useMemo(() => clients.map((c) => ({ ...c, contractAmount: c.contract })), [clients]);
+  const sorted = useMemo(() => sortClients(filterClients(rows, query), sort), [rows, query, sort]);
   const { pageRows, totalPages, page: current } = paginate(sorted, page);
 
   return (

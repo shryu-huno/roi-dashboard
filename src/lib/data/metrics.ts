@@ -6,6 +6,7 @@ import { withVat, withVatSplit, fromGross } from "@/lib/vat";
 import { sessionDateBetween, sessionMonth } from "@/lib/consulting-basis";
 import { eachMonth, orderRange, type Ym } from "@/lib/month-range";
 import { deriveProjectName } from "@/lib/clients/summary-view";
+import { latestProjectStart } from "@/lib/clients/project-span";
 import { overlapRatio } from "@/lib/metrics/proration";
 import { usesProratedAttainment } from "@/lib/auth/rbac";
 
@@ -365,6 +366,7 @@ export type ClientSummary = {
   pms: { id: string; label: string }[]; // 담당 PM(여러 명)
   pmLabel: string; // 담당 PM 라벨(쉼표 결합), 없으면 "미배정"
   industry: string | null;
+  contractStart: string | null; // 최신순 정렬용 가장 최근 프로젝트 계약 시작일(YYYY-MM-DD). 없으면 null.
   performance: number;
   expense: number;
   contract: number;
@@ -381,7 +383,11 @@ export async function getClientSummaries(
   const { startMonth, endMonth } = resolvePeriod(period);
   const monthRange = { gte: startMonth, lte: endMonth };
   const base = await withRLS(ctx, async (tx) => {
-    const clients = await tx.client.findMany({ where: clientWhere(easywelOnly), orderBy: { name: "asc" }, include: { managers: true } });
+    const clients = await tx.client.findMany({
+      where: clientWhere(easywelOnly),
+      orderBy: { name: "asc" },
+      include: { managers: true, projects: { where: { deletedAt: null }, select: { contractStart: true, createdAt: true } } },
+    });
     const perfRows = await tx.monthlyPerformance.findMany({
       where: { year, month: monthRange },
       select: { amount: true, task: { select: { clientId: true, vatExempt: true } } },
@@ -449,6 +455,7 @@ export async function getClientSummaries(
       name: c.name,
       pmIds: c.managers.map((m) => m.userId),
       industry: c.industry,
+      contractStart: latestProjectStart(c.projects),
       performance: withVatSplit(perfTaxable.get(c.id) ?? 0, perfExempt.get(c.id) ?? 0, includeVat),
       // 지출은 부가세 미포함(원장 원값).
       expense: expByClient.get(c.id) ?? 0,

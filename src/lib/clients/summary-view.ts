@@ -6,6 +6,7 @@ export type ClientRow = {
   performance: number;
   expense: number;
   contract: number;
+  contractStart?: string | null; // 최신순 정렬용 가장 최근 프로젝트 계약 시작일(YYYY-MM-DD). 없으면 null.
 };
 
 export type SortMode = "amount" | "recent" | "name" | "pm" | "industry";

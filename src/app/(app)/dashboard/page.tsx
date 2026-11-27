@@ -4,20 +4,19 @@ import { isAllAccess, isTeamScoped } from "@/lib/auth/rbac";
 import { parsePeriodParams } from "@/lib/period";
 import {
   getPeriodTotals, getContractTotal, getMonthlyTrend,
-  getExpenseBreakdown, getClientSummaries, rollupPmSummaries,
+  getClientSummaries, rollupPmSummaries,
 } from "@/lib/data/metrics";
 import { attainment, billingRate, collectionRate } from "@/lib/metrics/formulas";
 import { getIncludeVat } from "@/lib/vat";
 import { getEasywelOnly } from "@/lib/easywel";
 import { formatWon, formatPercent } from "@/lib/format";
-import { expenseCategoryLabel } from "@/lib/labels";
 import { KpiCard } from "@/components/charts/KpiCard";
 import { FunnelChart } from "@/components/charts/FunnelChart";
-import { DonutChart } from "@/components/charts/DonutChart";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { BarList } from "@/components/charts/BarList";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { ClientSummaryTable } from "@/components/dashboard/ClientSummaryTable";
+import { PmSummaryTable } from "@/components/dashboard/PmSummaryTable";
 import { EasywelFilterToggle } from "@/components/dashboard/EasywelFilterToggle";
 import { BasisToggle } from "@/components/dashboard/BasisToggle";
 import { getFiscalBasis } from "@/lib/basis";
@@ -38,11 +37,10 @@ export default async function DashboardPage({
   const fiscalBasis = await getFiscalBasis();
 
   // 각 조회는 독립 트랜잭션이므로 병렬 실행 가능.
-  const [totals, contract, trend, breakdown, clients] = await Promise.all([
+  const [totals, contract, trend, clients] = await Promise.all([
     getPeriodTotals(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
     getContractTotal(ctx, year, period, includeVat, easywelOnly),
     getMonthlyTrend(ctx, year, includeVat, easywelOnly, fiscalBasis),
-    getExpenseBreakdown(ctx, year, period, easywelOnly),
     getClientSummaries(ctx, year, period, includeVat, easywelOnly, fiscalBasis),
   ]);
   // PM별 집계는 전체 접근·팀 관리자·파트장에게 노출. 데이터(clients)는 RLS로 각자의 범위(전체/팀/파트)로 제한된다.
@@ -93,38 +91,16 @@ export default async function DashboardPage({
       </section>
 
       <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">지출 구성</h2>
-        <DonutChart segments={breakdown.map((s) => ({ label: expenseCategoryLabel(s.category), value: s.amount }))} />
-      </section>
-
-      {showPm && (
-        <section className="mb-8 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">PM별 집계</h2>
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted)]">
-                <th className="py-2">PM</th><th>담당 고객사</th><th>실적</th><th>지출</th><th>수익률</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pms.map((p) => (
-                <tr key={p.pmId ?? "none"} className="border-b border-[var(--color-border)]">
-                  <td className="py-2">{p.label}</td>
-                  <td>{p.clientCount}</td>
-                  <td>{formatWon(p.performance)}</td>
-                  <td>{formatWon(p.expense)}</td>
-                  <td>준비중</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      <section className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">고객사별 요약</h2>
         <ClientSummaryTable clients={clients} />
       </section>
+
+      {showPm && (
+        <section className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-fg)]">PM별 집계</h2>
+          <PmSummaryTable pms={pms} />
+        </section>
+      )}
     </div>
   );
 }
