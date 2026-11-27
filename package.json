@@ -11,7 +11,8 @@
     "test": "vitest run",
     "seed": "node prisma/seed.js",
     "test:watch": "vitest",
-    "postinstall": "prisma generate"
+    "prisma:generate": "prisma generate && node scripts/fix-prisma-imports.mjs",
+    "postinstall": "prisma generate && node scripts/fix-prisma-imports.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
